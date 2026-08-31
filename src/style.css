@@ -96,6 +96,75 @@ textarea {
   border: 1px solid rgba(148, 163, 184, 0.16);
 }
 
+.resize-handle {
+  position: fixed;
+  z-index: 1000;
+}
+
+.resize-n,
+.resize-s {
+  left: 8px;
+  right: 8px;
+  height: 6px;
+  cursor: ns-resize;
+}
+
+.resize-n {
+  top: 0;
+}
+
+.resize-s {
+  bottom: 0;
+}
+
+.resize-e,
+.resize-w {
+  top: 8px;
+  bottom: 8px;
+  width: 6px;
+  cursor: ew-resize;
+}
+
+.resize-w {
+  left: 0;
+}
+
+.resize-e {
+  right: 0;
+}
+
+.resize-nw,
+.resize-ne,
+.resize-sw,
+.resize-se {
+  width: 10px;
+  height: 10px;
+}
+
+.resize-nw {
+  top: 0;
+  left: 0;
+  cursor: nwse-resize;
+}
+
+.resize-se {
+  bottom: 0;
+  right: 0;
+  cursor: nwse-resize;
+}
+
+.resize-ne {
+  top: 0;
+  right: 0;
+  cursor: nesw-resize;
+}
+
+.resize-sw {
+  bottom: 0;
+  left: 0;
+  cursor: nesw-resize;
+}
+
 /* Topbar */
 
 .topbar {

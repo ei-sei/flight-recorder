@@ -22,6 +22,14 @@ function initWindowControls() {
   document.getElementById("win-minimize").addEventListener("click", () => appWindow.minimize());
   document.getElementById("win-maximize").addEventListener("click", () => appWindow.toggleMaximize());
   document.getElementById("win-close").addEventListener("click", () => appWindow.close());
+
+  for (const handle of document.querySelectorAll(".resize-handle")) {
+    handle.addEventListener("mousedown", (event) => {
+      if (event.buttons === 1) {
+        appWindow.startResizeDragging(handle.dataset.resizeDir);
+      }
+    });
+  }
 }
 
 async function init() {
