@@ -251,11 +251,10 @@ function setActiveFilter(filter) {
 
 export function setSelectedQuestion(question) {
   selectedQuestion = question;
-  if (question) {
-    activeFilter = "All";
-    for (const tab of filterTabsEl.querySelectorAll(".tab")) {
-      tab.classList.toggle("active", tab.dataset.filter === "All");
-    }
+  activeFilter = "All";
+  for (const tab of filterTabsEl.querySelectorAll(".tab")) {
+    const highlightAs = question ? question.category : activeFilter;
+    tab.classList.toggle("active", tab.dataset.filter === highlightAs);
   }
   render();
 }
