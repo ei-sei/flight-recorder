@@ -474,7 +474,7 @@ textarea {
 
 .viewfinder {
   position: relative;
-  width: 100%;
+  width: min(100%, calc(55vh * 4 / 3));
   max-height: 55vh;
   aspect-ratio: 4 / 3;
   background-color: #000;
