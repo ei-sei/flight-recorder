@@ -8,6 +8,9 @@ import { slugify, dateStamp, formatDuration, renderStars } from "./util.js";
 
 let attempts = [];
 let activeFilter = "All";
+let reviewingId = null;
+let onPlay = () => {};
+let onExitReview = () => {};
 const listEl = document.getElementById("attempt-list");
 const filterTabsEl = document.getElementById("log-filter-tabs");
 
@@ -75,6 +78,11 @@ async function deleteAttempt(id) {
   );
   if (!confirmed) return;
 
+  if (reviewingId === id) {
+    onExitReview();
+    reviewingId = null;
+  }
+
   try {
     await remove(attempt.videoPath);
   } catch (err) {
@@ -93,7 +101,13 @@ function formatResponseDelay(ms) {
 
 function renderAttemptItem(attempt) {
   const item = document.createElement("li");
-  item.className = "attempt-item";
+  item.className = "attempt-item" + (attempt.id === reviewingId ? " reviewing" : "");
+  item.addEventListener("click", (event) => {
+    if (event.target.closest("button, textarea")) return;
+    reviewingId = attempt.id;
+    render();
+    onPlay(attempt);
+  });
 
   const avatar = document.createElement("div");
   avatar.className = "attempt-avatar";
@@ -186,7 +200,14 @@ function setActiveFilter(filter) {
   render();
 }
 
-export async function initAttempts() {
+export function clearReviewing() {
+  reviewingId = null;
+  render();
+}
+
+export async function initAttempts(options = {}) {
+  onPlay = options.onPlay ?? (() => {});
+  onExitReview = options.onExitReview ?? (() => {});
   attempts = await getAttempts();
 
   filterTabsEl.addEventListener("click", (event) => {

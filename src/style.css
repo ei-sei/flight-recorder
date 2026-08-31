@@ -520,6 +520,23 @@ textarea {
   backdrop-filter: blur(4px);
 }
 
+.review-indicator {
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  background-color: rgba(5, 7, 10, 0.65);
+  border: 1px solid rgba(76, 124, 246, 0.35);
+  border-radius: var(--radius-sm);
+  padding: 3px 9px;
+  backdrop-filter: blur(4px);
+}
+
+.viewfinder.reviewing {
+  box-shadow: 0 0 0 1px rgba(76, 124, 246, 0.55), 0 0 28px -8px var(--accent-glow),
+    0 20px 40px -20px rgba(0, 0, 0, 0.7);
+}
+
 .rec-dot {
   width: 7px;
   height: 7px;
@@ -662,12 +679,19 @@ textarea {
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
   background-color: rgba(255, 255, 255, 0.012);
-  transition: border-color var(--ease), background-color var(--ease);
+  cursor: pointer;
+  transition: border-color var(--ease), background-color var(--ease), box-shadow var(--ease);
 }
 
 .attempt-item:hover {
   border-color: var(--border-strong);
   background-color: var(--bg-raised);
+}
+
+.attempt-item.reviewing {
+  border-color: rgba(76, 124, 246, 0.4);
+  background-color: var(--accent-dim);
+  box-shadow: 0 0 16px -6px var(--accent-glow);
 }
 
 .attempt-avatar {

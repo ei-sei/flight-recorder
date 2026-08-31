@@ -1,6 +1,6 @@
 import { initQuestions, getSelectedQuestion } from "./questions.js";
-import { initRecorder, setRecordEnabled } from "./recorder.js";
-import { initAttempts, saveAttempt } from "./attempts.js";
+import { initRecorder, setRecordEnabled, enterReviewMode, exitReviewMode } from "./recorder.js";
+import { initAttempts, saveAttempt, clearReviewing } from "./attempts.js";
 
 const clockEl = document.getElementById("clock");
 const currentQuestionEl = document.getElementById("current-question");
@@ -37,11 +37,18 @@ async function init() {
   setInterval(tickClock, 1000);
   initWindowControls();
 
-  await initAttempts();
+  await initAttempts({
+    onPlay: enterReviewMode,
+    onExitReview: exitReviewMode,
+  });
   await initQuestions({ onSelectionChange: handleQuestionSelectionChange });
   await initRecorder({
     getSelectedQuestion,
     onRecordingComplete: saveAttempt,
+    onExitReview: () => {
+      handleQuestionSelectionChange(getSelectedQuestion());
+      clearReviewing();
+    },
   });
 }
 

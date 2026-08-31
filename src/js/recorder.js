@@ -5,14 +5,19 @@ const previewEl = document.getElementById("preview");
 const viewfinderEl = document.querySelector(".viewfinder");
 const viewfinderEmptyEl = document.getElementById("viewfinder-empty");
 const recIndicatorEl = document.getElementById("rec-indicator");
+const reviewIndicatorEl = document.getElementById("review-indicator");
 const timerEl = document.getElementById("timer");
 const recordBtn = document.getElementById("record-btn");
+const backToLiveBtn = document.getElementById("back-to-live-btn");
+const currentQuestionEl = document.getElementById("current-question");
 const liveReadoutsEl = document.getElementById("live-readouts");
 const readoutDelayEl = document.getElementById("readout-delay");
 const readoutWpmEl = document.getElementById("readout-wpm");
 const wpmToggleRow = document.getElementById("wpm-toggle-row");
 const wpmToggleInput = document.getElementById("wpm-toggle-input");
 const wpmToggleHint = document.getElementById("wpm-toggle-hint");
+
+const { convertFileSrc } = window.__TAURI__.core;
 
 const SPEECH_RMS_THRESHOLD = 0.02;
 const SPEECH_SUSTAIN_MS = 150;
@@ -39,6 +44,9 @@ let speechRecognizer = null;
 let transcript = "";
 let wpm = null;
 
+let isReviewing = false;
+let onExitReview = () => {};
+
 async function initCamera() {
   try {
     stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
@@ -53,7 +61,7 @@ async function initCamera() {
 
 function updateRecordButtonState() {
   const recording = mediaRecorder && mediaRecorder.state === "recording";
-  recordBtn.disabled = !recording && (!hasSelection || !stream);
+  recordBtn.disabled = isReviewing || (!recording && (!hasSelection || !stream));
 }
 
 function updateTimer() {
@@ -232,6 +240,48 @@ export function setRecordEnabled(enabled) {
   updateRecordButtonState();
 }
 
+export function enterReviewMode(attempt) {
+  if (mediaRecorder && mediaRecorder.state === "recording") return;
+
+  isReviewing = true;
+  previewEl.srcObject = null;
+  previewEl.src = convertFileSrc(attempt.videoPath);
+  previewEl.muted = false;
+  previewEl.controls = true;
+  previewEl.play().catch(() => {});
+
+  viewfinderEmptyEl.hidden = true;
+  viewfinderEl.classList.add("reviewing");
+  reviewIndicatorEl.hidden = false;
+  timerEl.hidden = true;
+  wpmToggleRow.hidden = true;
+  backToLiveBtn.hidden = false;
+  currentQuestionEl.textContent = `Reviewing: “${attempt.questionText}”`;
+
+  updateRecordButtonState();
+}
+
+export function exitReviewMode() {
+  if (!isReviewing) return;
+
+  isReviewing = false;
+  previewEl.controls = false;
+  previewEl.removeAttribute("src");
+  previewEl.load();
+  previewEl.muted = true;
+  previewEl.srcObject = stream;
+
+  viewfinderEmptyEl.hidden = Boolean(stream);
+  viewfinderEl.classList.remove("reviewing");
+  reviewIndicatorEl.hidden = true;
+  timerEl.hidden = false;
+  wpmToggleRow.hidden = false;
+  backToLiveBtn.hidden = true;
+
+  updateRecordButtonState();
+  onExitReview();
+}
+
 async function initWpmToggle() {
   if (!SpeechRecognitionImpl) {
     wpmToggleInput.disabled = true;
@@ -252,8 +302,10 @@ async function initWpmToggle() {
 export async function initRecorder(options = {}) {
   onRecordingComplete = options.onRecordingComplete ?? (() => {});
   getSelectedQuestion = options.getSelectedQuestion ?? (() => null);
+  onExitReview = options.onExitReview ?? (() => {});
 
   recordBtn.addEventListener("click", toggleRecording);
+  backToLiveBtn.addEventListener("click", exitReviewMode);
   await initWpmToggle();
   await initCamera();
 }
