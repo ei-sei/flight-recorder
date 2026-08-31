@@ -497,6 +497,10 @@ textarea {
   display: block;
 }
 
+.viewfinder.reviewing video {
+  cursor: pointer;
+}
+
 .viewfinder-empty {
   position: absolute;
   inset: 0;

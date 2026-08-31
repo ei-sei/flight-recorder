@@ -296,13 +296,19 @@ function seekToClientX(clientX) {
   }
 }
 
+function togglePlayback() {
+  if (previewEl.paused) {
+    previewEl.play();
+  } else {
+    previewEl.pause();
+  }
+}
+
 function initPlayerControls() {
-  playPauseBtn.addEventListener("click", () => {
-    if (previewEl.paused) {
-      previewEl.play();
-    } else {
-      previewEl.pause();
-    }
+  playPauseBtn.addEventListener("click", togglePlayback);
+
+  previewEl.addEventListener("click", () => {
+    if (isReviewing) togglePlayback();
   });
 
   muteBtn.addEventListener("click", () => {
