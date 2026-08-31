@@ -584,29 +584,34 @@ textarea {
 }
 
 .player-volume {
+  position: relative;
   display: flex;
   align-items: center;
   flex-shrink: 0;
 }
 
 .volume-slider {
-  width: 0;
-  opacity: 0;
-  margin-left: 0;
+  position: absolute;
+  left: 50%;
+  bottom: 26px;
+  width: 70px;
+  height: 4px;
+  transform-origin: left center;
+  transform: rotate(-90deg);
   -webkit-appearance: none;
   appearance: none;
-  height: 4px;
   background: rgba(255, 255, 255, 0.25);
   border-radius: 999px;
   cursor: pointer;
-  transition: width var(--ease), opacity var(--ease), margin-left var(--ease);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--ease);
 }
 
 .player-volume:hover .volume-slider,
 .player-volume:focus-within .volume-slider {
-  width: 60px;
   opacity: 1;
-  margin-left: 8px;
+  pointer-events: auto;
 }
 
 .volume-slider::-webkit-slider-runnable-track {
