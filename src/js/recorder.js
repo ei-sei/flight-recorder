@@ -2,6 +2,7 @@ import { formatTimer } from "./util.js";
 import { getWpmEnabled, setWpmEnabled } from "./store.js";
 
 const previewEl = document.getElementById("preview");
+const viewfinderEl = document.querySelector(".viewfinder");
 const viewfinderEmptyEl = document.getElementById("viewfinder-empty");
 const recIndicatorEl = document.getElementById("rec-indicator");
 const timerEl = document.getElementById("timer");
@@ -173,6 +174,7 @@ function startRecording() {
   timerInterval = setInterval(updateTimer, 100);
   recordBtn.textContent = "Stop";
   recordBtn.classList.add("recording");
+  viewfinderEl.classList.add("recording");
 
   liveReadoutsEl.hidden = false;
   startResponseDelayDetection();
@@ -199,6 +201,7 @@ async function handleStop() {
   timerEl.textContent = "00:00.0";
   recordBtn.textContent = "Record";
   recordBtn.classList.remove("recording");
+  viewfinderEl.classList.remove("recording");
   updateRecordButtonState();
 
   const durationMs = Date.now() - recordStartTs;
