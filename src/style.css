@@ -630,6 +630,11 @@ textarea {
   letter-spacing: 0.03em;
 }
 
+#review-notes-input {
+  resize: none;
+  overflow: hidden;
+}
+
 .wpm-toggle-row {
   display: flex;
   align-items: flex-start;
