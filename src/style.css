@@ -237,11 +237,20 @@ textarea {
 }
 
 .brand {
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  display: inline-flex;
+  align-items: center;
   line-height: 1;
   margin: 0;
+}
+
+.brand-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.brand-icon rect {
+  fill: var(--record);
+  filter: drop-shadow(0 0 6px var(--record-glow));
 }
 
 .status-cluster {

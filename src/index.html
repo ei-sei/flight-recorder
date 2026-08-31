@@ -28,7 +28,11 @@
     <div class="app">
       <header class="topbar" data-tauri-drag-region>
         <div class="topbar-left" data-tauri-drag-region>
-          <h1 class="brand" data-tauri-drag-region>Flight recorder</h1>
+          <div class="brand" data-tauri-drag-region title="Flight recorder" aria-label="Flight recorder">
+            <svg class="brand-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="2" y="2" width="20" height="20" rx="6" />
+            </svg>
+          </div>
           <nav class="menu-bar">
             <button type="button" class="menu-bar-item" id="menu-file">File</button>
             <button type="button" class="menu-bar-item" id="menu-view">View</button>
