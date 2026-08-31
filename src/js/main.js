@@ -45,34 +45,28 @@ function applyTheme(theme) {
   }
 }
 
-function initQuestionsCollapse() {
-  const layoutEl = document.querySelector(".layout");
-  const panelEl = document.getElementById("questions-panel");
-  const btnEl = document.getElementById("questions-collapse-btn");
-
-  function applyCollapsed(collapsed) {
-    layoutEl.classList.toggle("questions-collapsed", collapsed);
-    panelEl.classList.toggle("collapsed", collapsed);
-    btnEl.title = collapsed ? "Expand question bank" : "Collapse question bank";
-    btnEl.setAttribute("aria-label", btnEl.title);
-  }
-
-  let collapsed = false;
+function isSidebarVisible() {
   try {
-    collapsed = localStorage.getItem("questionsCollapsed") === "true";
+    return localStorage.getItem("sidebarVisible") !== "false";
   } catch (err) {
-    // localStorage unavailable; default to expanded
+    return true;
   }
-  applyCollapsed(collapsed);
+}
 
-  btnEl.addEventListener("click", () => {
-    collapsed = !collapsed;
-    applyCollapsed(collapsed);
-    try {
-      localStorage.setItem("questionsCollapsed", String(collapsed));
-    } catch (err) {
-      // localStorage unavailable; state just won't persist across launches
-    }
+function setSidebarVisible(visible) {
+  document.querySelector(".layout").classList.toggle("sidebar-hidden", !visible);
+  try {
+    localStorage.setItem("sidebarVisible", String(visible));
+  } catch (err) {
+    // localStorage unavailable; state just won't persist across launches
+  }
+}
+
+function initSidebar() {
+  setSidebarVisible(isSidebarVisible());
+
+  document.getElementById("rail-questions").addEventListener("click", () => {
+    setSidebarVisible(!isSidebarVisible());
   });
 }
 
@@ -287,6 +281,11 @@ function initMenuBar() {
           await setTheme(next);
         },
       },
+      {
+        label: "Show sidebar",
+        checked: isSidebarVisible(),
+        onClick: () => setSidebarVisible(!isSidebarVisible()),
+      },
     ]);
   });
 
@@ -325,7 +324,7 @@ async function init() {
   initWindowControls();
   initMenuBar();
   initSettingsModal();
-  initQuestionsCollapse();
+  initSidebar();
 
   const settings = await getRecordingSettings();
   if (settings.alwaysOnTop) {
