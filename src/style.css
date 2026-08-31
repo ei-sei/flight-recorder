@@ -246,7 +246,7 @@ textarea {
 .layout {
   flex: 1;
   display: grid;
-  grid-template-columns: 280px 1fr 340px;
+  grid-template-columns: minmax(240px, 0.85fr) minmax(360px, 1.75fr) minmax(260px, 1fr);
   gap: 16px;
   padding: 16px;
   min-height: 0;
