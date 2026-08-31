@@ -821,18 +821,37 @@ textarea {
   transition: background-color var(--ease), color var(--ease);
 }
 
-.context-menu-check {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 14px;
+.menu-switch {
+  position: relative;
+  display: inline-block;
+  width: 26px;
+  height: 15px;
   flex-shrink: 0;
-  color: var(--accent);
+  border-radius: 999px;
+  background-color: var(--bg-panel);
+  border: 1px solid var(--border-strong);
+  transition: border-color var(--ease), box-shadow var(--ease);
 }
 
-.context-menu-check svg {
-  width: 10px;
-  height: 10px;
+.menu-switch-thumb {
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background-color: var(--text-dim);
+  transition: transform var(--ease), background-color var(--ease);
+}
+
+.menu-switch.checked {
+  border-color: var(--accent);
+  box-shadow: 0 0 8px -2px var(--accent-glow);
+}
+
+.menu-switch.checked .menu-switch-thumb {
+  transform: translateX(11px);
+  background-color: var(--accent);
 }
 
 .context-menu-item:hover {

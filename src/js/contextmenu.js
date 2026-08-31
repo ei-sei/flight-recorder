@@ -9,13 +9,10 @@ export function showContextMenu(x, y, items) {
     btn.className = "context-menu-item" + (item.danger ? " danger" : "");
 
     if (item.checked !== undefined) {
-      const check = document.createElement("span");
-      check.className = "context-menu-check";
-      if (item.checked) {
-        check.innerHTML =
-          '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2.5 6.5l2.5 2.5 4.5-6" /></svg>';
-      }
-      btn.appendChild(check);
+      const switchEl = document.createElement("span");
+      switchEl.className = "menu-switch" + (item.checked ? " checked" : "");
+      switchEl.innerHTML = '<span class="menu-switch-thumb"></span>';
+      btn.appendChild(switchEl);
     }
 
     const label = document.createElement("span");
