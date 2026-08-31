@@ -292,18 +292,22 @@ textarea {
   padding: 3px;
   background-color: var(--bg-raised);
   border-radius: 999px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .tab {
   flex: 1;
+  min-width: 0;
   background: transparent;
   border: none;
   color: var(--text-secondary);
-  padding: 7px 12px;
+  font-size: 12px;
+  padding: 7px 6px;
   cursor: pointer;
   border-radius: 999px;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   transition: color var(--ease), background-color var(--ease), box-shadow var(--ease);
 }
 
