@@ -83,6 +83,18 @@
           </div>
 
           <div class="record-controls">
+            <div class="wpm-toggle-row" id="wpm-toggle-row">
+              <label class="switch">
+                <input type="checkbox" id="wpm-toggle-input" />
+                <span class="switch-track"><span class="switch-thumb"></span></span>
+              </label>
+              <div class="wpm-toggle-copy">
+                <span class="wpm-toggle-label">Speech pace (WPM)</span>
+                <span class="wpm-toggle-hint" id="wpm-toggle-hint">
+                  Off by default. When on, live audio is sent to Google's speech recognition to measure words per minute.
+                </span>
+              </div>
+            </div>
             <button class="btn btn-record" id="record-btn" disabled>Record</button>
             <button class="btn btn-teal" id="back-to-live-btn" hidden>Back to live</button>
           </div>
@@ -90,19 +102,6 @@
           <div class="review-notes" id="review-notes-row" hidden>
             <label class="review-notes-label" for="review-notes-input">Notes</label>
             <textarea class="notes-input" id="review-notes-input" placeholder="Notes…" rows="2"></textarea>
-          </div>
-
-          <div class="wpm-toggle-row" id="wpm-toggle-row">
-            <label class="switch">
-              <input type="checkbox" id="wpm-toggle-input" />
-              <span class="switch-track"><span class="switch-thumb"></span></span>
-            </label>
-            <div class="wpm-toggle-copy">
-              <span class="wpm-toggle-label">Speech pace (WPM)</span>
-              <span class="wpm-toggle-hint" id="wpm-toggle-hint">
-                Off by default. When on, live audio is sent to Google's speech recognition to measure words per minute.
-              </span>
-            </div>
           </div>
         </main>
 

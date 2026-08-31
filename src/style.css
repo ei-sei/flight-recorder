@@ -635,12 +635,17 @@ textarea {
   overflow-y: auto;
 }
 
+.record-controls {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
 .wpm-toggle-row {
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  max-width: 560px;
-  padding-top: 4px;
+  max-width: 300px;
 }
 
 .wpm-toggle-row.unavailable {
