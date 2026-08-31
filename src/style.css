@@ -636,9 +636,23 @@ textarea {
 }
 
 .record-controls {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  align-self: stretch;
+}
+
+.record-controls-side {
   display: flex;
   align-items: center;
-  gap: 24px;
+}
+
+.record-controls-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .wpm-toggle-row {
