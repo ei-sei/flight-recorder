@@ -1,5 +1,12 @@
 import { initQuestions, getSelectedQuestion, selectQuestionById } from "./questions.js";
-import { initRecorder, setRecordEnabled, enterReviewMode, exitReviewMode } from "./recorder.js";
+import {
+  initRecorder,
+  setRecordEnabled,
+  enterReviewMode,
+  exitReviewMode,
+  listDevices,
+  applyRecordingSettings,
+} from "./recorder.js";
 import {
   initAttempts,
   saveAttempt,
@@ -8,11 +15,20 @@ import {
   updateAttemptNotes,
   updateAttemptScore,
 } from "./attempts.js";
+import {
+  getQuestions,
+  getAttempts,
+  getRecordingSettings,
+  saveRecordingSettings,
+  clearAllData,
+} from "./store.js";
 import { showContextMenu } from "./contextmenu.js";
-import { showAlert } from "./modal.js";
+import { showAlert, showConfirm } from "./modal.js";
 
 const clockEl = document.getElementById("clock");
 const currentQuestionEl = document.getElementById("current-question");
+
+let appWindow = null;
 
 function tickClock() {
   const now = new Date();
@@ -25,41 +41,169 @@ function handleQuestionSelectionChange(question) {
   setSelectedQuestion(question);
 }
 
-function initHelpMenu() {
-  const helpBtn = document.getElementById("help-btn");
+function populateDeviceSelect(select, devices, selectedId, kindLabel) {
+  select.innerHTML = "";
+  for (const device of devices) {
+    const option = document.createElement("option");
+    option.value = device.deviceId;
+    option.textContent = device.label || `${kindLabel} (${device.deviceId.slice(0, 6)})`;
+    select.appendChild(option);
+  }
+  if (selectedId && devices.some((d) => d.deviceId === selectedId)) {
+    select.value = selectedId;
+  }
+}
 
-  helpBtn.addEventListener("click", () => {
-    const rect = helpBtn.getBoundingClientRect();
+async function openSettingsModal() {
+  const overlay = document.getElementById("settings-overlay");
+  const cameraSelect = document.getElementById("settings-camera");
+  const micSelect = document.getElementById("settings-mic");
+  const qualitySelect = document.getElementById("settings-quality");
+
+  const settings = await getRecordingSettings();
+  const { cameras, mics } = await listDevices();
+
+  populateDeviceSelect(cameraSelect, cameras, settings.cameraId, "Camera");
+  populateDeviceSelect(micSelect, mics, settings.micId, "Microphone");
+  qualitySelect.value = settings.quality;
+
+  overlay.hidden = false;
+}
+
+function initSettingsModal() {
+  const overlay = document.getElementById("settings-overlay");
+  const cameraSelect = document.getElementById("settings-camera");
+  const micSelect = document.getElementById("settings-mic");
+  const qualitySelect = document.getElementById("settings-quality");
+  const closeBtn = document.getElementById("settings-close");
+
+  async function applyChange() {
+    await applyRecordingSettings({
+      cameraId: cameraSelect.value || null,
+      micId: micSelect.value || null,
+      quality: qualitySelect.value,
+    });
+  }
+
+  cameraSelect.addEventListener("change", applyChange);
+  micSelect.addEventListener("change", applyChange);
+  qualitySelect.addEventListener("change", applyChange);
+
+  closeBtn.addEventListener("click", () => {
+    overlay.hidden = true;
+  });
+  overlay.addEventListener("mousedown", (event) => {
+    if (event.target === overlay) overlay.hidden = true;
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !overlay.hidden) overlay.hidden = true;
+  });
+}
+
+async function openRecordingsFolder() {
+  const { videoDir, join } = window.__TAURI__.path;
+  const { mkdir } = window.__TAURI__.fs;
+  const { openPath } = window.__TAURI__.opener;
+
+  const dir = await join(await videoDir(), "flight-recorder");
+  await mkdir(dir, { recursive: true });
+  await openPath(dir);
+}
+
+async function exportData() {
+  const { videoDir, join } = window.__TAURI__.path;
+  const { mkdir, writeFile } = window.__TAURI__.fs;
+  const { revealItemInDir } = window.__TAURI__.opener;
+
+  const questions = await getQuestions();
+  const attempts = await getAttempts();
+  const data = { exportedAt: new Date().toISOString(), questions, attempts };
+
+  const dir = await join(await videoDir(), "flight-recorder");
+  await mkdir(dir, { recursive: true });
+  const filename = `export-${new Date().toISOString().slice(0, 10)}.json`;
+  const filePath = await join(dir, filename);
+  const bytes = new TextEncoder().encode(JSON.stringify(data, null, 2));
+  await writeFile(filePath, bytes);
+
+  const showInFolder = await showConfirm({
+    title: "Data exported",
+    message: `Saved as ${filename} in your recordings folder.`,
+    confirmLabel: "Show in folder",
+  });
+  if (showInFolder) revealItemInDir(filePath);
+}
+
+async function toggleAlwaysOnTop() {
+  const settings = await getRecordingSettings();
+  const next = !settings.alwaysOnTop;
+  await appWindow.setAlwaysOnTop(next);
+  await saveRecordingSettings({ alwaysOnTop: next });
+}
+
+async function resetAllData() {
+  const confirmed = await showConfirm({
+    title: "Reset all data?",
+    message: "This deletes every question, every attempt, and every recorded video. This can't be undone.",
+    confirmLabel: "Reset everything",
+    danger: true,
+  });
+  if (!confirmed) return;
+
+  const { videoDir, join } = window.__TAURI__.path;
+  const { remove, exists } = window.__TAURI__.fs;
+
+  const dir = await join(await videoDir(), "flight-recorder");
+  if (await exists(dir)) {
+    await remove(dir, { recursive: true });
+  }
+  await clearAllData();
+  location.reload();
+}
+
+async function showUpdatesInfo() {
+  const { getVersion } = window.__TAURI__.app;
+  const version = await getVersion();
+  showAlert({
+    title: "Updates",
+    message: `You're on version ${version}. Automatic update checking isn't set up yet.`,
+  });
+}
+
+async function showAboutInfo() {
+  const { getVersion } = window.__TAURI__.app;
+  const version = await getVersion();
+  showAlert({
+    title: "About Flight recorder",
+    message: `Version ${version}. A local practice tool for interview questions on webcam — video and data stay on this device except for the opt-in speech-pace (WPM) feature.`,
+  });
+}
+
+function initAppMenu() {
+  const menuBtn = document.getElementById("help-btn");
+
+  menuBtn.addEventListener("click", async () => {
+    const rect = menuBtn.getBoundingClientRect();
+    const settings = await getRecordingSettings();
+
     showContextMenu(rect.left, rect.bottom + 4, [
+      { label: "Settings", onClick: openSettingsModal },
+      { label: "Open recordings folder", onClick: openRecordingsFolder },
+      { label: "Export data", onClick: exportData },
       {
-        label: "Updates",
-        onClick: async () => {
-          const { getVersion } = window.__TAURI__.app;
-          const version = await getVersion();
-          showAlert({
-            title: "Updates",
-            message: `You're on version ${version}. Automatic update checking isn't set up yet.`,
-          });
-        },
+        label: settings.alwaysOnTop ? "Always on top ✓" : "Always on top",
+        onClick: toggleAlwaysOnTop,
       },
-      {
-        label: "About",
-        onClick: async () => {
-          const { getVersion } = window.__TAURI__.app;
-          const version = await getVersion();
-          showAlert({
-            title: "About Flight recorder",
-            message: `Version ${version}. A local practice tool for interview questions on webcam — video and data stay on this device except for the opt-in speech-pace (WPM) feature.`,
-          });
-        },
-      },
+      { label: "Reset all data", danger: true, onClick: resetAllData },
+      { label: "Updates", onClick: showUpdatesInfo },
+      { label: "About", onClick: showAboutInfo },
     ]);
   });
 }
 
 function initWindowControls() {
   const { getCurrentWindow } = window.__TAURI__.window;
-  const appWindow = getCurrentWindow();
+  appWindow = getCurrentWindow();
 
   document.getElementById("win-minimize").addEventListener("click", () => appWindow.minimize());
   document.getElementById("win-maximize").addEventListener("click", () => appWindow.toggleMaximize());
@@ -78,7 +222,13 @@ async function init() {
   tickClock();
   setInterval(tickClock, 1000);
   initWindowControls();
-  initHelpMenu();
+  initAppMenu();
+  initSettingsModal();
+
+  const settings = await getRecordingSettings();
+  if (settings.alwaysOnTop) {
+    await appWindow.setAlwaysOnTop(true);
+  }
 
   await initAttempts({
     onPlay: (attempt, attemptNumber) => {

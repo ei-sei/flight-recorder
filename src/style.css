@@ -185,6 +185,12 @@ textarea {
   background-color: var(--bg-panel);
 }
 
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
 .brand {
   font-size: 12px;
   font-weight: 600;
@@ -652,30 +658,17 @@ textarea {
 }
 
 .record-controls {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  gap: 16px;
-  width: 100%;
-  align-self: stretch;
-}
-
-.record-controls-side {
-  display: flex;
-  align-items: center;
-}
-
-.record-controls-center {
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 12px;
 }
 
 .wpm-toggle-row {
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  max-width: 300px;
+  width: 100%;
 }
 
 .wpm-toggle-row.unavailable {
@@ -826,6 +819,38 @@ textarea {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.settings-box {
+  max-width: 420px;
+}
+
+.settings-section {
+  margin-bottom: 16px;
+}
+
+.settings-label {
+  display: block;
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 0.03em;
+  margin-bottom: 6px;
+}
+
+.settings-select {
+  width: 100%;
+  background-color: var(--bg-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  padding: 8px 10px;
+  cursor: pointer;
+}
+
+.settings-select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-dim);
 }
 
 /* Attempt log */

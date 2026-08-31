@@ -1,5 +1,5 @@
 import { formatTimer, formatDuration, renderStars } from "./util.js";
-import { getWpmEnabled, setWpmEnabled } from "./store.js";
+import { getWpmEnabled, setWpmEnabled, getRecordingSettings, saveRecordingSettings } from "./store.js";
 
 const previewEl = document.getElementById("preview");
 const viewfinderMetaEl = document.getElementById("viewfinder-meta");
@@ -55,22 +55,84 @@ let onExitReview = () => {};
 let onNotesChange = () => {};
 let onScoreChange = () => {};
 
-async function initCamera() {
+let currentQuality = "720";
+
+const QUALITY_PRESETS = {
+  720: { width: 1280, height: 720, bitrate: 2_500_000 },
+  1080: { width: 1920, height: 1080, bitrate: 5_000_000 },
+};
+
+function getQualityPreset() {
+  return QUALITY_PRESETS[currentQuality] ?? QUALITY_PRESETS["720"];
+}
+
+async function acquireStream(cameraId, micId, quality) {
+  const preset = QUALITY_PRESETS[quality] ?? QUALITY_PRESETS["720"];
+  const constraints = {
+    video: {
+      deviceId: cameraId ? { exact: cameraId } : undefined,
+      width: { ideal: preset.width },
+      height: { ideal: preset.height },
+    },
+    audio: {
+      deviceId: micId ? { exact: micId } : undefined,
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true,
+    },
+  };
+
   try {
-    stream = await navigator.mediaDevices.getUserMedia({
-      video: { width: { ideal: 1280 }, height: { ideal: 720 } },
-      audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
-      },
-    });
+    return await navigator.mediaDevices.getUserMedia(constraints);
+  } catch (err) {
+    if (cameraId || micId) {
+      console.error("Failed to use selected device, falling back to default", err);
+      constraints.video.deviceId = undefined;
+      constraints.audio.deviceId = undefined;
+      return navigator.mediaDevices.getUserMedia(constraints);
+    }
+    throw err;
+  }
+}
+
+async function initCamera() {
+  const settings = await getRecordingSettings();
+  currentQuality = settings.quality;
+
+  try {
+    stream = await acquireStream(settings.cameraId, settings.micId, currentQuality);
     previewEl.srcObject = stream;
     viewfinderEmptyEl.hidden = true;
   } catch (err) {
     viewfinderEmptyEl.textContent = "Camera access denied or unavailable.";
     console.error("Failed to access camera/microphone", err);
   }
+  updateRecordButtonState();
+}
+
+export async function listDevices() {
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  return {
+    cameras: devices.filter((d) => d.kind === "videoinput"),
+    mics: devices.filter((d) => d.kind === "audioinput"),
+  };
+}
+
+export async function applyRecordingSettings({ cameraId, micId, quality }) {
+  currentQuality = quality;
+  await saveRecordingSettings({ cameraId, micId, quality });
+
+  if (mediaRecorder && mediaRecorder.state === "recording") {
+    return; // don't disrupt an in-progress recording; takes effect on the next one
+  }
+
+  if (stream) {
+    for (const track of stream.getTracks()) track.stop();
+  }
+
+  stream = await acquireStream(cameraId, micId, quality);
+  previewEl.srcObject = stream;
+  viewfinderEmptyEl.hidden = true;
   updateRecordButtonState();
 }
 
@@ -186,7 +248,7 @@ function startRecording() {
   chunks = [];
   mediaRecorder = new MediaRecorder(stream, {
     mimeType: "video/webm",
-    videoBitsPerSecond: 2_500_000,
+    videoBitsPerSecond: getQualityPreset().bitrate,
     audioBitsPerSecond: 128_000,
   });
   mediaRecorder.ondataavailable = (event) => {

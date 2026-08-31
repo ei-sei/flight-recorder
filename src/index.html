@@ -18,9 +18,11 @@
 
     <div class="app">
       <header class="topbar" data-tauri-drag-region>
-        <h1 class="brand" data-tauri-drag-region>Flight recorder</h1>
+        <div class="topbar-left" data-tauri-drag-region>
+          <h1 class="brand" data-tauri-drag-region>Flight recorder</h1>
+          <button type="button" class="help-btn" id="help-btn">Menu</button>
+        </div>
         <div class="status-cluster">
-          <button type="button" class="help-btn" id="help-btn">Help</button>
           <span class="status-item mono" id="clock">00:00:00</span>
           <div class="window-controls">
             <button type="button" class="window-btn" id="win-minimize" title="Minimize" aria-label="Minimize">
@@ -84,25 +86,8 @@
           </div>
 
           <div class="record-controls">
-            <div class="record-controls-side">
-              <div class="wpm-toggle-row" id="wpm-toggle-row">
-                <label class="switch">
-                  <input type="checkbox" id="wpm-toggle-input" />
-                  <span class="switch-track"><span class="switch-thumb"></span></span>
-                </label>
-                <div class="wpm-toggle-copy">
-                  <span class="wpm-toggle-label">Speech pace (WPM)</span>
-                  <span class="wpm-toggle-hint" id="wpm-toggle-hint">
-                    Off by default. When on, live audio is sent to Google's speech recognition to measure words per minute.
-                  </span>
-                </div>
-              </div>
-            </div>
-            <div class="record-controls-center">
-              <button class="btn btn-record" id="record-btn" disabled>Record</button>
-              <button class="btn btn-teal" id="back-to-live-btn" hidden>Back to live</button>
-            </div>
-            <div class="record-controls-side"></div>
+            <button class="btn btn-record" id="record-btn" disabled>Record</button>
+            <button class="btn btn-teal" id="back-to-live-btn" hidden>Back to live</button>
           </div>
 
           <div class="review-notes" id="review-notes-row" hidden>
@@ -140,6 +125,47 @@
         <div class="modal-actions">
           <button type="button" class="btn" id="modal-cancel">Cancel</button>
           <button type="button" class="btn btn-danger" id="modal-confirm">Confirm</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="settings-overlay" hidden>
+      <div class="modal-box settings-box">
+        <h3 class="modal-title">Settings</h3>
+
+        <div class="settings-section">
+          <label class="settings-label" for="settings-camera">Camera</label>
+          <select class="settings-select" id="settings-camera"></select>
+        </div>
+
+        <div class="settings-section">
+          <label class="settings-label" for="settings-mic">Microphone</label>
+          <select class="settings-select" id="settings-mic"></select>
+        </div>
+
+        <div class="settings-section">
+          <label class="settings-label" for="settings-quality">Recording quality</label>
+          <select class="settings-select" id="settings-quality">
+            <option value="720">Standard (720p)</option>
+            <option value="1080">High (1080p)</option>
+          </select>
+        </div>
+
+        <div class="settings-section wpm-toggle-row" id="wpm-toggle-row">
+          <label class="switch">
+            <input type="checkbox" id="wpm-toggle-input" />
+            <span class="switch-track"><span class="switch-thumb"></span></span>
+          </label>
+          <div class="wpm-toggle-copy">
+            <span class="wpm-toggle-label">Speech pace (WPM)</span>
+            <span class="wpm-toggle-hint" id="wpm-toggle-hint">
+              Off by default. When on, live audio is sent to Google's speech recognition to measure words per minute.
+            </span>
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn btn-teal" id="settings-close">Done</button>
         </div>
       </div>
     </div>

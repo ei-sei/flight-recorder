@@ -69,3 +69,23 @@ export async function setWpmEnabled(enabled) {
   await store.set("wpmEnabled", enabled);
   await store.save();
 }
+
+export async function getRecordingSettings() {
+  const store = await getStore();
+  const value = await store.get("recordingSettings");
+  return { cameraId: null, micId: null, quality: "720", alwaysOnTop: false, ...value };
+}
+
+export async function saveRecordingSettings(settings) {
+  const store = await getStore();
+  const current = await getRecordingSettings();
+  await store.set("recordingSettings", { ...current, ...settings });
+  await store.save();
+}
+
+export async function clearAllData() {
+  const store = await getStore();
+  await store.set("questions", []);
+  await store.set("attempts", []);
+  await store.save();
+}
