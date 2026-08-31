@@ -845,6 +845,7 @@ textarea {
 
 .attempt-item-top {
   display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: 8px;
   font-size: 11px;
@@ -855,15 +856,6 @@ textarea {
 .attempt-item-question {
   font-size: 13px;
   line-height: 1.45;
-  margin-bottom: 8px;
-}
-
-.attempt-item-meta {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: 12px;
-  color: var(--text-secondary);
   margin-bottom: 8px;
 }
 

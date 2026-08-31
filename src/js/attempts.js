@@ -168,11 +168,14 @@ function renderAttemptItem(attempt) {
   body.className = "attempt-item-body";
 
   const top = document.createElement("div");
-  top.className = "attempt-item-top mono";
+  top.className = "attempt-item-top";
+
+  const topInfo = document.createElement("span");
+  topInfo.className = "mono";
   const dateLabel = new Date(attempt.date).toLocaleDateString();
   const delayLabel = formatResponseDelay(attempt.responseDelayMs);
   const wpmLabel = attempt.wpm ? `${Math.round(attempt.wpm)} wpm` : null;
-  top.textContent = [
+  topInfo.textContent = [
     `Attempt ${getAttemptNumber(attempt)} · ${dateLabel} · ${formatDuration(attempt.durationMs)}`,
     delayLabel,
     wpmLabel,
@@ -180,18 +183,16 @@ function renderAttemptItem(attempt) {
     .filter(Boolean)
     .join(" · ");
 
-  const question = document.createElement("div");
-  question.className = "attempt-item-question";
-  question.textContent = attempt.questionText;
-
-  const meta = document.createElement("div");
-  meta.className = "attempt-item-meta";
-
   const stars = document.createElement("div");
   stars.className = "stars";
   renderStars(stars, attempt.score, null, true);
 
-  meta.appendChild(stars);
+  top.appendChild(topInfo);
+  top.appendChild(stars);
+
+  const question = document.createElement("div");
+  question.className = "attempt-item-question";
+  question.textContent = attempt.questionText;
 
   const notes = document.createElement("textarea");
   notes.className = "notes-input";
@@ -202,7 +203,6 @@ function renderAttemptItem(attempt) {
 
   body.appendChild(top);
   body.appendChild(question);
-  body.appendChild(meta);
   body.appendChild(notes);
 
   item.appendChild(avatar);
