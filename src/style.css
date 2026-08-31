@@ -623,6 +623,8 @@ textarea {
   gap: 6px;
   width: 100%;
   max-width: 560px;
+  flex: 1;
+  min-height: 0;
 }
 
 .review-notes-label {
@@ -632,8 +634,10 @@ textarea {
 }
 
 #review-notes-input {
+  flex: 1;
+  min-height: 80px;
   resize: none;
-  overflow: hidden;
+  overflow-y: auto;
 }
 
 .wpm-toggle-row {

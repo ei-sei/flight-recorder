@@ -257,11 +257,6 @@ function renderReviewStars(attemptId, score) {
   });
 }
 
-function autoResizeReviewNotes() {
-  reviewNotesInput.style.height = "auto";
-  reviewNotesInput.style.height = `${reviewNotesInput.scrollHeight}px`;
-}
-
 export function enterReviewMode(attempt, attemptNumber) {
   if (mediaRecorder && mediaRecorder.state === "recording") return;
 
@@ -289,7 +284,6 @@ export function enterReviewMode(attempt, attemptNumber) {
   reviewNotesRow.hidden = false;
   reviewNotesInput.value = attempt.notes;
   reviewNotesInput.onblur = () => onNotesChange(attempt.id, reviewNotesInput.value);
-  autoResizeReviewNotes();
 
   updateRecordButtonState();
 }
@@ -346,7 +340,6 @@ export async function initRecorder(options = {}) {
 
   recordBtn.addEventListener("click", toggleRecording);
   backToLiveBtn.addEventListener("click", exitReviewMode);
-  reviewNotesInput.addEventListener("input", autoResizeReviewNotes);
   await initWpmToggle();
   await initCamera();
 }
