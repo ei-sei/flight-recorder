@@ -208,6 +208,10 @@ function initMenuBar() {
   helpBtn.addEventListener("click", () => {
     openMenu(helpBtn, [
       { label: "Check for updates", onClick: showUpdatesInfo },
+      {
+        label: "Report an issue",
+        onClick: () => window.__TAURI__.opener.openUrl("https://github.com/ei-sei/flight-recorder/issues"),
+      },
       { label: "About", onClick: showAboutInfo },
     ]);
   });
