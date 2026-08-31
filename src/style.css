@@ -622,8 +622,6 @@ textarea {
   flex-direction: column;
   gap: 6px;
   width: 100%;
-  flex: 1;
-  min-height: 0;
 }
 
 .review-notes-label {
@@ -633,8 +631,6 @@ textarea {
 }
 
 #review-notes-input {
-  flex: 1;
-  min-height: 80px;
   resize: none;
   overflow-y: auto;
 }
