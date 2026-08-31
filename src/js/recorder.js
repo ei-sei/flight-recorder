@@ -1,7 +1,8 @@
-import { formatTimer } from "./util.js";
+import { formatTimer, formatDuration } from "./util.js";
 import { getWpmEnabled, setWpmEnabled } from "./store.js";
 
 const previewEl = document.getElementById("preview");
+const viewfinderMetaEl = document.getElementById("viewfinder-meta");
 const viewfinderEl = document.querySelector(".viewfinder");
 const viewfinderEmptyEl = document.getElementById("viewfinder-empty");
 const recIndicatorEl = document.getElementById("rec-indicator");
@@ -246,7 +247,7 @@ export function setRecordEnabled(enabled) {
   updateRecordButtonState();
 }
 
-export function enterReviewMode(attempt) {
+export function enterReviewMode(attempt, attemptNumber) {
   if (mediaRecorder && mediaRecorder.state === "recording") return;
 
   isReviewing = true;
@@ -264,6 +265,10 @@ export function enterReviewMode(attempt) {
   recordBtn.hidden = true;
   backToLiveBtn.hidden = false;
   currentQuestionEl.textContent = `Reviewing: “${attempt.questionText}”`;
+
+  const dateLabel = new Date(attempt.date).toLocaleDateString();
+  viewfinderMetaEl.textContent = `Attempt ${attemptNumber} · ${dateLabel} · ${attempt.category} · ${formatDuration(attempt.durationMs)}`;
+  viewfinderMetaEl.hidden = false;
 
   reviewNotesRow.hidden = false;
   reviewNotesInput.value = attempt.notes;
@@ -292,6 +297,7 @@ export function exitReviewMode() {
 
   reviewNotesRow.hidden = true;
   reviewNotesInput.onblur = null;
+  viewfinderMetaEl.hidden = true;
 
   updateRecordButtonState();
   onExitReview();

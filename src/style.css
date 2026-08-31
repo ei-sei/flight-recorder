@@ -587,6 +587,12 @@ textarea {
   min-height: 20px;
 }
 
+.viewfinder-meta {
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 0.02em;
+}
+
 .live-readouts {
   display: flex;
   gap: 16px;

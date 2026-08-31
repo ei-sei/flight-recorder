@@ -144,7 +144,7 @@ function renderAttemptItem(attempt) {
     if (event.target.closest("button")) return;
     reviewingId = attempt.id;
     render();
-    onPlay(attempt);
+    onPlay(attempt, getAttemptNumber(attempt));
   });
 
   const avatar = document.createElement("div");
@@ -161,7 +161,7 @@ function renderAttemptItem(attempt) {
   const delayLabel = formatResponseDelay(attempt.responseDelayMs);
   const wpmLabel = attempt.wpm ? `${Math.round(attempt.wpm)} wpm` : null;
   top.textContent = [
-    `Attempt ${getAttemptNumber(attempt)} · ${dateLabel} · ${attempt.category} · ${formatDuration(attempt.durationMs)}`,
+    `Attempt ${getAttemptNumber(attempt)} · ${dateLabel} · ${formatDuration(attempt.durationMs)}`,
     delayLabel,
     wpmLabel,
   ]
