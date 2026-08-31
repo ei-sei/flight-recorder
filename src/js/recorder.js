@@ -59,7 +59,11 @@ async function initCamera() {
   try {
     stream = await navigator.mediaDevices.getUserMedia({
       video: { width: { ideal: 1280 }, height: { ideal: 720 } },
-      audio: true,
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
     });
     previewEl.srcObject = stream;
     viewfinderEmptyEl.hidden = true;
@@ -180,7 +184,11 @@ function startRecording() {
   if (!stream) return;
 
   chunks = [];
-  mediaRecorder = new MediaRecorder(stream, { mimeType: "video/webm" });
+  mediaRecorder = new MediaRecorder(stream, {
+    mimeType: "video/webm",
+    videoBitsPerSecond: 2_500_000,
+    audioBitsPerSecond: 128_000,
+  });
   mediaRecorder.ondataavailable = (event) => {
     if (event.data.size > 0) chunks.push(event.data);
   };
