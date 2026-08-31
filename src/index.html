@@ -8,10 +8,21 @@
   </head>
   <body>
     <div class="app">
-      <header class="topbar">
-        <h1 class="brand">Flight recorder</h1>
+      <header class="topbar" data-tauri-drag-region>
+        <h1 class="brand" data-tauri-drag-region>Flight recorder</h1>
         <div class="status-cluster">
           <span class="status-item mono" id="clock">00:00:00</span>
+          <div class="window-controls">
+            <button type="button" class="window-btn" id="win-minimize" title="Minimize" aria-label="Minimize">
+              <svg viewBox="0 0 12 12"><rect x="2" y="5.5" width="8" height="1" /></svg>
+            </button>
+            <button type="button" class="window-btn" id="win-maximize" title="Maximize" aria-label="Maximize">
+              <svg viewBox="0 0 12 12"><rect x="2.5" y="2.5" width="7" height="7" fill="none" stroke="currentColor" /></svg>
+            </button>
+            <button type="button" class="window-btn window-btn-close" id="win-close" title="Close" aria-label="Close">
+              <svg viewBox="0 0 12 12"><line x1="2.5" y1="2.5" x2="9.5" y2="9.5" stroke="currentColor" /><line x1="9.5" y1="2.5" x2="2.5" y2="9.5" stroke="currentColor" /></svg>
+            </button>
+          </div>
         </div>
       </header>
 

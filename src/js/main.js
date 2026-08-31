@@ -15,9 +15,19 @@ function handleQuestionSelectionChange(question) {
   setRecordEnabled(Boolean(question));
 }
 
+function initWindowControls() {
+  const { getCurrentWindow } = window.__TAURI__.window;
+  const appWindow = getCurrentWindow();
+
+  document.getElementById("win-minimize").addEventListener("click", () => appWindow.minimize());
+  document.getElementById("win-maximize").addEventListener("click", () => appWindow.toggleMaximize());
+  document.getElementById("win-close").addEventListener("click", () => appWindow.close());
+}
+
 async function init() {
   tickClock();
   setInterval(tickClock, 1000);
+  initWindowControls();
 
   await initAttempts();
   await initQuestions({ onSelectionChange: handleQuestionSelectionChange });
