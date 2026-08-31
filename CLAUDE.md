@@ -38,6 +38,12 @@ Aviation instrumentation. Dark cockpit palette. Amber for recording/active state
 
 </details>
 
+## Cross-platform packaging notes
+- Camera/mic access uses standard `getUserMedia`/`MediaRecorder` — works natively on all three target webviews (WebView2/Windows, WebKitGTK/Linux, WKWebView/macOS). No plugin needed for capture itself.
+- macOS requires privacy usage descriptions or `getUserMedia` is blocked outright in a packaged app (not just prompt-less — actually fails). `src-tauri/Info.plist` declares `NSCameraUsageDescription` and `NSMicrophoneUsageDescription`, which Tauri merges into the bundle automatically. This hasn't been verified end-to-end on real macOS hardware yet — do that before shipping a Mac build.
+- Windows: WebView2 triggers the OS-level camera/mic privacy prompt automatically, no extra manifest entries needed.
+- Linux: access depends on the user being in the right device group (e.g. `video`) and the distro's desktop environment; no extra packaging step needed on our side.
+
 ## How to work in this project
 - Extend the existing code. Don't rewrite from scratch unless asked.
 - If a feature needs something beyond Tauri/webview capability, say so plainly. Don't fake it.
