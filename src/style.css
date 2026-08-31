@@ -210,7 +210,7 @@ textarea {
   font-size: 11px;
 }
 
-.help-btn {
+.topbar-btn {
   display: inline-flex;
   align-items: center;
   background: transparent;
@@ -224,7 +224,7 @@ textarea {
   transition: color var(--ease), background-color var(--ease);
 }
 
-.help-btn:hover {
+.topbar-btn:hover {
   color: var(--text-primary);
   background-color: var(--bg-raised);
 }
@@ -668,14 +668,14 @@ textarea {
   gap: 12px;
 }
 
-.wpm-toggle-row {
+.toggle-row {
   display: flex;
   align-items: flex-start;
   gap: 10px;
   width: 100%;
 }
 
-.wpm-toggle-row.unavailable {
+.toggle-row.unavailable {
   opacity: 0.5;
 }
 
@@ -730,18 +730,18 @@ textarea {
   box-shadow: 0 0 10px -2px var(--accent-glow);
 }
 
-.wpm-toggle-copy {
+.toggle-copy {
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
-.wpm-toggle-label {
+.toggle-label {
   font-size: 12px;
   color: var(--text-primary);
 }
 
-.wpm-toggle-hint {
+.toggle-hint {
   font-size: 11px;
   color: var(--text-dim);
   line-height: 1.4;
@@ -775,11 +775,6 @@ textarea {
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: background-color var(--ease), color var(--ease);
-}
-
-.context-menu-item.has-submenu::after {
-  content: "›";
-  color: var(--text-dim);
 }
 
 .context-menu-item:hover {
@@ -825,6 +820,7 @@ textarea {
   font-size: 13px;
   color: var(--text-secondary);
   line-height: 1.5;
+  white-space: pre-line;
 }
 
 .modal-actions {
@@ -863,6 +859,17 @@ textarea {
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-dim);
+}
+
+.settings-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-actions .btn {
+  width: 100%;
+  text-align: center;
 }
 
 /* Attempt log */

@@ -20,7 +20,8 @@
       <header class="topbar" data-tauri-drag-region>
         <div class="topbar-left" data-tauri-drag-region>
           <h1 class="brand" data-tauri-drag-region>Flight recorder</h1>
-          <button type="button" class="help-btn" id="help-btn">Menu</button>
+          <button type="button" class="topbar-btn" id="settings-btn">Settings</button>
+          <button type="button" class="topbar-btn" id="about-btn">About</button>
         </div>
         <div class="status-cluster">
           <span class="status-item mono" id="clock">00:00:00</span>
@@ -117,7 +118,6 @@
     </div>
 
     <div class="context-menu" id="context-menu" hidden></div>
-    <div class="context-menu" id="context-submenu" hidden></div>
 
     <div class="modal-overlay" id="modal-overlay" hidden>
       <div class="modal-box">
@@ -152,16 +152,35 @@
           </select>
         </div>
 
-        <div class="settings-section wpm-toggle-row" id="wpm-toggle-row">
+        <div class="settings-section toggle-row" id="wpm-toggle-row">
           <label class="switch">
             <input type="checkbox" id="wpm-toggle-input" />
             <span class="switch-track"><span class="switch-thumb"></span></span>
           </label>
-          <div class="wpm-toggle-copy">
-            <span class="wpm-toggle-label">Speech pace (WPM)</span>
-            <span class="wpm-toggle-hint" id="wpm-toggle-hint">
+          <div class="toggle-copy">
+            <span class="toggle-label">Speech pace (WPM)</span>
+            <span class="toggle-hint" id="wpm-toggle-hint">
               Off by default. When on, live audio is sent to Google's speech recognition to measure words per minute.
             </span>
+          </div>
+        </div>
+
+        <div class="settings-section toggle-row" id="always-on-top-row">
+          <label class="switch">
+            <input type="checkbox" id="always-on-top-input" />
+            <span class="switch-track"><span class="switch-thumb"></span></span>
+          </label>
+          <div class="toggle-copy">
+            <span class="toggle-label">Always on top</span>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <label class="settings-label">Data</label>
+          <div class="settings-actions">
+            <button type="button" class="btn" id="settings-open-folder">Open recordings folder</button>
+            <button type="button" class="btn" id="settings-export">Export data</button>
+            <button type="button" class="btn btn-danger" id="settings-reset">Reset all data</button>
           </div>
         </div>
 

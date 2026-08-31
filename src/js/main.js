@@ -22,7 +22,6 @@ import {
   saveRecordingSettings,
   clearAllData,
 } from "./store.js";
-import { showContextMenu } from "./contextmenu.js";
 import { showAlert, showConfirm } from "./modal.js";
 
 const clockEl = document.getElementById("clock");
@@ -52,52 +51,6 @@ function populateDeviceSelect(select, devices, selectedId, kindLabel) {
   if (selectedId && devices.some((d) => d.deviceId === selectedId)) {
     select.value = selectedId;
   }
-}
-
-async function openSettingsModal() {
-  const overlay = document.getElementById("settings-overlay");
-  const cameraSelect = document.getElementById("settings-camera");
-  const micSelect = document.getElementById("settings-mic");
-  const qualitySelect = document.getElementById("settings-quality");
-
-  const settings = await getRecordingSettings();
-  const { cameras, mics } = await listDevices();
-
-  populateDeviceSelect(cameraSelect, cameras, settings.cameraId, "Camera");
-  populateDeviceSelect(micSelect, mics, settings.micId, "Microphone");
-  qualitySelect.value = settings.quality;
-
-  overlay.hidden = false;
-}
-
-function initSettingsModal() {
-  const overlay = document.getElementById("settings-overlay");
-  const cameraSelect = document.getElementById("settings-camera");
-  const micSelect = document.getElementById("settings-mic");
-  const qualitySelect = document.getElementById("settings-quality");
-  const closeBtn = document.getElementById("settings-close");
-
-  async function applyChange() {
-    await applyRecordingSettings({
-      cameraId: cameraSelect.value || null,
-      micId: micSelect.value || null,
-      quality: qualitySelect.value,
-    });
-  }
-
-  cameraSelect.addEventListener("change", applyChange);
-  micSelect.addEventListener("change", applyChange);
-  qualitySelect.addEventListener("change", applyChange);
-
-  closeBtn.addEventListener("click", () => {
-    overlay.hidden = true;
-  });
-  overlay.addEventListener("mousedown", (event) => {
-    if (event.target === overlay) overlay.hidden = true;
-  });
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && !overlay.hidden) overlay.hidden = true;
-  });
 }
 
 async function openRecordingsFolder() {
@@ -134,13 +87,6 @@ async function exportData() {
   if (showInFolder) revealItemInDir(filePath);
 }
 
-async function toggleAlwaysOnTop() {
-  const settings = await getRecordingSettings();
-  const next = !settings.alwaysOnTop;
-  await appWindow.setAlwaysOnTop(next);
-  await saveRecordingSettings({ alwaysOnTop: next });
-}
-
 async function resetAllData() {
   const confirmed = await showConfirm({
     title: "Reset all data?",
@@ -161,12 +107,65 @@ async function resetAllData() {
   location.reload();
 }
 
-async function showUpdatesInfo() {
-  const { getVersion } = window.__TAURI__.app;
-  const version = await getVersion();
-  showAlert({
-    title: "Updates",
-    message: `You're on version ${version}. Automatic update checking isn't set up yet.`,
+async function openSettingsModal() {
+  const overlay = document.getElementById("settings-overlay");
+  const cameraSelect = document.getElementById("settings-camera");
+  const micSelect = document.getElementById("settings-mic");
+  const qualitySelect = document.getElementById("settings-quality");
+  const alwaysOnTopInput = document.getElementById("always-on-top-input");
+
+  const settings = await getRecordingSettings();
+  const { cameras, mics } = await listDevices();
+
+  populateDeviceSelect(cameraSelect, cameras, settings.cameraId, "Camera");
+  populateDeviceSelect(micSelect, mics, settings.micId, "Microphone");
+  qualitySelect.value = settings.quality;
+  alwaysOnTopInput.checked = Boolean(settings.alwaysOnTop);
+
+  overlay.hidden = false;
+}
+
+function initSettingsModal() {
+  const overlay = document.getElementById("settings-overlay");
+  const cameraSelect = document.getElementById("settings-camera");
+  const micSelect = document.getElementById("settings-mic");
+  const qualitySelect = document.getElementById("settings-quality");
+  const alwaysOnTopInput = document.getElementById("always-on-top-input");
+  const closeBtn = document.getElementById("settings-close");
+  const openFolderBtn = document.getElementById("settings-open-folder");
+  const exportBtn = document.getElementById("settings-export");
+  const resetBtn = document.getElementById("settings-reset");
+
+  async function applyDeviceChange() {
+    await applyRecordingSettings({
+      cameraId: cameraSelect.value || null,
+      micId: micSelect.value || null,
+      quality: qualitySelect.value,
+    });
+  }
+
+  cameraSelect.addEventListener("change", applyDeviceChange);
+  micSelect.addEventListener("change", applyDeviceChange);
+  qualitySelect.addEventListener("change", applyDeviceChange);
+
+  alwaysOnTopInput.addEventListener("change", async () => {
+    const next = alwaysOnTopInput.checked;
+    await appWindow.setAlwaysOnTop(next);
+    await saveRecordingSettings({ alwaysOnTop: next });
+  });
+
+  openFolderBtn.addEventListener("click", openRecordingsFolder);
+  exportBtn.addEventListener("click", exportData);
+  resetBtn.addEventListener("click", resetAllData);
+
+  closeBtn.addEventListener("click", () => {
+    overlay.hidden = true;
+  });
+  overlay.addEventListener("mousedown", (event) => {
+    if (event.target === overlay) overlay.hidden = true;
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !overlay.hidden) overlay.hidden = true;
   });
 }
 
@@ -175,40 +174,13 @@ async function showAboutInfo() {
   const version = await getVersion();
   showAlert({
     title: "About Flight recorder",
-    message: `Version ${version}. A local practice tool for interview questions on webcam — video and data stay on this device except for the opt-in speech-pace (WPM) feature.`,
+    message: `Version ${version}. Automatic update checking isn't set up yet.\n\nA local practice tool for interview questions on webcam — video and data stay on this device except for the opt-in speech-pace (WPM) feature.`,
   });
 }
 
-function initAppMenu() {
-  const menuBtn = document.getElementById("help-btn");
-
-  menuBtn.addEventListener("click", async () => {
-    const rect = menuBtn.getBoundingClientRect();
-    const settings = await getRecordingSettings();
-
-    showContextMenu(rect.left, rect.bottom + 4, [
-      { label: "Settings", onClick: openSettingsModal },
-      {
-        label: "Data",
-        children: [
-          { label: "Open recordings folder", onClick: openRecordingsFolder },
-          { label: "Export data", onClick: exportData },
-          { label: "Reset all data", danger: true, onClick: resetAllData },
-        ],
-      },
-      {
-        label: settings.alwaysOnTop ? "Always on top ✓" : "Always on top",
-        onClick: toggleAlwaysOnTop,
-      },
-      {
-        label: "About",
-        children: [
-          { label: "Updates", onClick: showUpdatesInfo },
-          { label: "About", onClick: showAboutInfo },
-        ],
-      },
-    ]);
-  });
+function initTopbarButtons() {
+  document.getElementById("settings-btn").addEventListener("click", openSettingsModal);
+  document.getElementById("about-btn").addEventListener("click", showAboutInfo);
 }
 
 function initWindowControls() {
@@ -232,7 +204,7 @@ async function init() {
   tickClock();
   setInterval(tickClock, 1000);
   initWindowControls();
-  initAppMenu();
+  initTopbarButtons();
   initSettingsModal();
 
   const settings = await getRecordingSettings();
