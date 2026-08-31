@@ -191,6 +191,12 @@ textarea {
   gap: 14px;
 }
 
+.menu-bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
 .brand {
   font-size: 12px;
   font-weight: 600;
@@ -210,7 +216,7 @@ textarea {
   font-size: 11px;
 }
 
-.topbar-btn {
+.menu-bar-item {
   display: inline-flex;
   align-items: center;
   background: transparent;
@@ -224,7 +230,7 @@ textarea {
   transition: color var(--ease), background-color var(--ease);
 }
 
-.topbar-btn:hover {
+.menu-bar-item:hover {
   color: var(--text-primary);
   background-color: var(--bg-raised);
 }
@@ -859,17 +865,6 @@ textarea {
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-dim);
-}
-
-.settings-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.settings-actions .btn {
-  width: 100%;
-  text-align: center;
 }
 
 /* Attempt log */

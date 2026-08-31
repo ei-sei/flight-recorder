@@ -20,8 +20,11 @@
       <header class="topbar" data-tauri-drag-region>
         <div class="topbar-left" data-tauri-drag-region>
           <h1 class="brand" data-tauri-drag-region>Flight recorder</h1>
-          <button type="button" class="topbar-btn" id="settings-btn">Settings</button>
-          <button type="button" class="topbar-btn" id="about-btn">About</button>
+          <nav class="menu-bar">
+            <button type="button" class="menu-bar-item" id="menu-file">File</button>
+            <button type="button" class="menu-bar-item" id="menu-view">View</button>
+            <button type="button" class="menu-bar-item" id="menu-help">Help</button>
+          </nav>
         </div>
         <div class="status-cluster">
           <span class="status-item mono" id="clock">00:00:00</span>
@@ -162,25 +165,6 @@
             <span class="toggle-hint" id="wpm-toggle-hint">
               Off by default. When on, live audio is sent to Google's speech recognition to measure words per minute.
             </span>
-          </div>
-        </div>
-
-        <div class="settings-section toggle-row" id="always-on-top-row">
-          <label class="switch">
-            <input type="checkbox" id="always-on-top-input" />
-            <span class="switch-track"><span class="switch-thumb"></span></span>
-          </label>
-          <div class="toggle-copy">
-            <span class="toggle-label">Always on top</span>
-          </div>
-        </div>
-
-        <div class="settings-section">
-          <label class="settings-label">Data</label>
-          <div class="settings-actions">
-            <button type="button" class="btn" id="settings-open-folder">Open recordings folder</button>
-            <button type="button" class="btn" id="settings-export">Export data</button>
-            <button type="button" class="btn btn-danger" id="settings-reset">Reset all data</button>
           </div>
         </div>
 
