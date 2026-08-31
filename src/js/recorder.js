@@ -49,7 +49,10 @@ let onExitReview = () => {};
 
 async function initCamera() {
   try {
-    stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: true,
+    });
     previewEl.srcObject = stream;
     viewfinderEmptyEl.hidden = true;
   } catch (err) {
