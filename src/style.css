@@ -195,6 +195,7 @@ textarea {
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.02em;
+  line-height: 1;
   margin: 0;
 }
 
@@ -210,11 +211,14 @@ textarea {
 }
 
 .help-btn {
+  display: inline-flex;
+  align-items: center;
   background: transparent;
   border: none;
   color: var(--text-secondary);
   font-size: 11px;
-  padding: 4px 8px;
+  line-height: 1;
+  padding: 5px 8px;
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: color var(--ease), background-color var(--ease);
@@ -757,7 +761,10 @@ textarea {
 }
 
 .context-menu-item {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   width: 100%;
   text-align: left;
   background: transparent;
@@ -768,6 +775,11 @@ textarea {
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: background-color var(--ease), color var(--ease);
+}
+
+.context-menu-item.has-submenu::after {
+  content: "›";
+  color: var(--text-dim);
 }
 
 .context-menu-item:hover {

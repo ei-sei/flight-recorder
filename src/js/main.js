@@ -188,15 +188,25 @@ function initAppMenu() {
 
     showContextMenu(rect.left, rect.bottom + 4, [
       { label: "Settings", onClick: openSettingsModal },
-      { label: "Open recordings folder", onClick: openRecordingsFolder },
-      { label: "Export data", onClick: exportData },
+      {
+        label: "Data",
+        children: [
+          { label: "Open recordings folder", onClick: openRecordingsFolder },
+          { label: "Export data", onClick: exportData },
+          { label: "Reset all data", danger: true, onClick: resetAllData },
+        ],
+      },
       {
         label: settings.alwaysOnTop ? "Always on top ✓" : "Always on top",
         onClick: toggleAlwaysOnTop,
       },
-      { label: "Reset all data", danger: true, onClick: resetAllData },
-      { label: "Updates", onClick: showUpdatesInfo },
-      { label: "About", onClick: showAboutInfo },
+      {
+        label: "About",
+        children: [
+          { label: "Updates", onClick: showUpdatesInfo },
+          { label: "About", onClick: showAboutInfo },
+        ],
+      },
     ]);
   });
 }
