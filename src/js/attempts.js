@@ -141,7 +141,7 @@ function renderAttemptItem(attempt) {
   const item = document.createElement("li");
   item.className = "attempt-item" + (attempt.id === reviewingId ? " reviewing" : "");
   item.addEventListener("click", (event) => {
-    if (event.target.closest("button, textarea")) return;
+    if (event.target.closest("button")) return;
     reviewingId = attempt.id;
     render();
     onPlay(attempt);
@@ -197,9 +197,10 @@ function renderAttemptItem(attempt) {
 
   const notes = document.createElement("textarea");
   notes.className = "notes-input";
-  notes.placeholder = "Notes…";
+  notes.placeholder = "No notes yet.";
   notes.value = attempt.notes;
-  notes.addEventListener("blur", () => updateAttempt(attempt.id, { notes: notes.value }));
+  notes.readOnly = true;
+  notes.tabIndex = -1;
 
   body.appendChild(top);
   body.appendChild(question);

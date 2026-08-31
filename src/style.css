@@ -916,6 +916,13 @@ textarea {
   box-shadow: 0 0 0 3px var(--accent-dim);
 }
 
+.notes-input[readonly] {
+  resize: none;
+  cursor: default;
+  color: var(--text-secondary);
+  background-color: transparent;
+}
+
 /* Footer */
 
 .footer-note {
