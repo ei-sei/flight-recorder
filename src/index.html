@@ -2,38 +2,85 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="stylesheet" href="styles.css" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Tauri App</title>
-    <script type="module" src="/main.js" defer></script>
+    <title>Flight recorder</title>
+    <link rel="stylesheet" href="./style.css" />
   </head>
-
   <body>
-    <main class="container">
-      <h1>Welcome to Tauri</h1>
+    <div class="app">
+      <header class="topbar">
+        <h1 class="brand">Flight recorder</h1>
+        <div class="status-cluster">
+          <span class="status-item mono" id="clock">00:00:00</span>
+        </div>
+      </header>
 
-      <div class="row">
-        <a href="https://tauri.app" target="_blank">
-          <img src="/assets/tauri.svg" class="logo tauri" alt="Tauri logo" />
-        </a>
-        <a
-          href="https://developer.mozilla.org/en-US/docs/Web/JavaScript"
-          target="_blank"
-        >
-          <img
-            src="/assets/javascript.svg"
-            class="logo vanilla"
-            alt="JavaScript logo"
-          />
-        </a>
+      <div class="layout">
+        <aside class="panel questions-panel">
+          <div class="panel-header">
+            <h2>Question bank</h2>
+          </div>
+          <nav class="tabs" id="question-category-tabs">
+            <button class="tab active" data-category="Behavioral" type="button">Behavioral</button>
+            <button class="tab" data-category="Technical" type="button">Technical</button>
+            <button class="tab" data-category="Case" type="button">Case</button>
+          </nav>
+          <ul class="question-list" id="question-list"></ul>
+          <form class="add-question-form" id="add-question-form">
+            <input
+              type="text"
+              id="new-question-input"
+              placeholder="Add a question…"
+              autocomplete="off"
+              maxlength="240"
+            />
+            <button type="submit" class="btn btn-teal">Add</button>
+          </form>
+        </aside>
+
+        <main class="panel recorder-panel">
+          <div class="viewfinder">
+            <video id="preview" autoplay muted playsinline></video>
+            <div class="viewfinder-empty" id="viewfinder-empty">Camera preview will appear here.</div>
+            <div class="viewfinder-overlay">
+              <div class="rec-indicator" id="rec-indicator" hidden>
+                <span class="rec-dot"></span>rec
+              </div>
+              <div class="timer mono" id="timer">00:00.0</div>
+            </div>
+          </div>
+
+          <div class="current-question" id="current-question">Select a question to begin.</div>
+
+          <div class="live-readouts mono" id="live-readouts" hidden>
+            <span class="readout" id="readout-delay">delay —</span>
+            <span class="readout" id="readout-wpm" hidden>wpm —</span>
+          </div>
+
+          <div class="record-controls">
+            <button class="btn btn-record" id="record-btn" disabled>Record</button>
+          </div>
+        </main>
+
+        <section class="panel log-panel">
+          <div class="panel-header">
+            <h2>Attempt log</h2>
+          </div>
+          <nav class="tabs" id="log-filter-tabs">
+            <button class="tab active" data-filter="All" type="button">All</button>
+            <button class="tab" data-filter="Behavioral" type="button">Behavioral</button>
+            <button class="tab" data-filter="Technical" type="button">Technical</button>
+            <button class="tab" data-filter="Case" type="button">Case</button>
+          </nav>
+          <ul class="attempt-list" id="attempt-list"></ul>
+        </section>
       </div>
-      <p>Click on the Tauri logo to learn more about the framework</p>
 
-      <form class="row" id="greet-form">
-        <input id="greet-input" placeholder="Enter a name..." />
-        <button type="submit">Greet</button>
-      </form>
-      <p id="greet-msg"></p>
-    </main>
+      <footer class="footer-note">
+        Video and attempt data stay on this device.
+      </footer>
+    </div>
+
+    <script type="module" src="./js/main.js"></script>
   </body>
 </html>
