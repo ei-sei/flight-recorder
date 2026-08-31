@@ -324,11 +324,17 @@ textarea {
 
 /* Layout */
 
+.body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
 .layout {
   --sidebar-col: minmax(240px, 0.85fr);
   flex: 1;
   display: grid;
-  grid-template-columns: auto var(--sidebar-col) minmax(360px, 1.75fr) minmax(260px, 1fr);
+  grid-template-columns: var(--sidebar-col) minmax(360px, 1.75fr) minmax(260px, 1fr);
   gap: 16px;
   padding: 16px;
   min-height: 0;
@@ -346,20 +352,24 @@ textarea {
   display: flex;
   flex-direction: column;
   align-items: center;
+  flex-shrink: 0;
+  width: 48px;
   gap: 4px;
-  padding-top: 2px;
+  padding-top: 10px;
+  background-color: var(--bg-panel);
+  border-right: 1px solid var(--border-strong);
 }
 
 .rail-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   padding: 0;
   background: transparent;
   border: none;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   color: var(--text-dim);
   cursor: pointer;
   transition: background-color var(--ease), color var(--ease);
