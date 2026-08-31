@@ -21,6 +21,8 @@ import {
   getRecordingSettings,
   saveRecordingSettings,
   clearAllData,
+  getTheme,
+  setTheme,
 } from "./store.js";
 import { showAlert, showConfirm } from "./modal.js";
 import { showContextMenu } from "./contextmenu.js";
@@ -29,6 +31,19 @@ const clockEl = document.getElementById("clock");
 const currentQuestionEl = document.getElementById("current-question");
 
 let appWindow = null;
+
+function applyTheme(theme) {
+  if (theme === "light") {
+    document.documentElement.setAttribute("data-theme", "light");
+  } else {
+    document.documentElement.removeAttribute("data-theme");
+  }
+  try {
+    localStorage.setItem("theme", theme);
+  } catch (err) {
+    // localStorage unavailable; the Tauri store remains the source of truth
+  }
+}
 
 function tickClock() {
   const now = new Date();
@@ -193,6 +208,7 @@ function initMenuBar() {
 
   viewBtn.addEventListener("click", async () => {
     const settings = await getRecordingSettings();
+    const theme = await getTheme();
     openMenu(viewBtn, [
       {
         label: settings.alwaysOnTop ? "Always on top ✓" : "Always on top",
@@ -200,6 +216,14 @@ function initMenuBar() {
           const next = !settings.alwaysOnTop;
           await appWindow.setAlwaysOnTop(next);
           await saveRecordingSettings({ alwaysOnTop: next });
+        },
+      },
+      {
+        label: theme === "light" ? "Light mode ✓" : "Light mode",
+        onClick: async () => {
+          const next = theme === "light" ? "dark" : "light";
+          applyTheme(next);
+          await setTheme(next);
         },
       },
     ]);
@@ -245,6 +269,8 @@ async function init() {
   if (settings.alwaysOnTop) {
     await appWindow.setAlwaysOnTop(true);
   }
+
+  applyTheme(await getTheme());
 
   await initAttempts({
     onPlay: (attempt, attemptNumber) => {

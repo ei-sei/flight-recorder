@@ -22,6 +22,12 @@
 
   --danger: #f4415c;
 
+  --item-tint: rgba(255, 255, 255, 0.012);
+  --gradient-tint-1: rgba(76, 124, 246, 0.07);
+  --gradient-tint-2: rgba(245, 185, 66, 0.03);
+  --shadow-soft: var(--shadow-soft);
+  --shadow-strong: rgba(0, 0, 0, 0.65);
+
   --radius-lg: 14px;
   --radius-md: 10px;
   --radius-sm: 6px;
@@ -31,8 +37,40 @@
   --font-mono: ui-monospace, "Cascadia Code", "SF Mono", Consolas, "Liberation Mono", monospace;
 }
 
+:root[data-theme="light"] {
+  --bg-base: #f6f7f9;
+  --bg-panel: #ffffff;
+  --bg-raised: #eef1f5;
+  --border: rgba(15, 23, 42, 0.08);
+  --border-strong: rgba(15, 23, 42, 0.16);
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-dim: #94a3b8;
+
+  --accent: #3b6fef;
+  --accent-hover: #2f5cd6;
+  --accent-glow: rgba(59, 111, 239, 0.3);
+  --accent-dim: rgba(59, 111, 239, 0.1);
+
+  --record: #dc2743;
+  --record-glow: rgba(220, 39, 67, 0.3);
+  --record-dim: rgba(220, 39, 67, 0.1);
+
+  --gold: #b8860a;
+  --gold-glow: rgba(184, 134, 10, 0.3);
+
+  --danger: #dc2743;
+
+  --item-tint: rgba(15, 23, 42, 0.015);
+  --gradient-tint-1: rgba(59, 111, 239, 0.05);
+  --gradient-tint-2: rgba(184, 134, 10, 0.03);
+  --shadow-soft: rgba(15, 23, 42, 0.06);
+  --shadow-strong: rgba(15, 23, 42, 0.12);
+}
+
 * {
   box-sizing: border-box;
+  transition: background-color 200ms ease, color 200ms ease, border-color 200ms ease;
 }
 
 html,
@@ -46,10 +84,11 @@ body {
   font-size: 14px;
   color: var(--text-primary);
   background:
-    radial-gradient(1100px 520px at 15% -12%, rgba(76, 124, 246, 0.07), transparent 60%),
-    radial-gradient(900px 480px at 100% 0%, rgba(245, 185, 66, 0.03), transparent 55%),
+    radial-gradient(1100px 520px at 15% -12%, var(--gradient-tint-1), transparent 60%),
+    radial-gradient(900px 480px at 100% 0%, var(--gradient-tint-2), transparent 55%),
     var(--bg-base);
   -webkit-font-smoothing: antialiased;
+  transition: background-color var(--ease), color var(--ease);
 }
 
 .mono {
@@ -100,7 +139,7 @@ textarea {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  border: 1px solid rgba(148, 163, 184, 0.16);
+  border: 1px solid var(--border-strong);
 }
 
 .resize-handle {
@@ -181,7 +220,7 @@ textarea {
   padding: 0 0 0 14px;
   height: 32px;
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+  border-bottom: 1px solid var(--border-strong);
   background-color: var(--bg-panel);
 }
 
@@ -291,7 +330,7 @@ textarea {
   background-color: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 16px 32px -20px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 1px 2px var(--shadow-soft), 0 16px 32px -20px var(--shadow-strong);
   overflow: hidden;
 }
 
@@ -382,7 +421,7 @@ textarea {
 
 .question-item.selected {
   background-color: var(--accent-dim);
-  border-color: rgba(76, 124, 246, 0.4);
+  border-color: var(--accent-glow);
   box-shadow: 0 0 16px -6px var(--accent-glow);
 }
 
@@ -467,7 +506,7 @@ textarea {
 }
 
 .btn-record {
-  border-color: rgba(244, 65, 92, 0.4);
+  border-color: var(--record-glow);
   color: var(--record);
   font-weight: 600;
   padding: 11px 32px;
@@ -513,13 +552,13 @@ textarea {
   background-color: #000;
   border-radius: var(--radius-lg);
   overflow: hidden;
-  box-shadow: 0 0 0 1px var(--border-strong), 0 20px 40px -20px rgba(0, 0, 0, 0.7);
+  box-shadow: 0 0 0 1px var(--border-strong), 0 20px 40px -20px var(--shadow-strong);
   transition: box-shadow var(--ease);
 }
 
 .viewfinder.recording {
   box-shadow: 0 0 0 1px rgba(244, 65, 92, 0.6), 0 0 32px -6px var(--record-glow),
-    0 20px 40px -20px rgba(0, 0, 0, 0.7);
+    0 20px 40px -20px var(--shadow-strong);
 }
 
 .viewfinder video {
@@ -580,7 +619,7 @@ textarea {
 
 .viewfinder.reviewing {
   box-shadow: 0 0 0 1px rgba(76, 124, 246, 0.55), 0 0 28px -8px var(--accent-glow),
-    0 20px 40px -20px rgba(0, 0, 0, 0.7);
+    0 20px 40px -20px var(--shadow-strong);
 }
 
 .rec-dot {
@@ -763,7 +802,7 @@ textarea {
   background-color: var(--bg-raised);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 16px 32px -12px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 1px 2px var(--shadow-soft), 0 16px 32px -12px var(--shadow-strong);
 }
 
 .context-menu-item {
@@ -810,7 +849,7 @@ textarea {
   background-color: var(--bg-panel);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-lg);
-  box-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.75);
+  box-shadow: 0 24px 60px -20px var(--shadow-strong);
   padding: 20px 22px;
 }
 
@@ -884,7 +923,7 @@ textarea {
   margin-bottom: 6px;
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
-  background-color: rgba(255, 255, 255, 0.012);
+  background-color: var(--item-tint);
   cursor: pointer;
   transition: border-color var(--ease), background-color var(--ease), box-shadow var(--ease);
 }
@@ -895,7 +934,7 @@ textarea {
 }
 
 .attempt-item.reviewing {
-  border-color: rgba(76, 124, 246, 0.4);
+  border-color: var(--accent-glow);
   background-color: var(--accent-dim);
   box-shadow: 0 0 16px -6px var(--accent-glow);
 }

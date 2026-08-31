@@ -5,6 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Flight recorder</title>
     <link rel="stylesheet" href="./style.css" />
+    <script>
+      try {
+        if (localStorage.getItem("theme") === "light") {
+          document.documentElement.setAttribute("data-theme", "light");
+        }
+      } catch (err) {
+        // localStorage unavailable; theme will still apply once the store loads
+      }
+    </script>
   </head>
   <body>
     <div class="resize-handle resize-n" data-resize-dir="North"></div>

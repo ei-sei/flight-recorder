@@ -83,6 +83,18 @@ export async function saveRecordingSettings(settings) {
   await store.save();
 }
 
+export async function getTheme() {
+  const store = await getStore();
+  const value = await store.get("theme");
+  return value ?? "dark";
+}
+
+export async function setTheme(theme) {
+  const store = await getStore();
+  await store.set("theme", theme);
+  await store.save();
+}
+
 export async function clearAllData() {
   const store = await getStore();
   await store.set("questions", []);
