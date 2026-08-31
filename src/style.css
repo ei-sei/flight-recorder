@@ -102,15 +102,15 @@ textarea {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 24px;
-  height: 56px;
+  padding: 0 0 0 14px;
+  height: 32px;
   flex-shrink: 0;
   border-bottom: 1px solid rgba(148, 163, 184, 0.16);
   background-color: var(--bg-panel);
 }
 
 .brand {
-  font-size: 15px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.02em;
   margin: 0;
@@ -124,13 +124,14 @@ textarea {
 
 .status-item {
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: 11px;
 }
 
 .window-controls {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 0;
+  height: 100%;
 }
 
 .window-btn {
@@ -138,19 +139,19 @@ textarea {
   align-items: center;
   justify-content: center;
   width: 30px;
-  height: 30px;
+  height: 100%;
   padding: 0;
   background: transparent;
   border: none;
-  border-radius: var(--radius-sm);
+  border-radius: 0;
   color: var(--text-secondary);
   cursor: pointer;
   transition: background-color var(--ease), color var(--ease);
 }
 
 .window-btn svg {
-  width: 10px;
-  height: 10px;
+  width: 9px;
+  height: 9px;
   stroke-width: 1;
 }
 
