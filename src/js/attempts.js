@@ -238,6 +238,7 @@ function render() {
 
 function setActiveFilter(filter) {
   activeFilter = filter;
+  selectedQuestion = null;
   for (const tab of filterTabsEl.querySelectorAll(".tab")) {
     tab.classList.toggle("active", tab.dataset.filter === filter);
   }
@@ -246,6 +247,12 @@ function setActiveFilter(filter) {
 
 export function setSelectedQuestion(question) {
   selectedQuestion = question;
+  if (question) {
+    activeFilter = "All";
+    for (const tab of filterTabsEl.querySelectorAll(".tab")) {
+      tab.classList.toggle("active", tab.dataset.filter === "All");
+    }
+  }
   render();
 }
 
