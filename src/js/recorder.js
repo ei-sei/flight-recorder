@@ -22,6 +22,19 @@ const wpmToggleRow = document.getElementById("wpm-toggle-row");
 const wpmToggleInput = document.getElementById("wpm-toggle-input");
 const wpmToggleHint = document.getElementById("wpm-toggle-hint");
 
+const playerControlsEl = document.getElementById("player-controls");
+const playPauseBtn = document.getElementById("player-playpause");
+const iconPlay = playPauseBtn.querySelector(".icon-play");
+const iconPause = playPauseBtn.querySelector(".icon-pause");
+const playerTimeEl = document.getElementById("player-time");
+const playerDurationEl = document.getElementById("player-duration");
+const scrubberEl = document.getElementById("player-scrubber");
+const scrubberFillEl = document.getElementById("player-scrubber-fill");
+const scrubberThumbEl = document.getElementById("player-scrubber-thumb");
+const muteBtn = document.getElementById("player-mute");
+const iconVolOn = muteBtn.querySelector(".icon-vol-on");
+const iconVolOff = muteBtn.querySelector(".icon-vol-off");
+
 const { readFile } = window.__TAURI__.fs;
 
 const SPEECH_RMS_THRESHOLD = 0.02;
@@ -251,6 +264,74 @@ export function setRecordEnabled(enabled) {
   updateRecordButtonState();
 }
 
+function formatPlayerTime(seconds) {
+  if (!Number.isFinite(seconds)) return "00:00";
+  return formatDuration(seconds * 1000);
+}
+
+function updatePlayPauseIcon() {
+  iconPlay.hidden = !previewEl.paused;
+  iconPause.hidden = previewEl.paused;
+  playPauseBtn.setAttribute("aria-label", previewEl.paused ? "Play" : "Pause");
+}
+
+function updateMuteIcon() {
+  iconVolOn.hidden = previewEl.muted;
+  iconVolOff.hidden = !previewEl.muted;
+  muteBtn.setAttribute("aria-label", previewEl.muted ? "Unmute" : "Mute");
+}
+
+function updateScrubber() {
+  const ratio = previewEl.duration ? previewEl.currentTime / previewEl.duration : 0;
+  scrubberFillEl.style.width = `${ratio * 100}%`;
+  scrubberThumbEl.style.left = `${ratio * 100}%`;
+  playerTimeEl.textContent = formatPlayerTime(previewEl.currentTime);
+}
+
+function seekToClientX(clientX) {
+  const rect = scrubberEl.getBoundingClientRect();
+  const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+  if (previewEl.duration) {
+    previewEl.currentTime = ratio * previewEl.duration;
+  }
+}
+
+function initPlayerControls() {
+  playPauseBtn.addEventListener("click", () => {
+    if (previewEl.paused) {
+      previewEl.play();
+    } else {
+      previewEl.pause();
+    }
+  });
+
+  muteBtn.addEventListener("click", () => {
+    previewEl.muted = !previewEl.muted;
+  });
+
+  previewEl.addEventListener("play", updatePlayPauseIcon);
+  previewEl.addEventListener("pause", updatePlayPauseIcon);
+  previewEl.addEventListener("ended", updatePlayPauseIcon);
+  previewEl.addEventListener("volumechange", updateMuteIcon);
+  previewEl.addEventListener("timeupdate", updateScrubber);
+  previewEl.addEventListener("loadedmetadata", () => {
+    playerDurationEl.textContent = formatPlayerTime(previewEl.duration);
+    updateScrubber();
+  });
+
+  let isDragging = false;
+  scrubberEl.addEventListener("mousedown", (event) => {
+    isDragging = true;
+    seekToClientX(event.clientX);
+  });
+  document.addEventListener("mousemove", (event) => {
+    if (isDragging) seekToClientX(event.clientX);
+  });
+  document.addEventListener("mouseup", () => {
+    isDragging = false;
+  });
+}
+
 function renderReviewStars(attemptId, score) {
   renderStars(viewfinderMetaStarsEl, score, (newScore) => {
     onScoreChange(attemptId, newScore);
@@ -273,7 +354,10 @@ export async function enterReviewMode(attempt, attemptNumber) {
   previewEl.srcObject = null;
   previewEl.src = reviewObjectUrl;
   previewEl.muted = false;
-  previewEl.controls = true;
+  scrubberFillEl.style.width = "0%";
+  scrubberThumbEl.style.left = "0%";
+  playerTimeEl.textContent = "00:00";
+  playerDurationEl.textContent = "00:00";
   previewEl.play().catch(() => {});
 
   viewfinderEmptyEl.hidden = true;
@@ -283,6 +367,9 @@ export async function enterReviewMode(attempt, attemptNumber) {
   wpmToggleRow.hidden = true;
   recordBtn.hidden = true;
   backToLiveBtn.hidden = false;
+  playerControlsEl.hidden = false;
+  updatePlayPauseIcon();
+  updateMuteIcon();
   currentQuestionEl.textContent = `Reviewing: “${attempt.questionText}”`;
 
   const dateLabel = new Date(attempt.date).toLocaleDateString();
@@ -301,7 +388,7 @@ export function exitReviewMode() {
   if (!isReviewing) return;
 
   isReviewing = false;
-  previewEl.controls = false;
+  playerControlsEl.hidden = true;
   previewEl.removeAttribute("src");
   previewEl.load();
   previewEl.muted = true;
@@ -354,6 +441,7 @@ export async function initRecorder(options = {}) {
 
   recordBtn.addEventListener("click", toggleRecording);
   backToLiveBtn.addEventListener("click", exitReviewMode);
+  initPlayerControls();
   await initWpmToggle();
   await initCamera();
 }

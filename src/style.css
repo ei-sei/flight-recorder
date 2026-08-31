@@ -519,6 +519,82 @@ textarea {
   pointer-events: none;
 }
 
+.player-controls {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px 12px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.4) 70%, transparent);
+}
+
+.player-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: #fff;
+  padding: 2px;
+  cursor: pointer;
+  transition: color var(--ease), transform var(--ease);
+}
+
+.player-btn:hover {
+  color: var(--accent);
+  transform: scale(1.1);
+}
+
+.player-btn svg {
+  width: 15px;
+  height: 15px;
+  fill: currentColor;
+}
+
+.player-time {
+  flex-shrink: 0;
+  min-width: 34px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.player-scrubber {
+  position: relative;
+  flex: 1;
+  height: 4px;
+  border-radius: 999px;
+  background-color: rgba(255, 255, 255, 0.25);
+  cursor: pointer;
+}
+
+.player-scrubber-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 0%;
+  border-radius: 999px;
+  background-color: var(--accent);
+  pointer-events: none;
+}
+
+.player-scrubber-thumb {
+  position: absolute;
+  top: 50%;
+  left: 0%;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.45);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
 .rec-indicator {
   display: flex;
   align-items: center;
