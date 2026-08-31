@@ -276,6 +276,13 @@ textarea {
   letter-spacing: 0.04em;
 }
 
+.panel-subtitle {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+
 /* Tabs (segmented pill control) */
 
 .tabs {

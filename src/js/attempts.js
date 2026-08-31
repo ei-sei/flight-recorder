@@ -7,12 +7,12 @@ import { getAttempts, saveAttempts } from "./store.js";
 import { slugify, dateStamp, formatDuration, renderStars } from "./util.js";
 
 let attempts = [];
-let activeFilter = "All";
+let selectedQuestion = null;
 let reviewingId = null;
 let onPlay = () => {};
 let onExitReview = () => {};
 const listEl = document.getElementById("attempt-list");
-const filterTabsEl = document.getElementById("log-filter-tabs");
+const subtitleEl = document.getElementById("log-subtitle");
 
 async function computeVideoPath(question, date) {
   const base = await videoDir();
@@ -176,13 +176,18 @@ function renderAttemptItem(attempt) {
 function render() {
   listEl.innerHTML = "";
 
-  const filtered =
-    activeFilter === "All" ? attempts : attempts.filter((a) => a.category === activeFilter);
+  const filtered = selectedQuestion
+    ? attempts.filter((a) => a.questionId === selectedQuestion.id)
+    : attempts;
+
+  subtitleEl.textContent = selectedQuestion
+    ? `Showing attempts for “${selectedQuestion.text}”`
+    : "Showing all attempts";
 
   if (filtered.length === 0) {
     const empty = document.createElement("li");
     empty.className = "attempt-list-empty";
-    empty.textContent = "No attempts yet.";
+    empty.textContent = selectedQuestion ? "No attempts for this question yet." : "No attempts yet.";
     listEl.appendChild(empty);
     return;
   }
@@ -192,11 +197,8 @@ function render() {
   }
 }
 
-function setActiveFilter(filter) {
-  activeFilter = filter;
-  for (const tab of filterTabsEl.querySelectorAll(".tab")) {
-    tab.classList.toggle("active", tab.dataset.filter === filter);
-  }
+export function setSelectedQuestion(question) {
+  selectedQuestion = question;
   render();
 }
 
@@ -209,12 +211,6 @@ export async function initAttempts(options = {}) {
   onPlay = options.onPlay ?? (() => {});
   onExitReview = options.onExitReview ?? (() => {});
   attempts = await getAttempts();
-
-  filterTabsEl.addEventListener("click", (event) => {
-    const btn = event.target.closest(".tab");
-    if (!btn) return;
-    setActiveFilter(btn.dataset.filter);
-  });
 
   render();
 }

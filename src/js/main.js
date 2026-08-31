@@ -1,6 +1,6 @@
 import { initQuestions, getSelectedQuestion } from "./questions.js";
 import { initRecorder, setRecordEnabled, enterReviewMode, exitReviewMode } from "./recorder.js";
-import { initAttempts, saveAttempt, clearReviewing } from "./attempts.js";
+import { initAttempts, saveAttempt, clearReviewing, setSelectedQuestion } from "./attempts.js";
 
 const clockEl = document.getElementById("clock");
 const currentQuestionEl = document.getElementById("current-question");
@@ -13,6 +13,7 @@ function tickClock() {
 function handleQuestionSelectionChange(question) {
   currentQuestionEl.textContent = question ? question.text : "Select a question to begin.";
   setRecordEnabled(Boolean(question));
+  setSelectedQuestion(question);
 }
 
 function initWindowControls() {
