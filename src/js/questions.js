@@ -146,3 +146,11 @@ export async function initQuestions(options = {}) {
 export function getSelectedQuestion() {
   return questions.find((q) => q.id === selectedId) ?? null;
 }
+
+export function selectQuestionById(id) {
+  const question = questions.find((q) => q.id === id);
+  if (!question) return;
+
+  setActiveCategory(question.category);
+  selectQuestion(question.id);
+}

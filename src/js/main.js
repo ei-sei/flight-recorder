@@ -1,4 +1,4 @@
-import { initQuestions, getSelectedQuestion } from "./questions.js";
+import { initQuestions, getSelectedQuestion, selectQuestionById } from "./questions.js";
 import { initRecorder, setRecordEnabled, enterReviewMode, exitReviewMode } from "./recorder.js";
 import {
   initAttempts,
@@ -46,7 +46,10 @@ async function init() {
   initWindowControls();
 
   await initAttempts({
-    onPlay: enterReviewMode,
+    onPlay: (attempt, attemptNumber) => {
+      selectQuestionById(attempt.questionId);
+      enterReviewMode(attempt, attemptNumber);
+    },
     onExitReview: exitReviewMode,
   });
   await initQuestions({ onSelectionChange: handleQuestionSelectionChange });
