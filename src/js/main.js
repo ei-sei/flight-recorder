@@ -6,6 +6,7 @@ import {
   clearReviewing,
   setSelectedQuestion,
   updateAttemptNotes,
+  updateAttemptScore,
 } from "./attempts.js";
 
 const clockEl = document.getElementById("clock");
@@ -57,6 +58,7 @@ async function init() {
       clearReviewing();
     },
     onNotesChange: updateAttemptNotes,
+    onScoreChange: updateAttemptScore,
   });
 }
 

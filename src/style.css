@@ -588,9 +588,25 @@ textarea {
 }
 
 .viewfinder-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 560px;
+}
+
+.viewfinder-meta-info {
   font-size: 11px;
   color: var(--text-dim);
   letter-spacing: 0.02em;
+}
+
+.stars.readonly .star {
+  cursor: default;
+}
+
+.stars.readonly .star:hover {
+  transform: none;
 }
 
 .live-readouts {

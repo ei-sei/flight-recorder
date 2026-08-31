@@ -1,8 +1,10 @@
-import { formatTimer, formatDuration } from "./util.js";
+import { formatTimer, formatDuration, renderStars } from "./util.js";
 import { getWpmEnabled, setWpmEnabled } from "./store.js";
 
 const previewEl = document.getElementById("preview");
 const viewfinderMetaEl = document.getElementById("viewfinder-meta");
+const viewfinderMetaInfoEl = document.getElementById("viewfinder-meta-info");
+const viewfinderMetaStarsEl = document.getElementById("viewfinder-meta-stars");
 const viewfinderEl = document.querySelector(".viewfinder");
 const viewfinderEmptyEl = document.getElementById("viewfinder-empty");
 const recIndicatorEl = document.getElementById("rec-indicator");
@@ -50,6 +52,7 @@ let wpm = null;
 let isReviewing = false;
 let onExitReview = () => {};
 let onNotesChange = () => {};
+let onScoreChange = () => {};
 
 async function initCamera() {
   try {
@@ -247,6 +250,13 @@ export function setRecordEnabled(enabled) {
   updateRecordButtonState();
 }
 
+function renderReviewStars(attemptId, score) {
+  renderStars(viewfinderMetaStarsEl, score, (newScore) => {
+    onScoreChange(attemptId, newScore);
+    renderReviewStars(attemptId, newScore);
+  });
+}
+
 export function enterReviewMode(attempt, attemptNumber) {
   if (mediaRecorder && mediaRecorder.state === "recording") return;
 
@@ -267,7 +277,8 @@ export function enterReviewMode(attempt, attemptNumber) {
   currentQuestionEl.textContent = `Reviewing: “${attempt.questionText}”`;
 
   const dateLabel = new Date(attempt.date).toLocaleDateString();
-  viewfinderMetaEl.textContent = `Attempt ${attemptNumber} · ${dateLabel} · ${attempt.category} · ${formatDuration(attempt.durationMs)}`;
+  viewfinderMetaInfoEl.textContent = `Attempt ${attemptNumber} · ${dateLabel} · ${attempt.category} · Duration: ${formatDuration(attempt.durationMs)}`;
+  renderReviewStars(attempt.id, attempt.score);
   viewfinderMetaEl.hidden = false;
 
   reviewNotesRow.hidden = false;
@@ -325,6 +336,7 @@ export async function initRecorder(options = {}) {
   getSelectedQuestion = options.getSelectedQuestion ?? (() => null);
   onExitReview = options.onExitReview ?? (() => {});
   onNotesChange = options.onNotesChange ?? (() => {});
+  onScoreChange = options.onScoreChange ?? (() => {});
 
   recordBtn.addEventListener("click", toggleRecording);
   backToLiveBtn.addEventListener("click", exitReviewMode);

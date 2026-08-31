@@ -30,15 +30,20 @@ export function formatTimer(ms) {
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}.${tenths}`;
 }
 
-export function renderStars(container, score, onChange) {
+export function renderStars(container, score, onChange, readOnly = false) {
   container.innerHTML = "";
+  container.classList.toggle("readonly", readOnly);
   for (let i = 1; i <= 5; i++) {
     const star = document.createElement("button");
     star.type = "button";
     star.className = "star" + (i <= score ? " filled" : "");
     star.textContent = i <= score ? "★" : "☆";
     star.title = `${i} star${i === 1 ? "" : "s"}`;
-    star.addEventListener("click", () => onChange(i === score ? 0 : i));
+    if (readOnly) {
+      star.disabled = true;
+    } else {
+      star.addEventListener("click", () => onChange(i === score ? 0 : i));
+    }
     container.appendChild(star);
   }
 }

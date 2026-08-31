@@ -75,6 +75,10 @@ export async function updateAttemptNotes(id, notes) {
   await updateAttempt(id, { notes });
 }
 
+export async function updateAttemptScore(id, score) {
+  await updateAttempt(id, { score });
+}
+
 async function deleteAttempt(id) {
   const attempt = attempts.find((a) => a.id === id);
   if (!attempt) return;
@@ -177,7 +181,7 @@ function renderAttemptItem(attempt) {
 
   const stars = document.createElement("div");
   stars.className = "stars";
-  renderStars(stars, attempt.score, (score) => updateAttempt(attempt.id, { score }));
+  renderStars(stars, attempt.score, null, true);
 
   const revealBtn = document.createElement("button");
   revealBtn.type = "button";
