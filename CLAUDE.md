@@ -7,7 +7,9 @@ A local desktop app for practicing job interviews on webcam. Built with Tauri. R
 - Frontend is plain HTML/CSS/JS. No React or Vue.
 - `tauri-plugin-store` for questions, scores, notes, and attempt metadata (real local JSON file, not browser storage).
 - `tauri-plugin-fs` for saving video files to disk. No manual downloads.
-- `tauri-plugin-dialog` and `tauri-plugin-opener` as optional extras (native save dialogs, "show in folder").
+- `tauri-plugin-opener` for "show in folder".
+- `tauri-plugin-window-state` to remember window size/position across launches.
+- Confirmation prompts (delete question/attempt) are an in-app modal, not the native OS dialog — keeps the UI visually consistent with the rest of the app.
 
 ## Core features
 - Question bank, organized by category (Behavioral, Technical, Case). User can add and remove questions.

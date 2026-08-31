@@ -1,10 +1,10 @@
 const { videoDir, join } = window.__TAURI__.path;
 const { mkdir, writeFile, exists, remove } = window.__TAURI__.fs;
 const { revealItemInDir } = window.__TAURI__.opener;
-const { confirm } = window.__TAURI__.dialog;
 
 import { getAttempts, saveAttempts } from "./store.js";
 import { slugify, dateStamp, formatDuration, renderStars } from "./util.js";
+import { showConfirm } from "./modal.js";
 
 let attempts = [];
 let activeFilter = "All";
@@ -74,10 +74,12 @@ async function deleteAttempt(id) {
   const attempt = attempts.find((a) => a.id === id);
   if (!attempt) return;
 
-  const confirmed = await confirm(
-    "Delete this attempt and its video file? This can't be undone.",
-    { title: "Delete attempt", kind: "warning" },
-  );
+  const confirmed = await showConfirm({
+    title: "Delete attempt?",
+    message: "This will delete the attempt and its video file. This can't be undone.",
+    confirmLabel: "Delete",
+    danger: true,
+  });
   if (!confirmed) return;
 
   if (reviewingId === id) {

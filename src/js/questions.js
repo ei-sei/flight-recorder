@@ -1,7 +1,6 @@
-const { confirm } = window.__TAURI__.dialog;
-
 import { getQuestions, saveQuestions } from "./store.js";
 import { getAttemptCountForQuestion } from "./attempts.js";
+import { showConfirm } from "./modal.js";
 
 let questions = [];
 let activeCategory = "Behavioral";
@@ -71,9 +70,11 @@ async function confirmDeleteQuestion(question) {
   const count = getAttemptCountForQuestion(question.id);
   const videoNote = count > 0 ? `You have recorded ${count} video${count === 1 ? "" : "s"} under this question. They'll stay in your attempt log, but you won't be able to select this question anymore.` : "This question has no recorded attempts.";
 
-  const confirmed = await confirm(videoNote, {
+  const confirmed = await showConfirm({
     title: "Delete question?",
-    kind: "warning",
+    message: videoNote,
+    confirmLabel: "Delete",
+    danger: true,
   });
   if (confirmed) {
     removeQuestion(question.id);

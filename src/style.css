@@ -419,6 +419,17 @@ textarea {
   box-shadow: 0 8px 20px -6px var(--accent-glow);
 }
 
+.btn-danger {
+  background-color: var(--record);
+  border-color: var(--record);
+  color: #fff;
+  font-weight: 600;
+}
+
+.btn-danger:hover:not(:disabled) {
+  box-shadow: 0 8px 20px -6px var(--record-glow);
+}
+
 .btn-record {
   border-color: rgba(244, 65, 92, 0.4);
   color: var(--record);
@@ -692,6 +703,49 @@ textarea {
 
 .context-menu-item.danger:hover {
   color: var(--danger);
+}
+
+/* Modal */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(2, 3, 6, 0.55);
+  backdrop-filter: blur(2px);
+  z-index: 3000;
+}
+
+.modal-box {
+  width: 90%;
+  max-width: 380px;
+  background-color: var(--bg-panel);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.75);
+  padding: 20px 22px;
+}
+
+.modal-title {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.modal-message {
+  margin: 0 0 20px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 /* Attempt log */

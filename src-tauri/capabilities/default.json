@@ -12,7 +12,6 @@
     "core:window:allow-close",
     "opener:default",
     "store:default",
-    "dialog:default",
     "fs:allow-mkdir",
     "fs:allow-write-file",
     "fs:allow-read-dir",
