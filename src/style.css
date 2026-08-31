@@ -468,15 +468,15 @@ textarea {
 
 .recorder-panel {
   align-items: center;
-  padding: 24px;
+  padding: 24px 12px;
   gap: 18px;
   overflow-y: auto;
 }
 
 .viewfinder {
   position: relative;
-  width: min(100%, calc(55vh * 4 / 3));
-  max-height: 55vh;
+  width: min(100%, calc(62vh * 4 / 3));
+  max-height: 62vh;
   aspect-ratio: 4 / 3;
   background-color: #000;
   border-radius: var(--radius-lg);
