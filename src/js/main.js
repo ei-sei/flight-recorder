@@ -171,11 +171,39 @@ function initSettingsModal() {
 
 async function showUpdatesInfo() {
   const { getVersion } = window.__TAURI__.app;
+  const { check } = window.__TAURI__.updater;
+  const { relaunch } = window.__TAURI__.process;
   const version = await getVersion();
-  showAlert({
-    title: "Updates",
-    message: `You're on version ${version}. Automatic update checking isn't set up yet.`,
+
+  let update;
+  try {
+    update = await check();
+  } catch (err) {
+    console.error("Update check failed", err);
+    showAlert({
+      title: "Updates",
+      message: `You're on version ${version}. Couldn't check for updates right now — check your connection and try again.`,
+    });
+    return;
+  }
+
+  if (!update) {
+    showAlert({
+      title: "Updates",
+      message: `You're on version ${version}. That's the latest version.`,
+    });
+    return;
+  }
+
+  const shouldInstall = await showConfirm({
+    title: "Update available",
+    message: `Version ${update.version} is available (you're on ${version}). Download and install now? The app will restart.`,
+    confirmLabel: "Update and restart",
   });
+  if (!shouldInstall) return;
+
+  await update.downloadAndInstall();
+  await relaunch();
 }
 
 async function showAboutInfo() {

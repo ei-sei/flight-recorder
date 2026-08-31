@@ -20,6 +20,8 @@
     "fs:allow-read-dir",
     "fs:allow-exists",
     "fs:allow-remove",
+    "updater:default",
+    "process:allow-restart",
     {
       "identifier": "fs:scope",
       "allow": ["$VIDEO/flight-recorder/**"]
