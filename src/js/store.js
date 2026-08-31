@@ -57,3 +57,15 @@ export async function saveAttempts(attempts) {
   await store.set("attempts", attempts);
   await store.save();
 }
+
+export async function getWpmEnabled() {
+  const store = await getStore();
+  const value = await store.get("wpmEnabled");
+  return value ?? false;
+}
+
+export async function setWpmEnabled(enabled) {
+  const store = await getStore();
+  await store.set("wpmEnabled", enabled);
+  await store.save();
+}

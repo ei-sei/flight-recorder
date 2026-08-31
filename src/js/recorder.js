@@ -1,4 +1,5 @@
 import { formatTimer } from "./util.js";
+import { getWpmEnabled, setWpmEnabled } from "./store.js";
 
 const previewEl = document.getElementById("preview");
 const viewfinderEmptyEl = document.getElementById("viewfinder-empty");
@@ -7,9 +8,14 @@ const timerEl = document.getElementById("timer");
 const recordBtn = document.getElementById("record-btn");
 const liveReadoutsEl = document.getElementById("live-readouts");
 const readoutDelayEl = document.getElementById("readout-delay");
+const readoutWpmEl = document.getElementById("readout-wpm");
+const wpmToggleRow = document.getElementById("wpm-toggle-row");
+const wpmToggleInput = document.getElementById("wpm-toggle-input");
+const wpmToggleHint = document.getElementById("wpm-toggle-hint");
 
 const SPEECH_RMS_THRESHOLD = 0.02;
 const SPEECH_SUSTAIN_MS = 150;
+const SpeechRecognitionImpl = window.SpeechRecognition || window.webkitSpeechRecognition;
 
 let stream = null;
 let mediaRecorder = null;
@@ -26,6 +32,11 @@ let volumeData = null;
 let volumeRafId = null;
 let speechAboveThresholdSinceTs = null;
 let responseDelayMs = null;
+
+let wpmEnabled = false;
+let speechRecognizer = null;
+let transcript = "";
+let wpm = null;
 
 async function initCamera() {
   try {
@@ -99,6 +110,52 @@ function stopResponseDelayDetection() {
   }
 }
 
+function countWords(text) {
+  const trimmed = text.trim();
+  return trimmed ? trimmed.split(/\s+/).length : 0;
+}
+
+function startSpeechPaceTracking() {
+  transcript = "";
+  wpm = null;
+  readoutWpmEl.hidden = false;
+  readoutWpmEl.textContent = "wpm —";
+
+  speechRecognizer = new SpeechRecognitionImpl();
+  speechRecognizer.continuous = true;
+  speechRecognizer.interimResults = true;
+  speechRecognizer.lang = "en-US";
+
+  speechRecognizer.onresult = (event) => {
+    let combined = "";
+    for (let i = 0; i < event.results.length; i++) {
+      combined += event.results[i][0].transcript + " ";
+    }
+    transcript = combined.trim();
+
+    const elapsedMinutes = (Date.now() - recordStartTs) / 60000;
+    if (elapsedMinutes > 0) {
+      wpm = countWords(transcript) / elapsedMinutes;
+      readoutWpmEl.textContent = `${Math.round(wpm)} wpm`;
+    }
+  };
+  speechRecognizer.onerror = (event) => {
+    console.error("Speech recognition error", event.error);
+  };
+
+  speechRecognizer.start();
+}
+
+function stopSpeechPaceTracking() {
+  if (speechRecognizer) {
+    speechRecognizer.onresult = null;
+    speechRecognizer.onerror = null;
+    speechRecognizer.stop();
+    speechRecognizer = null;
+  }
+  readoutWpmEl.hidden = true;
+}
+
 function startRecording() {
   if (!stream) return;
 
@@ -119,6 +176,10 @@ function startRecording() {
 
   liveReadoutsEl.hidden = false;
   startResponseDelayDetection();
+
+  if (wpmEnabled && SpeechRecognitionImpl) {
+    startSpeechPaceTracking();
+  }
 }
 
 function stopRecording() {
@@ -130,6 +191,9 @@ function stopRecording() {
 async function handleStop() {
   clearInterval(timerInterval);
   stopResponseDelayDetection();
+  if (wpmEnabled && SpeechRecognitionImpl) {
+    stopSpeechPaceTracking();
+  }
   recIndicatorEl.hidden = true;
   liveReadoutsEl.hidden = true;
   timerEl.textContent = "00:00.0";
@@ -141,7 +205,14 @@ async function handleStop() {
   const blob = new Blob(chunks, { type: "video/webm" });
   const question = getSelectedQuestion();
   if (question) {
-    await onRecordingComplete({ blob, durationMs, question, responseDelayMs });
+    await onRecordingComplete({
+      blob,
+      durationMs,
+      question,
+      responseDelayMs,
+      wpm: wpmEnabled ? wpm : null,
+      transcript: wpmEnabled ? transcript : null,
+    });
   }
 }
 
@@ -158,10 +229,28 @@ export function setRecordEnabled(enabled) {
   updateRecordButtonState();
 }
 
+async function initWpmToggle() {
+  if (!SpeechRecognitionImpl) {
+    wpmToggleInput.disabled = true;
+    wpmToggleRow.classList.add("unavailable");
+    wpmToggleHint.textContent = "Not available on this platform's webview.";
+    return;
+  }
+
+  wpmEnabled = await getWpmEnabled();
+  wpmToggleInput.checked = wpmEnabled;
+
+  wpmToggleInput.addEventListener("change", () => {
+    wpmEnabled = wpmToggleInput.checked;
+    setWpmEnabled(wpmEnabled);
+  });
+}
+
 export async function initRecorder(options = {}) {
   onRecordingComplete = options.onRecordingComplete ?? (() => {});
   getSelectedQuestion = options.getSelectedQuestion ?? (() => null);
 
   recordBtn.addEventListener("click", toggleRecording);
+  await initWpmToggle();
   await initCamera();
 }
