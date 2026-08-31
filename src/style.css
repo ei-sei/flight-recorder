@@ -583,6 +583,48 @@ textarea {
   display: block;
 }
 
+.player-volume {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.volume-slider {
+  width: 0;
+  opacity: 0;
+  margin-left: 0;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.25);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: width var(--ease), opacity var(--ease), margin-left var(--ease);
+}
+
+.player-volume:hover .volume-slider,
+.player-volume:focus-within .volume-slider {
+  width: 60px;
+  opacity: 1;
+  margin-left: 8px;
+}
+
+.volume-slider::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: var(--accent);
+  margin-top: -3px;
+  cursor: pointer;
+}
+
 .player-time {
   flex-shrink: 0;
   min-width: 34px;

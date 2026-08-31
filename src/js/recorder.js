@@ -30,6 +30,7 @@ const scrubberEl = document.getElementById("player-scrubber");
 const scrubberFillEl = document.getElementById("player-scrubber-fill");
 const scrubberThumbEl = document.getElementById("player-scrubber-thumb");
 const muteBtn = document.getElementById("player-mute");
+const volumeSlider = document.getElementById("player-volume-slider");
 
 const { readFile } = window.__TAURI__.fs;
 
@@ -271,8 +272,10 @@ function updatePlayPauseIcon() {
 }
 
 function updateMuteIcon() {
-  muteBtn.classList.toggle("is-muted", previewEl.muted);
-  muteBtn.setAttribute("aria-label", previewEl.muted ? "Unmute" : "Mute");
+  const isMuted = previewEl.muted || previewEl.volume === 0;
+  muteBtn.classList.toggle("is-muted", isMuted);
+  muteBtn.setAttribute("aria-label", isMuted ? "Unmute" : "Mute");
+  volumeSlider.value = isMuted ? 0 : previewEl.volume;
 }
 
 function updateScrubber() {
@@ -305,8 +308,22 @@ function initPlayerControls() {
     if (isReviewing) togglePlayback();
   });
 
+  let lastVolume = 1;
   muteBtn.addEventListener("click", () => {
-    previewEl.muted = !previewEl.muted;
+    if (previewEl.muted || previewEl.volume === 0) {
+      previewEl.muted = false;
+      previewEl.volume = lastVolume || 1;
+    } else {
+      lastVolume = previewEl.volume;
+      previewEl.muted = true;
+    }
+  });
+
+  volumeSlider.addEventListener("input", () => {
+    const value = Number(volumeSlider.value);
+    previewEl.muted = value === 0;
+    previewEl.volume = value;
+    if (value > 0) lastVolume = value;
   });
 
   previewEl.addEventListener("play", updatePlayPauseIcon);
