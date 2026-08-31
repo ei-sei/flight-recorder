@@ -22,7 +22,7 @@ const wpmToggleRow = document.getElementById("wpm-toggle-row");
 const wpmToggleInput = document.getElementById("wpm-toggle-input");
 const wpmToggleHint = document.getElementById("wpm-toggle-hint");
 
-const { convertFileSrc } = window.__TAURI__.core;
+const { readFile } = window.__TAURI__.fs;
 
 const SPEECH_RMS_THRESHOLD = 0.02;
 const SPEECH_SUSTAIN_MS = 150;
@@ -50,6 +50,7 @@ let transcript = "";
 let wpm = null;
 
 let isReviewing = false;
+let reviewObjectUrl = null;
 let onExitReview = () => {};
 let onNotesChange = () => {};
 let onScoreChange = () => {};
@@ -257,12 +258,20 @@ function renderReviewStars(attemptId, score) {
   });
 }
 
-export function enterReviewMode(attempt, attemptNumber) {
+export async function enterReviewMode(attempt, attemptNumber) {
   if (mediaRecorder && mediaRecorder.state === "recording") return;
+
+  if (reviewObjectUrl) {
+    URL.revokeObjectURL(reviewObjectUrl);
+    reviewObjectUrl = null;
+  }
+
+  const bytes = await readFile(attempt.videoPath);
+  reviewObjectUrl = URL.createObjectURL(new Blob([bytes], { type: "video/webm" }));
 
   isReviewing = true;
   previewEl.srcObject = null;
-  previewEl.src = convertFileSrc(attempt.videoPath);
+  previewEl.src = reviewObjectUrl;
   previewEl.muted = false;
   previewEl.controls = true;
   previewEl.play().catch(() => {});
@@ -297,6 +306,11 @@ export function exitReviewMode() {
   previewEl.load();
   previewEl.muted = true;
   previewEl.srcObject = stream;
+
+  if (reviewObjectUrl) {
+    URL.revokeObjectURL(reviewObjectUrl);
+    reviewObjectUrl = null;
+  }
 
   viewfinderEmptyEl.hidden = Boolean(stream);
   viewfinderEl.classList.remove("reviewing");

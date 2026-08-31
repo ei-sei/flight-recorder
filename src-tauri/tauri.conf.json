@@ -20,11 +20,7 @@
       }
     ],
     "security": {
-      "csp": null,
-      "assetProtocol": {
-        "enable": true,
-        "scope": ["$VIDEO/flight-recorder/**"]
-      }
+      "csp": null
     }
   },
   "bundle": {
