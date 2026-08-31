@@ -12,6 +12,7 @@
     "fs:allow-write-file",
     "fs:allow-read-dir",
     "fs:allow-exists",
+    "fs:allow-remove",
     {
       "identifier": "fs:scope",
       "allow": ["$VIDEO/flight-recorder/**"]
