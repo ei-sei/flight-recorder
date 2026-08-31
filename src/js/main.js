@@ -1,6 +1,12 @@
 import { initQuestions, getSelectedQuestion } from "./questions.js";
 import { initRecorder, setRecordEnabled, enterReviewMode, exitReviewMode } from "./recorder.js";
-import { initAttempts, saveAttempt, clearReviewing, setSelectedQuestion } from "./attempts.js";
+import {
+  initAttempts,
+  saveAttempt,
+  clearReviewing,
+  setSelectedQuestion,
+  updateAttemptNotes,
+} from "./attempts.js";
 
 const clockEl = document.getElementById("clock");
 const currentQuestionEl = document.getElementById("current-question");
@@ -50,6 +56,7 @@ async function init() {
       handleQuestionSelectionChange(getSelectedQuestion());
       clearReviewing();
     },
+    onNotesChange: updateAttemptNotes,
   });
 }
 

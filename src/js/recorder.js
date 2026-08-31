@@ -10,6 +10,8 @@ const timerEl = document.getElementById("timer");
 const recordBtn = document.getElementById("record-btn");
 const backToLiveBtn = document.getElementById("back-to-live-btn");
 const currentQuestionEl = document.getElementById("current-question");
+const reviewNotesRow = document.getElementById("review-notes-row");
+const reviewNotesInput = document.getElementById("review-notes-input");
 const liveReadoutsEl = document.getElementById("live-readouts");
 const readoutDelayEl = document.getElementById("readout-delay");
 const readoutWpmEl = document.getElementById("readout-wpm");
@@ -46,6 +48,7 @@ let wpm = null;
 
 let isReviewing = false;
 let onExitReview = () => {};
+let onNotesChange = () => {};
 
 async function initCamera() {
   try {
@@ -262,6 +265,10 @@ export function enterReviewMode(attempt) {
   backToLiveBtn.hidden = false;
   currentQuestionEl.textContent = `Reviewing: “${attempt.questionText}”`;
 
+  reviewNotesRow.hidden = false;
+  reviewNotesInput.value = attempt.notes;
+  reviewNotesInput.onblur = () => onNotesChange(attempt.id, reviewNotesInput.value);
+
   updateRecordButtonState();
 }
 
@@ -282,6 +289,9 @@ export function exitReviewMode() {
   wpmToggleRow.hidden = false;
   recordBtn.hidden = false;
   backToLiveBtn.hidden = true;
+
+  reviewNotesRow.hidden = true;
+  reviewNotesInput.onblur = null;
 
   updateRecordButtonState();
   onExitReview();
@@ -308,6 +318,7 @@ export async function initRecorder(options = {}) {
   onRecordingComplete = options.onRecordingComplete ?? (() => {});
   getSelectedQuestion = options.getSelectedQuestion ?? (() => null);
   onExitReview = options.onExitReview ?? (() => {});
+  onNotesChange = options.onNotesChange ?? (() => {});
 
   recordBtn.addEventListener("click", toggleRecording);
   backToLiveBtn.addEventListener("click", exitReviewMode);

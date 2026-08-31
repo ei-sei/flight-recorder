@@ -68,6 +68,11 @@ async function updateAttempt(id, patch) {
   if (!attempt) return;
   Object.assign(attempt, patch);
   await saveAttempts(attempts);
+  render();
+}
+
+export async function updateAttemptNotes(id, notes) {
+  await updateAttempt(id, { notes });
 }
 
 async function deleteAttempt(id) {

@@ -594,6 +594,20 @@ textarea {
   color: var(--text-secondary);
 }
 
+.review-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  max-width: 560px;
+}
+
+.review-notes-label {
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 0.03em;
+}
+
 .wpm-toggle-row {
   display: flex;
   align-items: flex-start;
