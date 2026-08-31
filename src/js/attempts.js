@@ -159,10 +159,20 @@ function renderAttemptItem(attempt) {
     ]);
   });
 
+  const avatarCol = document.createElement("div");
+  avatarCol.className = "attempt-avatar-col";
+
   const avatar = document.createElement("div");
   avatar.className = "attempt-avatar";
   avatar.innerHTML =
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>';
+
+  const stars = document.createElement("div");
+  stars.className = "stars stars-vertical";
+  renderStars(stars, attempt.score, null, true);
+
+  avatarCol.appendChild(avatar);
+  avatarCol.appendChild(stars);
 
   const body = document.createElement("div");
   body.className = "attempt-item-body";
@@ -183,12 +193,7 @@ function renderAttemptItem(attempt) {
     .filter(Boolean)
     .join(" · ");
 
-  const stars = document.createElement("div");
-  stars.className = "stars";
-  renderStars(stars, attempt.score, null, true);
-
   top.appendChild(topInfo);
-  top.appendChild(stars);
 
   const question = document.createElement("div");
   question.className = "attempt-item-question";
@@ -205,7 +210,7 @@ function renderAttemptItem(attempt) {
   body.appendChild(question);
   body.appendChild(notes);
 
-  item.appendChild(avatar);
+  item.appendChild(avatarCol);
   item.appendChild(body);
   return item;
 }
