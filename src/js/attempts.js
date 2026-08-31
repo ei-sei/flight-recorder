@@ -225,6 +225,10 @@ export function setSelectedQuestion(question) {
   render();
 }
 
+export function getAttemptCountForQuestion(questionId) {
+  return attempts.filter((a) => a.questionId === questionId).length;
+}
+
 export function clearReviewing() {
   reviewingId = null;
   render();

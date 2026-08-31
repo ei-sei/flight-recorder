@@ -1,4 +1,7 @@
+const { confirm } = window.__TAURI__.dialog;
+
 import { getQuestions, saveQuestions } from "./store.js";
+import { getAttemptCountForQuestion } from "./attempts.js";
 
 let questions = [];
 let activeCategory = "Behavioral";
@@ -9,6 +12,8 @@ const listEl = document.getElementById("question-list");
 const tabsEl = document.getElementById("question-category-tabs");
 const formEl = document.getElementById("add-question-form");
 const inputEl = document.getElementById("new-question-input");
+const contextMenuEl = document.getElementById("question-context-menu");
+const contextMenuDeleteBtn = document.getElementById("context-menu-delete");
 
 function render() {
   const filtered = questions.filter((q) => q.category === activeCategory);
@@ -31,20 +36,47 @@ function render() {
     text.className = "question-item-text";
     text.textContent = q.text;
 
-    const remove = document.createElement("button");
-    remove.className = "question-item-remove";
-    remove.type = "button";
-    remove.textContent = "✕";
-    remove.title = "Remove question";
-    remove.addEventListener("click", (event) => {
-      event.stopPropagation();
-      removeQuestion(q.id);
-    });
-
     item.appendChild(text);
-    item.appendChild(remove);
     item.addEventListener("click", () => selectQuestion(q.id));
+    item.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
+      showContextMenu(event.clientX, event.clientY, q);
+    });
     listEl.appendChild(item);
+  }
+}
+
+function showContextMenu(x, y, question) {
+  contextMenuEl.style.left = `${x}px`;
+  contextMenuEl.style.top = `${y}px`;
+  contextMenuEl.hidden = false;
+  contextMenuDeleteBtn.onclick = () => {
+    hideContextMenu();
+    confirmDeleteQuestion(question);
+  };
+
+  const dismiss = (event) => {
+    if (!contextMenuEl.contains(event.target)) {
+      hideContextMenu();
+    }
+  };
+  document.addEventListener("click", dismiss, { once: true, capture: true });
+}
+
+function hideContextMenu() {
+  contextMenuEl.hidden = true;
+}
+
+async function confirmDeleteQuestion(question) {
+  const count = getAttemptCountForQuestion(question.id);
+  const videoNote = count > 0 ? `You have recorded ${count} video${count === 1 ? "" : "s"} under this question. They'll stay in your attempt log, but you won't be able to select this question anymore.` : "This question has no recorded attempts.";
+
+  const confirmed = await confirm(videoNote, {
+    title: "Delete question?",
+    kind: "warning",
+  });
+  if (confirmed) {
+    removeQuestion(question.id);
   }
 }
 
