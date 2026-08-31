@@ -410,7 +410,7 @@ textarea {
   padding: 11px 13px;
   margin-bottom: 4px;
   border-radius: var(--radius-md);
-  border: 1px solid transparent;
+  border: 1px solid var(--border);
   cursor: pointer;
   transition: background-color var(--ease), border-color var(--ease), box-shadow var(--ease);
 }
