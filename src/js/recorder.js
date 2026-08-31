@@ -359,6 +359,7 @@ export async function enterReviewMode(attempt, attemptNumber) {
   viewfinderMetaInfoEl.textContent = `Attempt ${attemptNumber} · ${dateLabel} · ${attempt.category} · Duration: ${formatDuration(attempt.durationMs)}`;
   renderReviewStars(attempt.id, attempt.score);
   viewfinderMetaEl.hidden = false;
+  viewfinderMetaStarsEl.hidden = false;
 
   reviewNotesRow.hidden = false;
   reviewNotesInput.value = attempt.notes;
@@ -393,6 +394,7 @@ export function exitReviewMode() {
   reviewNotesRow.hidden = true;
   reviewNotesInput.onblur = null;
   viewfinderMetaEl.hidden = true;
+  viewfinderMetaStarsEl.hidden = true;
 
   updateRecordButtonState();
   onExitReview();
