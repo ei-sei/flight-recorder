@@ -89,6 +89,13 @@ textarea {
   border-radius: var(--radius-sm);
 }
 
+/* Elements toggled via the `hidden` DOM property also set `display` in their
+   own rule; without this, an equal-specificity author rule beats the UA's
+   [hidden] rule and the element stays visible regardless of .hidden. */
+[hidden] {
+  display: none !important;
+}
+
 .app {
   display: flex;
   flex-direction: column;

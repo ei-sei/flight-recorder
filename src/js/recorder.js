@@ -255,6 +255,7 @@ export function enterReviewMode(attempt) {
   reviewIndicatorEl.hidden = false;
   timerEl.hidden = true;
   wpmToggleRow.hidden = true;
+  recordBtn.hidden = true;
   backToLiveBtn.hidden = false;
   currentQuestionEl.textContent = `Reviewing: “${attempt.questionText}”`;
 
@@ -276,6 +277,7 @@ export function exitReviewMode() {
   reviewIndicatorEl.hidden = true;
   timerEl.hidden = false;
   wpmToggleRow.hidden = false;
+  recordBtn.hidden = false;
   backToLiveBtn.hidden = true;
 
   updateRecordButtonState();
