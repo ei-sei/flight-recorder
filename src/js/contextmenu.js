@@ -8,16 +8,16 @@ export function showContextMenu(x, y, items) {
     btn.type = "button";
     btn.className = "context-menu-item" + (item.danger ? " danger" : "");
 
+    const label = document.createElement("span");
+    label.textContent = item.label;
+    btn.appendChild(label);
+
     if (item.checked !== undefined) {
       const switchEl = document.createElement("span");
       switchEl.className = "menu-switch" + (item.checked ? " checked" : "");
       switchEl.innerHTML = '<span class="menu-switch-thumb"></span>';
       btn.appendChild(switchEl);
     }
-
-    const label = document.createElement("span");
-    label.textContent = item.label;
-    btn.appendChild(label);
 
     btn.addEventListener("click", () => {
       hideContextMenu();

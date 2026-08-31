@@ -220,7 +220,7 @@ function initMenuBar() {
         },
       },
       {
-        label: "Light mode",
+        label: "Light/Dark mode",
         checked: theme === "light",
         onClick: async () => {
           const next = theme === "light" ? "dark" : "light";
