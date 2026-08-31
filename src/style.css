@@ -855,7 +855,7 @@ textarea {
   gap: 8px;
   font-size: 11px;
   color: var(--text-dim);
-  margin-bottom: 4px;
+  margin-bottom: 8px;
 }
 
 .attempt-item-question {
