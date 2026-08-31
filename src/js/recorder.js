@@ -24,16 +24,12 @@ const wpmToggleHint = document.getElementById("wpm-toggle-hint");
 
 const playerControlsEl = document.getElementById("player-controls");
 const playPauseBtn = document.getElementById("player-playpause");
-const iconPlay = playPauseBtn.querySelector(".icon-play");
-const iconPause = playPauseBtn.querySelector(".icon-pause");
 const playerTimeEl = document.getElementById("player-time");
 const playerDurationEl = document.getElementById("player-duration");
 const scrubberEl = document.getElementById("player-scrubber");
 const scrubberFillEl = document.getElementById("player-scrubber-fill");
 const scrubberThumbEl = document.getElementById("player-scrubber-thumb");
 const muteBtn = document.getElementById("player-mute");
-const iconVolOn = muteBtn.querySelector(".icon-vol-on");
-const iconVolOff = muteBtn.querySelector(".icon-vol-off");
 
 const { readFile } = window.__TAURI__.fs;
 
@@ -270,14 +266,12 @@ function formatPlayerTime(seconds) {
 }
 
 function updatePlayPauseIcon() {
-  iconPlay.hidden = !previewEl.paused;
-  iconPause.hidden = previewEl.paused;
+  playPauseBtn.classList.toggle("is-playing", !previewEl.paused);
   playPauseBtn.setAttribute("aria-label", previewEl.paused ? "Play" : "Pause");
 }
 
 function updateMuteIcon() {
-  iconVolOn.hidden = previewEl.muted;
-  iconVolOff.hidden = !previewEl.muted;
+  muteBtn.classList.toggle("is-muted", previewEl.muted);
   muteBtn.setAttribute("aria-label", previewEl.muted ? "Unmute" : "Mute");
 }
 

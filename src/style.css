@@ -559,6 +559,30 @@ textarea {
   fill: currentColor;
 }
 
+#player-playpause .icon-pause {
+  display: none;
+}
+
+#player-playpause.is-playing .icon-play {
+  display: none;
+}
+
+#player-playpause.is-playing .icon-pause {
+  display: block;
+}
+
+#player-mute .icon-vol-off {
+  display: none;
+}
+
+#player-mute.is-muted .icon-vol-on {
+  display: none;
+}
+
+#player-mute.is-muted .icon-vol-off {
+  display: block;
+}
+
 .player-time {
   flex-shrink: 0;
   min-width: 34px;
