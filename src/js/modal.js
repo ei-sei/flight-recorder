@@ -4,16 +4,24 @@ const messageEl = document.getElementById("modal-message");
 const cancelBtn = document.getElementById("modal-cancel");
 const confirmBtn = document.getElementById("modal-confirm");
 
-export function showConfirm({ title, message, confirmLabel = "Confirm", danger = false }) {
+export function showConfirm({
+  title,
+  message,
+  confirmLabel = "Confirm",
+  danger = false,
+  showCancel = true,
+}) {
   return new Promise((resolve) => {
     titleEl.textContent = title;
     messageEl.textContent = message;
     confirmBtn.textContent = confirmLabel;
     confirmBtn.className = "btn " + (danger ? "btn-danger" : "btn-teal");
+    cancelBtn.hidden = !showCancel;
     overlayEl.hidden = false;
 
     function cleanup(result) {
       overlayEl.hidden = true;
+      cancelBtn.hidden = false;
       cancelBtn.removeEventListener("click", onCancel);
       confirmBtn.removeEventListener("click", onConfirm);
       overlayEl.removeEventListener("mousedown", onOverlayMouseDown);
@@ -42,4 +50,8 @@ export function showConfirm({ title, message, confirmLabel = "Confirm", danger =
     overlayEl.addEventListener("mousedown", onOverlayMouseDown);
     document.addEventListener("keydown", onKeydown);
   });
+}
+
+export function showAlert({ title, message, closeLabel = "Close" }) {
+  return showConfirm({ title, message, confirmLabel: closeLabel, showCancel: false });
 }

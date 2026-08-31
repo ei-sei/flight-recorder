@@ -203,6 +203,22 @@ textarea {
   font-size: 11px;
 }
 
+.help-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: color var(--ease), background-color var(--ease);
+}
+
+.help-btn:hover {
+  color: var(--text-primary);
+  background-color: var(--bg-raised);
+}
+
 .window-controls {
   display: flex;
   align-items: center;

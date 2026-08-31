@@ -8,6 +8,8 @@ import {
   updateAttemptNotes,
   updateAttemptScore,
 } from "./attempts.js";
+import { showContextMenu } from "./contextmenu.js";
+import { showAlert } from "./modal.js";
 
 const clockEl = document.getElementById("clock");
 const currentQuestionEl = document.getElementById("current-question");
@@ -21,6 +23,38 @@ function handleQuestionSelectionChange(question) {
   currentQuestionEl.textContent = question ? question.text : "Select a question to begin.";
   setRecordEnabled(Boolean(question));
   setSelectedQuestion(question);
+}
+
+function initHelpMenu() {
+  const helpBtn = document.getElementById("help-btn");
+
+  helpBtn.addEventListener("click", () => {
+    const rect = helpBtn.getBoundingClientRect();
+    showContextMenu(rect.left, rect.bottom + 4, [
+      {
+        label: "Updates",
+        onClick: async () => {
+          const { getVersion } = window.__TAURI__.app;
+          const version = await getVersion();
+          showAlert({
+            title: "Updates",
+            message: `You're on version ${version}. Automatic update checking isn't set up yet.`,
+          });
+        },
+      },
+      {
+        label: "About",
+        onClick: async () => {
+          const { getVersion } = window.__TAURI__.app;
+          const version = await getVersion();
+          showAlert({
+            title: "About Flight recorder",
+            message: `Version ${version}. A local practice tool for interview questions on webcam — video and data stay on this device except for the opt-in speech-pace (WPM) feature.`,
+          });
+        },
+      },
+    ]);
+  });
 }
 
 function initWindowControls() {
@@ -44,6 +78,7 @@ async function init() {
   tickClock();
   setInterval(tickClock, 1000);
   initWindowControls();
+  initHelpMenu();
 
   await initAttempts({
     onPlay: (attempt, attemptNumber) => {
