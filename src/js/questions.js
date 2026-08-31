@@ -1,6 +1,7 @@
 import { getQuestions, saveQuestions } from "./store.js";
 import { getAttemptCountForQuestion, deleteAttemptsForQuestion } from "./attempts.js";
 import { showConfirm } from "./modal.js";
+import { showContextMenu } from "./contextmenu.js";
 
 let questions = [];
 let activeCategory = "Behavioral";
@@ -11,8 +12,6 @@ const listEl = document.getElementById("question-list");
 const tabsEl = document.getElementById("question-category-tabs");
 const formEl = document.getElementById("add-question-form");
 const inputEl = document.getElementById("new-question-input");
-const contextMenuEl = document.getElementById("question-context-menu");
-const contextMenuDeleteBtn = document.getElementById("context-menu-delete");
 
 function render() {
   const filtered = questions.filter((q) => q.category === activeCategory);
@@ -39,31 +38,12 @@ function render() {
     item.addEventListener("click", () => selectQuestion(q.id));
     item.addEventListener("contextmenu", (event) => {
       event.preventDefault();
-      showContextMenu(event.clientX, event.clientY, q);
+      showContextMenu(event.clientX, event.clientY, [
+        { label: "Delete question", danger: true, onClick: () => confirmDeleteQuestion(q) },
+      ]);
     });
     listEl.appendChild(item);
   }
-}
-
-function showContextMenu(x, y, question) {
-  contextMenuEl.style.left = `${x}px`;
-  contextMenuEl.style.top = `${y}px`;
-  contextMenuEl.hidden = false;
-  contextMenuDeleteBtn.onclick = () => {
-    hideContextMenu();
-    confirmDeleteQuestion(question);
-  };
-
-  const dismiss = (event) => {
-    if (!contextMenuEl.contains(event.target)) {
-      hideContextMenu();
-    }
-  };
-  document.addEventListener("click", dismiss, { once: true, capture: true });
-}
-
-function hideContextMenu() {
-  contextMenuEl.hidden = true;
 }
 
 async function confirmDeleteQuestion(question) {

@@ -896,28 +896,6 @@ textarea {
   color: var(--gold);
 }
 
-.icon-btn {
-  background: transparent;
-  border: none;
-  color: var(--text-secondary);
-  cursor: pointer;
-  font-size: 11px;
-  padding: 0;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  text-decoration-color: transparent;
-  transition: color var(--ease), text-decoration-color var(--ease);
-}
-
-.icon-btn:hover {
-  color: var(--text-primary);
-  text-decoration-color: currentColor;
-}
-
-.icon-btn.danger:hover {
-  color: var(--danger);
-}
-
 .notes-input {
   width: 100%;
   min-height: 44px;

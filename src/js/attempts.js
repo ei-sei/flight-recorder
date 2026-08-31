@@ -5,6 +5,7 @@ const { revealItemInDir } = window.__TAURI__.opener;
 import { getAttempts, saveAttempts } from "./store.js";
 import { slugify, dateStamp, formatDuration, renderStars } from "./util.js";
 import { showConfirm } from "./modal.js";
+import { showContextMenu } from "./contextmenu.js";
 
 let attempts = [];
 let activeFilter = "All";
@@ -150,6 +151,13 @@ function renderAttemptItem(attempt) {
     render();
     onPlay(attempt, getAttemptNumber(attempt));
   });
+  item.addEventListener("contextmenu", (event) => {
+    event.preventDefault();
+    showContextMenu(event.clientX, event.clientY, [
+      { label: "Show in folder", onClick: () => revealItemInDir(attempt.videoPath) },
+      { label: "Delete", danger: true, onClick: () => deleteAttempt(attempt.id) },
+    ]);
+  });
 
   const avatar = document.createElement("div");
   avatar.className = "attempt-avatar";
@@ -183,21 +191,7 @@ function renderAttemptItem(attempt) {
   stars.className = "stars";
   renderStars(stars, attempt.score, null, true);
 
-  const revealBtn = document.createElement("button");
-  revealBtn.type = "button";
-  revealBtn.className = "icon-btn";
-  revealBtn.textContent = "Show in folder";
-  revealBtn.addEventListener("click", () => revealItemInDir(attempt.videoPath));
-
-  const deleteBtn = document.createElement("button");
-  deleteBtn.type = "button";
-  deleteBtn.className = "icon-btn danger";
-  deleteBtn.textContent = "Delete";
-  deleteBtn.addEventListener("click", () => deleteAttempt(attempt.id));
-
   meta.appendChild(stars);
-  meta.appendChild(revealBtn);
-  meta.appendChild(deleteBtn);
 
   const notes = document.createElement("textarea");
   notes.className = "notes-input";
