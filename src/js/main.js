@@ -45,6 +45,37 @@ function applyTheme(theme) {
   }
 }
 
+function initQuestionsCollapse() {
+  const layoutEl = document.querySelector(".layout");
+  const panelEl = document.getElementById("questions-panel");
+  const btnEl = document.getElementById("questions-collapse-btn");
+
+  function applyCollapsed(collapsed) {
+    layoutEl.classList.toggle("questions-collapsed", collapsed);
+    panelEl.classList.toggle("collapsed", collapsed);
+    btnEl.title = collapsed ? "Expand question bank" : "Collapse question bank";
+    btnEl.setAttribute("aria-label", btnEl.title);
+  }
+
+  let collapsed = false;
+  try {
+    collapsed = localStorage.getItem("questionsCollapsed") === "true";
+  } catch (err) {
+    // localStorage unavailable; default to expanded
+  }
+  applyCollapsed(collapsed);
+
+  btnEl.addEventListener("click", () => {
+    collapsed = !collapsed;
+    applyCollapsed(collapsed);
+    try {
+      localStorage.setItem("questionsCollapsed", String(collapsed));
+    } catch (err) {
+      // localStorage unavailable; state just won't persist across launches
+    }
+  });
+}
+
 function tickClock() {
   const now = new Date();
   clockEl.textContent = now.toLocaleTimeString("en-GB", { hour12: false });
@@ -294,6 +325,7 @@ async function init() {
   initWindowControls();
   initMenuBar();
   initSettingsModal();
+  initQuestionsCollapse();
 
   const settings = await getRecordingSettings();
   if (settings.alwaysOnTop) {

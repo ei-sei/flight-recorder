@@ -56,9 +56,20 @@
       </header>
 
       <div class="layout">
-        <aside class="panel questions-panel">
+        <aside class="panel questions-panel" id="questions-panel">
           <div class="panel-header">
             <h2>Question bank</h2>
+            <button
+              type="button"
+              class="panel-collapse-btn"
+              id="questions-collapse-btn"
+              title="Collapse question bank"
+              aria-label="Collapse question bank"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M15 6l-6 6 6 6" />
+              </svg>
+            </button>
           </div>
           <nav class="tabs" id="question-category-tabs">
             <button class="tab active" data-category="Behavioral" type="button">Behavioral</button>
