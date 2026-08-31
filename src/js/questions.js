@@ -1,5 +1,5 @@
 import { getQuestions, saveQuestions } from "./store.js";
-import { getAttemptCountForQuestion } from "./attempts.js";
+import { getAttemptCountForQuestion, deleteAttemptsForQuestion } from "./attempts.js";
 import { showConfirm } from "./modal.js";
 
 let questions = [];
@@ -68,7 +68,10 @@ function hideContextMenu() {
 
 async function confirmDeleteQuestion(question) {
   const count = getAttemptCountForQuestion(question.id);
-  const videoNote = count > 0 ? `You have recorded ${count} video${count === 1 ? "" : "s"} under this question. They'll stay in your attempt log, but you won't be able to select this question anymore.` : "This question has no recorded attempts.";
+  const videoNote =
+    count > 0
+      ? `You have recorded ${count} video${count === 1 ? "" : "s"} under this question. Deleting it will also delete ${count === 1 ? "that video" : "those videos"}. This can't be undone.`
+      : "This question has no recorded attempts.";
 
   const confirmed = await showConfirm({
     title: "Delete question?",
@@ -77,6 +80,7 @@ async function confirmDeleteQuestion(question) {
     danger: true,
   });
   if (confirmed) {
+    await deleteAttemptsForQuestion(question.id);
     removeQuestion(question.id);
   }
 }

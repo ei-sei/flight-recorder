@@ -98,6 +98,28 @@ async function deleteAttempt(id) {
   render();
 }
 
+export async function deleteAttemptsForQuestion(questionId) {
+  const toDelete = attempts.filter((a) => a.questionId === questionId);
+  if (toDelete.length === 0) return;
+
+  if (toDelete.some((a) => a.id === reviewingId)) {
+    onExitReview();
+    reviewingId = null;
+  }
+
+  for (const attempt of toDelete) {
+    try {
+      await remove(attempt.videoPath);
+    } catch (err) {
+      console.error("Failed to remove video file", err);
+    }
+  }
+
+  attempts = attempts.filter((a) => a.questionId !== questionId);
+  await saveAttempts(attempts);
+  render();
+}
+
 function formatResponseDelay(ms) {
   if (ms === null || ms === undefined) return null;
   return `delay ${(ms / 1000).toFixed(1)}s`;

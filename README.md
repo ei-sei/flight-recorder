@@ -36,7 +36,8 @@ Produces a platform-native installer/bundle under `src-tauri/target/release/bund
 - **Metadata** — the question bank, and each attempt's question/category/date/duration/score/notes/response-delay — is persisted locally via `tauri-plugin-store`, a JSON file in the app's local data directory.
 - **Speech pace (WPM)** is the one feature that isn't fully local. It's **off by default**. When you explicitly turn it on, live audio is sent to the webview's built-in speech recognition (Google's servers, on Chromium-based webviews) while recording, to estimate words-per-minute. It's only available on Chromium-based webviews (in practice: Windows/WebView2) — WebKitGTK (Linux) and WKWebView (macOS) don't implement the Web Speech API, so the toggle is disabled there.
 - Deleting an attempt removes both its metadata entry and its video file from disk.
+- Deleting a question also deletes every attempt (and video file) recorded under it — the confirmation prompt tells you how many before you commit.
 
 ## Design language
 
-Aviation instrumentation, not a generic SaaS dashboard: dark cockpit palette, amber for recording/active states, teal for positive/save actions, monospace timers and data readouts, sentence-case labels, hairline dividers instead of card shadows.
+Dark, sleek, card-based: near-black navy base with rounded panel cards (soft shadows, not hairline dividers), blue/indigo as the primary accent, red for recording/destructive actions, gold for star ratings, segmented pill-style filter tabs, monospace timers and numeric readouts, sentence-case labels.
