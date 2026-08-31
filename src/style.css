@@ -462,7 +462,7 @@ textarea {
 .viewfinder {
   position: relative;
   width: 100%;
-  max-width: 560px;
+  max-height: 55vh;
   aspect-ratio: 4 / 3;
   background-color: #000;
   border-radius: var(--radius-lg);
