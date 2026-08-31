@@ -808,8 +808,7 @@ textarea {
 .context-menu-item {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  gap: 8px;
   width: 100%;
   text-align: left;
   background: transparent;
@@ -820,6 +819,20 @@ textarea {
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: background-color var(--ease), color var(--ease);
+}
+
+.context-menu-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+.context-menu-check svg {
+  width: 10px;
+  height: 10px;
 }
 
 .context-menu-item:hover {

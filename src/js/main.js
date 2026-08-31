@@ -211,7 +211,8 @@ function initMenuBar() {
     const theme = await getTheme();
     openMenu(viewBtn, [
       {
-        label: settings.alwaysOnTop ? "Always on top ✓" : "Always on top",
+        label: "Always on top",
+        checked: Boolean(settings.alwaysOnTop),
         onClick: async () => {
           const next = !settings.alwaysOnTop;
           await appWindow.setAlwaysOnTop(next);
@@ -219,7 +220,8 @@ function initMenuBar() {
         },
       },
       {
-        label: theme === "light" ? "Light mode ✓" : "Light mode",
+        label: "Light mode",
+        checked: theme === "light",
         onClick: async () => {
           const next = theme === "light" ? "dark" : "light";
           applyTheme(next);
