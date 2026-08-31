@@ -24,7 +24,17 @@ A local desktop app for practicing job interviews on webcam. Built with Tauri. R
 - Be upfront about the one feature that isn't fully local: WPM. Never silently expand what talks to the internet without flagging it first.
 
 ## Design language
-Aviation instrumentation. Dark cockpit palette. Amber for recording/active states. Teal for positive/save actions. Monospace timer and data readouts. Sentence-case labels. Hairline dividers, not rounded shadow cards. Keep this consistent across new features.
+(Revised — supersedes the original hairline-cockpit direction below.)
+Dark, sleek, card-based. Near-black navy base with rounded panel cards (soft shadows, not hairline dividers). Blue/indigo as the primary accent (buttons, active tabs, selection, focus rings). Red for recording state and destructive actions. Gold for star ratings only. Segmented pill-style filter tabs. Generous padding/whitespace. Monospace for timers and numeric readouts. Sentence-case labels. Smooth transitions and soft glow effects on hover/active states rather than hard color swaps.
+
+Do not fabricate decorative metrics or visualizations for capabilities the app doesn't have (e.g. no fake "eye contact" or "clarity" score charts) — only real data (response delay, WPM, star score, notes) gets shown.
+
+<details>
+<summary>Original design language (superseded)</summary>
+
+Aviation instrumentation. Dark cockpit palette. Amber for recording/active states. Teal for positive/save actions. Monospace timer and data readouts. Sentence-case labels. Hairline dividers, not rounded shadow cards.
+
+</details>
 
 ## How to work in this project
 - Extend the existing code. Don't rewrite from scratch unless asked.

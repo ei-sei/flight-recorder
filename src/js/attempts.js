@@ -95,6 +95,14 @@ function renderAttemptItem(attempt) {
   const item = document.createElement("li");
   item.className = "attempt-item";
 
+  const avatar = document.createElement("div");
+  avatar.className = "attempt-avatar";
+  avatar.innerHTML =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>';
+
+  const body = document.createElement("div");
+  body.className = "attempt-item-body";
+
   const top = document.createElement("div");
   top.className = "attempt-item-top mono";
   const dateLabel = new Date(attempt.date).toLocaleDateString();
@@ -141,10 +149,13 @@ function renderAttemptItem(attempt) {
   notes.value = attempt.notes;
   notes.addEventListener("blur", () => updateAttempt(attempt.id, { notes: notes.value }));
 
-  item.appendChild(top);
-  item.appendChild(question);
-  item.appendChild(meta);
-  item.appendChild(notes);
+  body.appendChild(top);
+  body.appendChild(question);
+  body.appendChild(meta);
+  body.appendChild(notes);
+
+  item.appendChild(avatar);
+  item.appendChild(body);
   return item;
 }
 
