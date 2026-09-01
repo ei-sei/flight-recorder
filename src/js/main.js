@@ -159,6 +159,27 @@ function initPanelResize() {
   const logHandle = document.getElementById("resize-log");
   sidebarHandle.addEventListener("mousedown", (event) => startDrag("sidebar", sidebarHandle, event));
   logHandle.addEventListener("mousedown", (event) => startDrag("log", logHandle, event));
+
+  resetPanelWidths = () => {
+    sidebarWidth = SIDEBAR_DEFAULT;
+    logWidth = LOG_DEFAULT;
+    applyWidths();
+    try {
+      localStorage.removeItem("sidebarWidthPx");
+      localStorage.removeItem("logWidthPx");
+    } catch (err) {
+      // localStorage unavailable; nothing to clear
+    }
+  };
+}
+
+let resetPanelWidths = () => {};
+
+function resetView() {
+  resetPanelWidths();
+  setSidebarVisible(true);
+  setLogPanelVisible(true);
+  setRailVisible(true);
 }
 
 function isRailVisible() {
@@ -556,6 +577,10 @@ function initMenuBar() {
         label: "Show sidebar",
         checked: isRailVisible(),
         onClick: () => setRailVisible(!isRailVisible()),
+      },
+      {
+        label: "Reset view",
+        onClick: resetView,
       },
     ]);
   });
