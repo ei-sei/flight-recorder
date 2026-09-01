@@ -501,6 +501,7 @@ textarea {
   display: flex;
   gap: 8px;
   padding: 12px 14px 14px;
+  margin-top: auto;
 }
 
 .add-question-form input {
