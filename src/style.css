@@ -4,6 +4,7 @@
   --bg-raised: #141b28;
   --border: rgba(148, 163, 184, 0.09);
   --border-strong: rgba(148, 163, 184, 0.18);
+  --border-accent: rgba(76, 124, 246, 0.3);
   --text-primary: #eef2f7;
   --text-secondary: #93a1b5;
   --text-dim: #5b6577;
@@ -43,6 +44,7 @@
   --bg-raised: #eef1f5;
   --border: rgba(15, 23, 42, 0.08);
   --border-strong: rgba(15, 23, 42, 0.16);
+  --border-accent: rgba(59, 111, 239, 0.25);
   --text-primary: #0f172a;
   --text-secondary: #475569;
   --text-dim: #94a3b8;
@@ -144,7 +146,7 @@ textarea {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--border-accent);
 }
 
 .resize-handle {
@@ -339,18 +341,18 @@ textarea {
   --log-w: 299px;
   flex: 1;
   display: grid;
-  grid-template-columns: var(--sidebar-w) 6px minmax(360px, 1fr) 6px var(--log-w);
-  gap: 4px;
-  padding: 6px;
+  grid-template-columns: var(--sidebar-w) 3px minmax(360px, 1fr) 3px var(--log-w);
+  gap: 2px;
+  padding: 3px;
   min-height: 0;
 }
 
 .layout.sidebar-hidden {
-  grid-template-columns: minmax(360px, 1fr) 6px var(--log-w);
+  grid-template-columns: minmax(360px, 1fr) 3px var(--log-w);
 }
 
 .layout.log-hidden {
-  grid-template-columns: var(--sidebar-w) 6px minmax(360px, 1fr);
+  grid-template-columns: var(--sidebar-w) 3px minmax(360px, 1fr);
 }
 
 .layout.sidebar-hidden.log-hidden {
@@ -372,8 +374,9 @@ textarea {
   position: absolute;
   top: 0;
   bottom: 0;
-  left: 2px;
-  width: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 1px;
   border-radius: 1px;
   background-color: transparent;
   transition: background-color var(--ease);
@@ -664,7 +667,11 @@ textarea {
 
 .viewfinder {
   position: relative;
-  flex: 1 1 0;
+  /* Sized explicitly by updateViewfinderSize() (recorder.js), not flex-grow -
+     that avoids coupling the player's size to how tall notes/transcript
+     happen to be; the panel scrolls for overflow instead (overflow-y: auto
+     below) rather than shrinking the player to make room. */
+  flex: 0 0 auto;
   min-height: 0;
   max-width: 100%;
   background-color: #000;
@@ -724,6 +731,10 @@ textarea {
 }
 
 .review-indicator {
+  /* Pushes it to the right side of the overlay row regardless of the
+     (hidden during review) rec-indicator/timer siblings - top-left was
+     overlapping the native video controls' top-right fullscreen button. */
+  margin-left: auto;
   color: var(--accent);
   font-size: 12px;
   font-weight: 600;
@@ -817,16 +828,16 @@ textarea {
   letter-spacing: 0.03em;
 }
 
-#review-notes-input {
-  resize: none;
-  overflow-y: auto;
-}
-
 .record-controls {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 12px;
+}
+
+#back-to-live-btn {
+  padding: 6px 14px;
+  font-size: 12px;
 }
 
 .toggle-row {
@@ -1164,23 +1175,6 @@ textarea {
   box-shadow: 0 0 16px -6px var(--accent-glow);
 }
 
-.attempt-avatar {
-  flex-shrink: 0;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background-color: var(--accent-dim);
-  color: var(--accent);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.attempt-avatar svg {
-  width: 16px;
-  height: 16px;
-}
-
 .attempt-item-body {
   flex: 1;
   min-width: 0;
@@ -1259,13 +1253,9 @@ textarea {
   font-family: inherit;
   font-size: 12px;
   padding: 7px 9px;
-  resize: vertical;
-  transition: border-color var(--ease), box-shadow var(--ease);
-}
-
-.transcript-autosize {
   resize: none;
   overflow: hidden;
+  transition: border-color var(--ease), box-shadow var(--ease);
 }
 
 .transcript-empty {
@@ -1299,6 +1289,15 @@ textarea {
   cursor: default;
   color: var(--text-secondary);
   background-color: transparent;
+}
+
+/* Caps the attempt-log preview at ~3 lines instead of auto-growing to fit
+   every note in full - full notes are still readable/editable by opening
+   the attempt in the review panel. */
+.attempt-item-notes {
+  max-height: 64px;
+  line-height: 1.4;
+  overflow: hidden;
 }
 
 /* Footer */

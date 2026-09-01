@@ -1,4 +1,4 @@
-import { formatTimer, formatDuration, renderStars } from "./util.js";
+import { formatTimer, formatDuration, renderStars, autosizeTextarea } from "./util.js";
 import { getWpmEnabled, setWpmEnabled, getRecordingSettings, saveRecordingSettings } from "./store.js";
 
 const previewEl = document.getElementById("preview");
@@ -11,6 +11,7 @@ const viewfinderEmptyEl = document.getElementById("viewfinder-empty");
 const recIndicatorEl = document.getElementById("rec-indicator");
 const reviewIndicatorEl = document.getElementById("review-indicator");
 const timerEl = document.getElementById("timer");
+const recordControlsEl = document.querySelector(".record-controls");
 const recordBtn = document.getElementById("record-btn");
 const backToLiveBtn = document.getElementById("back-to-live-btn");
 const currentQuestionEl = document.getElementById("current-question");
@@ -393,8 +394,7 @@ export async function enterReviewMode(attempt, attemptNumber) {
     reviewTranscriptText.hidden = false;
     reviewTranscriptEmpty.hidden = true;
     reviewTranscriptText.value = attempt.transcript;
-    reviewTranscriptText.style.height = "auto";
-    reviewTranscriptText.style.height = `${reviewTranscriptText.scrollHeight}px`;
+    autosizeTextarea(reviewTranscriptText);
   } else {
     reviewTranscriptText.hidden = true;
     reviewTranscriptEmpty.hidden = false;
@@ -402,7 +402,9 @@ export async function enterReviewMode(attempt, attemptNumber) {
 
   reviewNotesRow.hidden = false;
   reviewNotesInput.value = attempt.notes;
+  autosizeTextarea(reviewNotesInput);
   reviewNotesInput.onblur = () => onNotesChange(attempt.id, reviewNotesInput.value);
+  reviewNotesInput.oninput = () => autosizeTextarea(reviewNotesInput);
 
   updateRecordButtonState();
   updateViewfinderSize();
@@ -433,6 +435,7 @@ export function exitReviewMode() {
   reviewTranscriptRow.hidden = true;
   reviewNotesRow.hidden = true;
   reviewNotesInput.onblur = null;
+  reviewNotesInput.oninput = null;
   viewfinderMetaEl.hidden = true;
 
   updateRecordButtonState();
@@ -446,33 +449,39 @@ export function exitReviewMode() {
 const VIEWFINDER_ASPECT = 16 / 9;
 
 function updateViewfinderSize() {
-  // Reset to flex-grow mode so the height measured below reflects what's
-  // actually available right now, not a stale explicit height from a
-  // previous width-bound run.
-  viewfinderEl.style.flex = "1 1 0";
-  viewfinderEl.style.width = "";
-  viewfinderEl.style.height = "";
+  viewfinderEl.style.flex = "0 0 auto";
 
   const panelStyle = getComputedStyle(recorderPanelEl);
   const horizontalPadding = parseFloat(panelStyle.paddingLeft) + parseFloat(panelStyle.paddingRight);
+  const verticalPadding = parseFloat(panelStyle.paddingTop) + parseFloat(panelStyle.paddingBottom);
+  const gap = parseFloat(panelStyle.rowGap) || 0;
   const availableWidth = recorderPanelEl.clientWidth - horizontalPadding;
-  const naturalHeight = viewfinderEl.clientHeight;
 
-  if (availableWidth <= 0 || naturalHeight <= 0) return;
+  // recorderPanelEl.clientHeight is stable regardless of content - it has
+  // overflow-y: auto, so overflowing children scroll instead of growing the
+  // box. Available height for the player is that stable number minus only
+  // the chrome that should always stay visible alongside it. Transcript and
+  // notes are deliberately left out here: they're meant to scroll with the
+  // rest of the panel instead of competing with the player for space.
+  const alwaysVisible = [viewfinderMetaEl, currentQuestionEl, liveReadoutsEl, recordControlsEl].filter(
+    (el) => !el.hidden,
+  );
+  const chromeHeight = alwaysVisible.reduce((sum, el) => sum + el.offsetHeight, 0);
+  const gapsCount = alwaysVisible.length; // one gap between each always-visible element and the player
+  const availableHeight = recorderPanelEl.clientHeight - verticalPadding - chromeHeight - gapsCount * gap;
 
-  const widthIfHeightBound = naturalHeight * VIEWFINDER_ASPECT;
+  if (availableWidth <= 0 || availableHeight <= 0) return;
+
+  const widthIfHeightBound = availableHeight * VIEWFINDER_ASPECT;
   let finalWidth;
   if (widthIfHeightBound <= availableWidth) {
-    // Panel height is the binding constraint; leave flex-grow controlling
-    // height naturally and derive width from it.
+    // Panel height is the binding constraint.
     finalWidth = widthIfHeightBound;
     viewfinderEl.style.width = `${finalWidth}px`;
+    viewfinderEl.style.height = `${availableHeight}px`;
   } else {
-    // Panel width is the binding constraint. flex-grow would otherwise keep
-    // stretching height to fill the panel regardless of an explicit height,
-    // so it needs disabling here for the aspect ratio to actually hold.
+    // Panel width is the binding constraint.
     finalWidth = availableWidth;
-    viewfinderEl.style.flex = "0 0 auto";
     viewfinderEl.style.width = `${finalWidth}px`;
     viewfinderEl.style.height = `${finalWidth / VIEWFINDER_ASPECT}px`;
   }

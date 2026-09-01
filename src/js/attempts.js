@@ -135,21 +135,32 @@ function formatResponseDelay(ms) {
   return `delay ${(ms / 1000).toFixed(1)}s`;
 }
 
-function getAttemptNumber(attempt) {
-  const sameQuestion = attempts
-    .filter((a) => a.questionId === attempt.questionId)
-    .sort((a, b) => new Date(a.date) - new Date(b.date));
-  return sameQuestion.findIndex((a) => a.id === attempt.id) + 1;
+// Computed once per render instead of re-filtering/re-sorting the whole
+// attempts array per row (which renderAttemptItem needs twice per row) -
+// that pattern was effectively quadratic in the attempt count.
+function computeAttemptNumbers() {
+  const byQuestion = new Map();
+  for (const a of attempts) {
+    if (!byQuestion.has(a.questionId)) byQuestion.set(a.questionId, []);
+    byQuestion.get(a.questionId).push(a);
+  }
+
+  const numbers = new Map();
+  for (const group of byQuestion.values()) {
+    group.sort((a, b) => new Date(a.date) - new Date(b.date));
+    group.forEach((a, i) => numbers.set(a.id, i + 1));
+  }
+  return numbers;
 }
 
-function renderAttemptItem(attempt) {
+function renderAttemptItem(attempt, attemptNumber) {
   const item = document.createElement("li");
   item.className = "attempt-item" + (attempt.id === reviewingId ? " reviewing" : "");
   item.addEventListener("click", (event) => {
     if (event.target.closest("button")) return;
     reviewingId = attempt.id;
     render();
-    onPlay(attempt, getAttemptNumber(attempt));
+    onPlay(attempt, attemptNumber);
   });
   item.addEventListener("contextmenu", (event) => {
     event.preventDefault();
@@ -158,11 +169,6 @@ function renderAttemptItem(attempt) {
       { label: "Delete", danger: true, onClick: () => deleteAttempt(attempt.id) },
     ]);
   });
-
-  const avatar = document.createElement("div");
-  avatar.className = "attempt-avatar";
-  avatar.innerHTML =
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>';
 
   const body = document.createElement("div");
   body.className = "attempt-item-body";
@@ -194,7 +200,7 @@ function renderAttemptItem(attempt) {
 
   const attemptLine = document.createElement("span");
   attemptLine.className = "mono attempt-item-number";
-  attemptLine.textContent = `Attempt ${getAttemptNumber(attempt)}`;
+  attemptLine.textContent = `Attempt ${attemptNumber}`;
 
   topInfo.appendChild(metaRow);
   topInfo.appendChild(attemptLine);
@@ -206,7 +212,7 @@ function renderAttemptItem(attempt) {
   question.textContent = attempt.questionText;
 
   const notes = document.createElement("textarea");
-  notes.className = "notes-input";
+  notes.className = "notes-input attempt-item-notes";
   notes.placeholder = "No notes yet.";
   notes.value = attempt.notes;
   notes.readOnly = true;
@@ -216,7 +222,6 @@ function renderAttemptItem(attempt) {
   body.appendChild(question);
   body.appendChild(notes);
 
-  item.appendChild(avatar);
   item.appendChild(body);
   return item;
 }
@@ -246,8 +251,9 @@ function render() {
     return;
   }
 
+  const attemptNumbers = computeAttemptNumbers();
   for (const attempt of filtered) {
-    listEl.appendChild(renderAttemptItem(attempt));
+    listEl.appendChild(renderAttemptItem(attempt, attemptNumbers.get(attempt.id)));
   }
 }
 

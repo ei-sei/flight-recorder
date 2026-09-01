@@ -30,6 +30,11 @@ export function formatTimer(ms) {
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}.${tenths}`;
 }
 
+export function autosizeTextarea(el) {
+  el.style.height = "auto";
+  el.style.height = `${el.scrollHeight}px`;
+}
+
 export function renderStars(container, score, onChange, readOnly = false) {
   container.innerHTML = "";
   container.classList.toggle("readonly", readOnly);
