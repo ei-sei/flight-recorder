@@ -155,6 +155,7 @@ async function resetAllData() {
     message: "This deletes every question, every attempt, and every recorded video. This can't be undone.",
     confirmLabel: "Reset everything",
     danger: true,
+    requireTypedWord: "DELETE",
   });
   if (!confirmed) return;
 

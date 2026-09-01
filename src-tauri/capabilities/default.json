@@ -13,6 +13,7 @@
     "core:window:allow-set-always-on-top",
     "core:app:allow-version",
     "opener:default",
+    "opener:allow-open-path",
     "store:default",
     "fs:allow-mkdir",
     "fs:allow-write-file",

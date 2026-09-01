@@ -971,6 +971,26 @@ textarea {
   white-space: pre-line;
 }
 
+.modal-type-confirm {
+  margin: -8px 0 20px;
+}
+
+.modal-type-confirm input {
+  width: 100%;
+  background-color: var(--bg-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  padding: 9px 11px;
+  transition: border-color var(--ease), box-shadow var(--ease);
+}
+
+.modal-type-confirm input:focus {
+  outline: none;
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px var(--record-dim);
+}
+
 .modal-actions {
   display: flex;
   justify-content: flex-end;
