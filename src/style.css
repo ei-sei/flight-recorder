@@ -327,17 +327,16 @@ textarea {
 }
 
 .layout {
-  --sidebar-col: minmax(240px, 0.85fr);
   flex: 1;
   display: grid;
-  grid-template-columns: var(--sidebar-col) minmax(360px, 1.75fr) minmax(260px, 1fr);
+  grid-template-columns: minmax(240px, 0.85fr) minmax(360px, 1.75fr) minmax(260px, 1fr);
   gap: 4px;
   padding: 6px;
   min-height: 0;
 }
 
 .layout.sidebar-hidden {
-  --sidebar-col: 0px;
+  grid-template-columns: minmax(360px, 1.75fr) minmax(260px, 1fr);
 }
 
 .layout.sidebar-hidden .questions-panel {
