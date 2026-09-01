@@ -14,6 +14,7 @@ import {
   setSelectedQuestion,
   updateAttemptNotes,
   updateAttemptScore,
+  recoverOrphanedVideos,
 } from "./attempts.js";
 import {
   getQuestions,
@@ -272,6 +273,30 @@ async function exportData() {
     confirmLabel: "Show in folder",
   });
   if (showInFolder) revealItemInDir(filePath);
+}
+
+async function recoverVideos() {
+  let count;
+  try {
+    count = await recoverOrphanedVideos();
+  } catch (err) {
+    console.error("Recover orphaned videos failed", err);
+    await showAlert({ title: "Recovery failed", message: String(err?.message ?? err) });
+    return;
+  }
+
+  if (count === 0) {
+    await showAlert({
+      title: "Recover videos",
+      message: "No orphaned videos found - every video file on disk is already linked to an attempt.",
+    });
+    return;
+  }
+
+  await showAlert({
+    title: "Recover videos",
+    message: `Recovered ${count} video${count === 1 ? "" : "s"}. The original question couldn't be recovered (it was never stored anywhere but the app data that got wiped), so they show up unlinked - you can still review, score, and add notes to them.`,
+  });
 }
 
 async function resetAllData() {
@@ -558,6 +583,7 @@ function initMenuBar() {
       { label: "Settings", onClick: openSettingsModal },
       { label: "Open recordings folder", onClick: openRecordingsFolder },
       { label: "Export data", onClick: exportData },
+      { label: "Recover orphaned videos", onClick: recoverVideos },
       { label: "Reset all data", danger: true, onClick: resetAllData },
     ]);
   });
