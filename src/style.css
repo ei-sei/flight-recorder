@@ -391,6 +391,7 @@ textarea {
   min-height: 0;
   background-color: var(--bg-panel);
   border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
   overflow: hidden;
 }
 
