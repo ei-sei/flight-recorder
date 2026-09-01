@@ -335,24 +335,53 @@ textarea {
 }
 
 .layout {
+  --sidebar-w: 280px;
+  --log-w: 340px;
   flex: 1;
   display: grid;
-  grid-template-columns: minmax(260px, 0.32fr) minmax(360px, 3fr) minmax(300px, 0.55fr);
+  grid-template-columns: var(--sidebar-w) 6px minmax(360px, 1fr) 6px var(--log-w);
   gap: 4px;
   padding: 6px;
   min-height: 0;
 }
 
 .layout.sidebar-hidden {
-  grid-template-columns: minmax(360px, 3fr) minmax(300px, 0.55fr);
+  grid-template-columns: minmax(360px, 1fr) 6px var(--log-w);
 }
 
 .layout.log-hidden {
-  grid-template-columns: minmax(260px, 0.32fr) minmax(360px, 3fr);
+  grid-template-columns: var(--sidebar-w) 6px minmax(360px, 1fr);
 }
 
 .layout.sidebar-hidden.log-hidden {
-  grid-template-columns: minmax(360px, 3fr);
+  grid-template-columns: minmax(360px, 1fr);
+}
+
+.layout.sidebar-hidden #resize-sidebar,
+.layout.log-hidden #resize-log {
+  display: none;
+}
+
+.col-resize-handle {
+  position: relative;
+  cursor: col-resize;
+}
+
+.col-resize-handle::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 2px;
+  width: 2px;
+  border-radius: 1px;
+  background-color: transparent;
+  transition: background-color var(--ease);
+}
+
+.col-resize-handle:hover::after,
+.col-resize-handle.dragging::after {
+  background-color: var(--accent);
 }
 
 .layout.sidebar-hidden .questions-panel {

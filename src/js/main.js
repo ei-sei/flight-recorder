@@ -95,6 +95,72 @@ function initLogPanelToggle() {
   });
 }
 
+function initPanelResize() {
+  const layoutEl = document.querySelector(".layout");
+  const SIDEBAR_MIN = 200;
+  const SIDEBAR_MAX = 500;
+  const SIDEBAR_DEFAULT = 280;
+  const LOG_MIN = 260;
+  const LOG_MAX = 600;
+  const LOG_DEFAULT = 340;
+
+  function getStoredWidth(key, fallback) {
+    try {
+      const value = parseInt(localStorage.getItem(key), 10);
+      return Number.isFinite(value) ? value : fallback;
+    } catch (err) {
+      return fallback;
+    }
+  }
+
+  let sidebarWidth = getStoredWidth("sidebarWidthPx", SIDEBAR_DEFAULT);
+  let logWidth = getStoredWidth("logWidthPx", LOG_DEFAULT);
+
+  function applyWidths() {
+    layoutEl.style.setProperty("--sidebar-w", `${sidebarWidth}px`);
+    layoutEl.style.setProperty("--log-w", `${logWidth}px`);
+  }
+  applyWidths();
+
+  function startDrag(target, handleEl, startEvent) {
+    startEvent.preventDefault();
+    const startX = startEvent.clientX;
+    const startSidebar = sidebarWidth;
+    const startLog = logWidth;
+    handleEl.classList.add("dragging");
+
+    function onMove(moveEvent) {
+      const deltaX = moveEvent.clientX - startX;
+      if (target === "sidebar") {
+        sidebarWidth = Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, startSidebar + deltaX));
+      } else {
+        logWidth = Math.min(LOG_MAX, Math.max(LOG_MIN, startLog - deltaX));
+      }
+      applyWidths();
+    }
+
+    function onUp() {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      handleEl.classList.remove("dragging");
+      try {
+        localStorage.setItem("sidebarWidthPx", String(sidebarWidth));
+        localStorage.setItem("logWidthPx", String(logWidth));
+      } catch (err) {
+        // localStorage unavailable; sizes just won't persist across launches
+      }
+    }
+
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }
+
+  const sidebarHandle = document.getElementById("resize-sidebar");
+  const logHandle = document.getElementById("resize-log");
+  sidebarHandle.addEventListener("mousedown", (event) => startDrag("sidebar", sidebarHandle, event));
+  logHandle.addEventListener("mousedown", (event) => startDrag("log", logHandle, event));
+}
+
 function isRailVisible() {
   try {
     return localStorage.getItem("railVisible") === "true";
@@ -533,6 +599,7 @@ async function init() {
   initUpdateBell();
   initSidebar();
   initLogPanelToggle();
+  initPanelResize();
   initRail();
 
   const settings = await getRecordingSettings();
