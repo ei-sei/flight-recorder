@@ -86,7 +86,7 @@ export async function saveRecordingSettings(settings) {
 export async function getTheme() {
   const store = await getStore();
   const value = await store.get("theme");
-  return value ?? "dark";
+  return value ?? "light";
 }
 
 export async function setTheme(theme) {

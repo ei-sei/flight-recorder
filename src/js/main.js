@@ -72,9 +72,9 @@ function initSidebar() {
 
 function isRailVisible() {
   try {
-    return localStorage.getItem("railVisible") !== "false";
+    return localStorage.getItem("railVisible") === "true";
   } catch (err) {
-    return true;
+    return false;
   }
 }
 
