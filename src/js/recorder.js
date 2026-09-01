@@ -144,7 +144,10 @@ function disableCamera() {
 }
 
 function updateCameraToggleUI() {
-  cameraToggleBtn.disabled = isReviewing || (mediaRecorder && mediaRecorder.state === "recording");
+  // Hidden rather than just disabled while reviewing - the camera isn't
+  // shown then (the recorded clip is), so the toggle has nothing to act on.
+  cameraToggleRowEl.hidden = isReviewing;
+  cameraToggleBtn.disabled = mediaRecorder && mediaRecorder.state === "recording";
   cameraToggleBtn.classList.toggle("active", cameraEnabled);
   cameraToggleSwitch.classList.toggle("checked", cameraEnabled);
 }
