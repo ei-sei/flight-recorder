@@ -347,7 +347,19 @@ textarea {
   grid-template-columns: minmax(360px, 1.75fr) minmax(260px, 1fr);
 }
 
+.layout.log-hidden {
+  grid-template-columns: minmax(240px, 0.85fr) minmax(360px, 1.75fr);
+}
+
+.layout.sidebar-hidden.log-hidden {
+  grid-template-columns: minmax(360px, 1.75fr);
+}
+
 .layout.sidebar-hidden .questions-panel {
+  display: none;
+}
+
+.layout.log-hidden .log-panel {
   display: none;
 }
 

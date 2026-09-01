@@ -70,6 +70,31 @@ function initSidebar() {
   });
 }
 
+function isLogPanelVisible() {
+  try {
+    return localStorage.getItem("logPanelVisible") !== "false";
+  } catch (err) {
+    return true;
+  }
+}
+
+function setLogPanelVisible(visible) {
+  document.querySelector(".layout").classList.toggle("log-hidden", !visible);
+  try {
+    localStorage.setItem("logPanelVisible", String(visible));
+  } catch (err) {
+    // localStorage unavailable; state just won't persist across launches
+  }
+}
+
+function initLogPanelToggle() {
+  setLogPanelVisible(isLogPanelVisible());
+
+  document.getElementById("rail-log").addEventListener("click", () => {
+    setLogPanelVisible(!isLogPanelVisible());
+  });
+}
+
 function isRailVisible() {
   try {
     return localStorage.getItem("railVisible") === "true";
@@ -415,6 +440,7 @@ async function init() {
   initSettingsModal();
   initAboutModal();
   initSidebar();
+  initLogPanelToggle();
   initRail();
 
   const settings = await getRecordingSettings();
