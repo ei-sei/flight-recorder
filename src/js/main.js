@@ -25,7 +25,7 @@ import {
   setTheme,
 } from "./store.js";
 import { showAlert, showConfirm } from "./modal.js";
-import { showContextMenu } from "./contextmenu.js";
+import { showContextMenu, hideContextMenu, isContextMenuVisible } from "./contextmenu.js";
 
 const clockEl = document.getElementById("clock");
 const currentQuestionEl = document.getElementById("current-question");
@@ -261,9 +261,17 @@ async function showAboutInfo() {
   });
 }
 
+let activeMenuButton = null;
+
 function openMenu(button, items) {
+  if (isContextMenuVisible() && activeMenuButton === button) {
+    hideContextMenu();
+    activeMenuButton = null;
+    return;
+  }
   const rect = button.getBoundingClientRect();
-  showContextMenu(rect.left, rect.bottom + 4, items);
+  showContextMenu(rect.left, rect.bottom + 4, items, { trigger: button });
+  activeMenuButton = button;
 }
 
 function initMenuBar() {

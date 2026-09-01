@@ -1,6 +1,6 @@
 const menuEl = document.getElementById("context-menu");
 
-export function showContextMenu(x, y, items) {
+export function showContextMenu(x, y, items, { trigger } = {}) {
   menuEl.innerHTML = "";
 
   for (const item of items) {
@@ -33,12 +33,21 @@ export function showContextMenu(x, y, items) {
   document.addEventListener(
     "click",
     (event) => {
+      // Let the trigger's own click handler manage toggling instead of
+      // pre-emptively closing here, which would race ahead of it (this
+      // capture-phase listener always runs before the trigger's own
+      // bubble-phase handler on the same click).
+      if (trigger && trigger.contains(event.target)) return;
       if (!menuEl.contains(event.target)) hideContextMenu();
     },
     { once: true, capture: true },
   );
 }
 
-function hideContextMenu() {
+export function hideContextMenu() {
   menuEl.hidden = true;
+}
+
+export function isContextMenuVisible() {
+  return !menuEl.hidden;
 }
