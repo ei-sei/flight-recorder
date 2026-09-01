@@ -686,6 +686,18 @@ textarea {
   display: block;
 }
 
+/* Plyr's own .plyr wrapper only caps itself at max-width: 100% and sets
+   no height at all, so left alone it sizes off the video's native
+   resolution instead of filling the exact pixel box .viewfinder
+   computes in JS. Force the whole chain to actually fill it. */
+.viewfinder .plyr,
+.viewfinder .plyr__video-wrapper {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  min-width: 0;
+}
+
 .viewfinder-empty {
   position: absolute;
   inset: 0;
