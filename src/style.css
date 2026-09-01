@@ -356,7 +356,7 @@ textarea {
   flex-direction: column;
   align-items: center;
   flex-shrink: 0;
-  width: 48px;
+  width: 36px;
   gap: 4px;
   padding-top: 10px;
   background-color: var(--bg-panel);
@@ -366,8 +366,8 @@ textarea {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 26px;
+  height: 26px;
   padding: 0;
   background: transparent;
   border: none;
@@ -378,8 +378,8 @@ textarea {
 }
 
 .rail-btn svg {
-  width: 18px;
-  height: 18px;
+  width: 15px;
+  height: 15px;
 }
 
 .rail-btn:hover {
