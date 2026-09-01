@@ -401,7 +401,10 @@ export function exitReviewMode() {
   onExitReview();
 }
 
-const VIEWFINDER_ASPECT = 4 / 3;
+// Matches QUALITY_PRESETS (1280x720 / 1920x1080) — both 16:9. A mismatched
+// container ratio here just wastes space against object-fit: cover, since
+// the box shape no longer matches what's actually being recorded.
+const VIEWFINDER_ASPECT = 16 / 9;
 
 function updateViewfinderSize() {
   // Reset to flex-grow mode so the height measured below reflects what's
