@@ -1,13 +1,9 @@
 const { Store } = window.__TAURI__.store;
 
-const DEFAULT_QUESTIONS = [
-  { category: "Behavioral", text: "Tell me about a time you disagreed with a teammate." },
-  { category: "Behavioral", text: "Describe a project you're proud of and why." },
-  { category: "Technical", text: "Explain how a hash map works under the hood." },
-  { category: "Technical", text: "How would you design a URL shortener?" },
-  { category: "Case", text: "Estimate the number of piano tuners in Chicago." },
-  { category: "Case", text: "A client's revenue is declining. How do you investigate why?" },
-];
+// The one staple every real interview opens with - worth having on first
+// launch so the question bank isn't completely empty. Everything else is
+// left for the user to add themselves.
+const STAPLE_QUESTION = { category: "Behavioral", text: "Tell me about yourself." };
 
 let storePromise = null;
 
@@ -18,23 +14,19 @@ function getStore() {
   return storePromise;
 }
 
-function makeId() {
-  return crypto.randomUUID();
-}
-
 export async function getQuestions() {
   const store = await getStore();
   const existing = await store.get("questions");
-  if (existing && existing.length > 0) {
-    return existing;
-  }
+  if (existing) return existing;
 
-  const seeded = DEFAULT_QUESTIONS.map((q) => ({
-    id: makeId(),
-    category: q.category,
-    text: q.text,
-    createdAt: new Date().toISOString(),
-  }));
+  const seeded = [
+    {
+      id: crypto.randomUUID(),
+      category: STAPLE_QUESTION.category,
+      text: STAPLE_QUESTION.text,
+      createdAt: new Date().toISOString(),
+    },
+  ];
   await store.set("questions", seeded);
   await store.save();
   return seeded;
