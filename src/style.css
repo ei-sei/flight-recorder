@@ -337,7 +337,7 @@ textarea {
 .layout {
   flex: 1;
   display: grid;
-  grid-template-columns: minmax(220px, 0.25fr) minmax(360px, 3fr) minmax(300px, 0.55fr);
+  grid-template-columns: minmax(260px, 0.32fr) minmax(360px, 3fr) minmax(300px, 0.55fr);
   gap: 4px;
   padding: 6px;
   min-height: 0;
@@ -348,7 +348,7 @@ textarea {
 }
 
 .layout.log-hidden {
-  grid-template-columns: minmax(220px, 0.25fr) minmax(360px, 3fr);
+  grid-template-columns: minmax(260px, 0.32fr) minmax(360px, 3fr);
 }
 
 .layout.sidebar-hidden.log-hidden {
