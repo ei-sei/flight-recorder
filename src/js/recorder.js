@@ -445,18 +445,26 @@ function updateViewfinderSize() {
   if (availableWidth <= 0 || naturalHeight <= 0) return;
 
   const widthIfHeightBound = naturalHeight * VIEWFINDER_ASPECT;
+  let finalWidth;
   if (widthIfHeightBound <= availableWidth) {
     // Panel height is the binding constraint; leave flex-grow controlling
     // height naturally and derive width from it.
-    viewfinderEl.style.width = `${widthIfHeightBound}px`;
+    finalWidth = widthIfHeightBound;
+    viewfinderEl.style.width = `${finalWidth}px`;
   } else {
     // Panel width is the binding constraint. flex-grow would otherwise keep
     // stretching height to fill the panel regardless of an explicit height,
     // so it needs disabling here for the aspect ratio to actually hold.
+    finalWidth = availableWidth;
     viewfinderEl.style.flex = "0 0 auto";
-    viewfinderEl.style.width = `${availableWidth}px`;
-    viewfinderEl.style.height = `${availableWidth / VIEWFINDER_ASPECT}px`;
+    viewfinderEl.style.width = `${finalWidth}px`;
+    viewfinderEl.style.height = `${finalWidth / VIEWFINDER_ASPECT}px`;
   }
+
+  // Keep the review-mode info bar the same width as the player itself,
+  // instead of an arbitrary CSS cap that left mismatched whitespace on
+  // both sides whenever the player was wider than that guess.
+  viewfinderMetaEl.style.width = `${finalWidth}px`;
 }
 
 function initViewfinderSizing() {
