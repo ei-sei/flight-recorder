@@ -220,7 +220,6 @@ textarea {
   padding: 0 0 0 14px;
   height: 32px;
   flex-shrink: 0;
-  border-bottom: 1px solid var(--border-strong);
   background-color: var(--bg-panel);
 }
 
@@ -1139,8 +1138,9 @@ textarea {
 
 .footer-note {
   flex-shrink: 0;
-  padding: 10px 24px 16px;
+  padding: 8px 24px;
   font-size: 11px;
   color: var(--text-dim);
   text-align: center;
+  background-color: var(--bg-panel);
 }
