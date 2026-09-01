@@ -2,6 +2,18 @@
 
 A local desktop app for practicing job interviews on webcam. Built with Tauri. Runs fully on your machine — no cloud storage of video or data, except for the optional, opt-in speech-pace (WPM) feature.
 
+## Download
+
+Grab the latest installer from the [Releases page](https://github.com/ei-sei/flight-recorder/releases/latest) — no build step needed.
+
+- **Windows**: download `flight-recorder_<version>_x64-setup.exe` (or the `_x64_en-US.msi`), run it, then launch "Flight recorder" from the Start menu.
+- **macOS**: download `flight-recorder_<version>_x64.dmg` (Intel) or `_aarch64.dmg` (Apple Silicon), open it, and drag the app into Applications.
+- **Linux**: download whichever matches your distro — `.deb`, `.rpm` (e.g. Fedora), or `.AppImage` (works on most distros without installing anything).
+
+> **Currently Windows-only.** Releases are temporarily built for Windows alone while active testing focuses there — see the commented-out matrix entries in `.github/workflows/release.yml` to re-enable macOS/Linux builds.
+
+Once installed, updates are handled in-app: Help → Check for updates, or the bell icon in the bottom-right footer when one's available.
+
 ## Features
 
 - **Question bank** organized by category (Behavioral, Technical, Case). Add and remove your own questions.
@@ -59,7 +71,8 @@ Releases are signed with a minisign-style keypair (`tauri signer generate`); the
 
 ## Data & privacy
 
-- **Video recordings** are written straight to disk under your OS "Videos" folder: `Videos/flight-recorder/{category}/{date}_{question-slug}.webm`. The extension follows whatever format the webview can actually record — `.webm` (VP8/VP9+Opus) normally, falling back to `.mp4` (H.264) on webviews that don't support recording WebM (notably Safari/WKWebView). Nothing about video ever leaves the machine.
+- **Video recordings** are written straight to disk under your OS "Videos" folder: `Videos/flight-recorder/{category}/{YYMMDD}-a{attempt number}-{question abbreviation}.webm` — e.g. `260901-a2-tmatydwt.webm` for the second attempt at "Tell me about a time you disagreed with a teammate." The extension follows whatever format the webview can actually record — `.webm` (VP8/VP9+Opus) normally, falling back to `.mp4` (H.264) on webviews that don't support recording WebM (notably Safari/WKWebView). Nothing about video ever leaves the machine.
+- If the app's own data ever gets wiped (e.g. an uninstaller that clears app data) while video files survive on disk, File → Recover orphaned videos rebuilds bare attempt entries for them — category and date are recovered from the file itself, but the original question text isn't stored anywhere else, so those come back unlinked from a specific question.
 - **Metadata** — the question bank, and each attempt's question/category/date/duration/score/notes/response-delay — is persisted locally via `tauri-plugin-store`, a JSON file in the app's local data directory.
 - **Speech pace (WPM)** is the one feature that isn't fully local. It's **off by default**. When you explicitly turn it on, live audio is sent to the webview's built-in speech recognition (Google's servers, on Chromium-based webviews) while recording, to estimate words-per-minute. It's only available on Chromium-based webviews (in practice: Windows/WebView2) — WebKitGTK (Linux) and WKWebView (macOS) don't implement the Web Speech API, so the toggle is disabled there.
 - Deleting an attempt removes both its metadata entry and its video file from disk.
