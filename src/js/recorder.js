@@ -6,6 +6,7 @@ const viewfinderMetaEl = document.getElementById("viewfinder-meta");
 const viewfinderMetaInfoEl = document.getElementById("viewfinder-meta-info");
 const viewfinderMetaStarsEl = document.getElementById("viewfinder-meta-stars");
 const viewfinderEl = document.querySelector(".viewfinder");
+const recorderPanelEl = document.querySelector(".recorder-panel");
 const viewfinderEmptyEl = document.getElementById("viewfinder-empty");
 const recIndicatorEl = document.getElementById("rec-indicator");
 const reviewIndicatorEl = document.getElementById("review-indicator");
@@ -365,6 +366,7 @@ export async function enterReviewMode(attempt, attemptNumber) {
   reviewNotesInput.onblur = () => onNotesChange(attempt.id, reviewNotesInput.value);
 
   updateRecordButtonState();
+  updateViewfinderSize();
 }
 
 export function exitReviewMode() {
@@ -395,7 +397,38 @@ export function exitReviewMode() {
   viewfinderMetaEl.hidden = true;
 
   updateRecordButtonState();
+  updateViewfinderSize();
   onExitReview();
+}
+
+const VIEWFINDER_ASPECT = 4 / 3;
+
+function updateViewfinderSize() {
+  viewfinderEl.style.width = "";
+  viewfinderEl.style.height = "";
+
+  const panelStyle = getComputedStyle(recorderPanelEl);
+  const horizontalPadding = parseFloat(panelStyle.paddingLeft) + parseFloat(panelStyle.paddingRight);
+  const availableWidth = recorderPanelEl.clientWidth - horizontalPadding;
+  const naturalHeight = viewfinderEl.clientHeight;
+
+  if (availableWidth <= 0 || naturalHeight <= 0) return;
+
+  const widthIfHeightBound = naturalHeight * VIEWFINDER_ASPECT;
+  if (widthIfHeightBound <= availableWidth) {
+    // Panel height is the binding constraint; let flex keep controlling
+    // height naturally and derive width from it.
+    viewfinderEl.style.width = `${widthIfHeightBound}px`;
+  } else {
+    // Panel width is the binding constraint; derive height from it instead.
+    viewfinderEl.style.width = `${availableWidth}px`;
+    viewfinderEl.style.height = `${availableWidth / VIEWFINDER_ASPECT}px`;
+  }
+}
+
+function initViewfinderSizing() {
+  updateViewfinderSize();
+  new ResizeObserver(updateViewfinderSize).observe(recorderPanelEl);
 }
 
 async function initWpmToggle() {
@@ -424,6 +457,7 @@ export async function initRecorder(options = {}) {
 
   recordBtn.addEventListener("click", toggleRecording);
   backToLiveBtn.addEventListener("click", exitReviewMode);
+  initViewfinderSizing();
   await initWpmToggle();
   await initCamera();
 }
