@@ -239,9 +239,14 @@ async function openRecordingsFolder() {
   const { mkdir } = window.__TAURI__.fs;
   const { openPath } = window.__TAURI__.opener;
 
-  const dir = await join(await videoDir(), "flight-recorder");
-  await mkdir(dir, { recursive: true });
-  await openPath(dir);
+  try {
+    const dir = await join(await videoDir(), "flight-recorder");
+    await mkdir(dir, { recursive: true });
+    await openPath(dir);
+  } catch (err) {
+    console.error("Open recordings folder failed", err);
+    await showAlert({ title: "Couldn't open folder", message: String(err?.message ?? err) });
+  }
 }
 
 async function exportData() {
@@ -312,11 +317,17 @@ async function resetAllData() {
   const { videoDir, join } = window.__TAURI__.path;
   const { remove, exists } = window.__TAURI__.fs;
 
-  const dir = await join(await videoDir(), "flight-recorder");
-  if (await exists(dir)) {
-    await remove(dir, { recursive: true });
+  try {
+    const dir = await join(await videoDir(), "flight-recorder");
+    if (await exists(dir)) {
+      await remove(dir, { recursive: true });
+    }
+    await clearAllData();
+  } catch (err) {
+    console.error("Reset all data failed", err);
+    await showAlert({ title: "Reset failed", message: String(err?.message ?? err) });
+    return;
   }
-  await clearAllData();
   location.reload();
 }
 
