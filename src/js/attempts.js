@@ -1,11 +1,6 @@
 const { videoDir, join } = window.__TAURI__.path;
-const { mkdir, writeFile, readFile, readDir, exists, remove } = window.__TAURI__.fs;
+const { mkdir, writeFile, exists, remove } = window.__TAURI__.fs;
 const { revealItemInDir } = window.__TAURI__.opener;
-
-// The only three category values the app ever creates a folder for (see
-// questions.js's fixed tab list) - safe to hardcode as a reverse lookup
-// from the slug back to its real display name.
-const CATEGORY_BY_SLUG = { behavioral: "Behavioral", technical: "Technical", case: "Case" };
 
 import { getAttempts, saveAttempts } from "./store.js";
 import { slugify, shortDateStamp, abbreviateQuestion, formatDuration, renderStars } from "./util.js";
@@ -41,99 +36,6 @@ async function computeVideoPath(question, date, extension) {
     counter += 1;
   }
   return candidate;
-}
-
-// Handles both filename conventions this app has ever written: the current
-// short one (260901-a2-abbrev.ext) and the older, fully-slugified-question
-// one (2026-09-01_some-long-question.ext) - so recovery works on videos
-// saved before this format changed too.
-function inferDateFromFilename(filename) {
-  let match = filename.match(/^(\d{2})(\d{2})(\d{2})-a\d+-/);
-  if (match) {
-    const [, yy, mm, dd] = match;
-    return new Date(2000 + Number(yy), Number(mm) - 1, Number(dd));
-  }
-  match = filename.match(/^(\d{4})-(\d{2})-(\d{2})[_-]/);
-  if (match) {
-    const [, yyyy, mm, dd] = match;
-    return new Date(Number(yyyy), Number(mm) - 1, Number(dd));
-  }
-  return new Date();
-}
-
-async function probeDurationMs(path) {
-  try {
-    const bytes = await readFile(path);
-    const mimeType = path.toLowerCase().endsWith(".mp4") ? "video/mp4" : "video/webm";
-    const url = URL.createObjectURL(new Blob([bytes], { type: mimeType }));
-    const durationSeconds = await new Promise((resolve) => {
-      const probe = document.createElement("video");
-      probe.preload = "metadata";
-      probe.onloadedmetadata = () => resolve(probe.duration);
-      probe.onerror = () => resolve(0);
-      probe.src = url;
-    });
-    URL.revokeObjectURL(url);
-    return Number.isFinite(durationSeconds) ? Math.round(durationSeconds * 1000) : 0;
-  } catch (err) {
-    console.error("Failed to probe recovered video duration", err);
-    return 0;
-  }
-}
-
-async function findOrphanedVideos() {
-  const base = await videoDir();
-  const rootDir = await join(base, "flight-recorder");
-  if (!(await exists(rootDir))) return [];
-
-  const knownPaths = new Set(attempts.map((a) => a.videoPath));
-  const orphans = [];
-
-  for (const categoryEntry of await readDir(rootDir)) {
-    if (!categoryEntry.isDirectory) continue;
-    const categoryPath = await join(rootDir, categoryEntry.name);
-
-    for (const fileEntry of await readDir(categoryPath)) {
-      if (!fileEntry.isFile || !/\.(webm|mp4)$/i.test(fileEntry.name)) continue;
-      const filePath = await join(categoryPath, fileEntry.name);
-      if (knownPaths.has(filePath)) continue;
-      orphans.push({ path: filePath, filename: fileEntry.name, categorySlug: categoryEntry.name });
-    }
-  }
-
-  return orphans;
-}
-
-// Rebuilds bare attempt entries for video files on disk that the store has
-// no record of (e.g. after an uninstall that wiped app data but left the
-// user's actual video files alone). The original question text can't be
-// recovered - it was never stored anywhere but the wiped JSON - so these
-// come back unlinked from any question, with the category inferred from
-// the folder and the date from the filename.
-export async function recoverOrphanedVideos() {
-  const orphans = await findOrphanedVideos();
-  if (orphans.length === 0) return 0;
-
-  for (const orphan of orphans) {
-    attempts.unshift({
-      id: crypto.randomUUID(),
-      questionId: null,
-      questionText: "(Recovered video - original question unknown)",
-      category: CATEGORY_BY_SLUG[orphan.categorySlug] ?? orphan.categorySlug,
-      date: inferDateFromFilename(orphan.filename).toISOString(),
-      durationMs: await probeDurationMs(orphan.path),
-      videoPath: orphan.path,
-      score: 0,
-      notes: "",
-      responseDelayMs: null,
-      wpm: null,
-      transcript: null,
-    });
-  }
-
-  await saveAttempts(attempts);
-  render();
-  return orphans.length;
 }
 
 export async function saveAttempt({ blob, extension, durationMs, question, responseDelayMs, wpm, transcript }) {
