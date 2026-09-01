@@ -296,7 +296,8 @@ function initMenuBar() {
         label: "Always on top",
         checked: Boolean(settings.alwaysOnTop),
         onClick: async () => {
-          const next = !settings.alwaysOnTop;
+          const current = await getRecordingSettings();
+          const next = !current.alwaysOnTop;
           await appWindow.setAlwaysOnTop(next);
           await saveRecordingSettings({ alwaysOnTop: next });
         },
@@ -305,7 +306,8 @@ function initMenuBar() {
         label: "Light/Dark mode",
         checked: theme === "light",
         onClick: async () => {
-          const next = theme === "light" ? "dark" : "light";
+          const current = document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark";
+          const next = current === "light" ? "dark" : "light";
           applyTheme(next);
           await setTheme(next);
         },
