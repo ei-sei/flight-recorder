@@ -170,18 +170,25 @@ function renderAttemptItem(attempt) {
   const top = document.createElement("div");
   top.className = "attempt-item-top";
 
-  const topInfo = document.createElement("span");
-  topInfo.className = "mono";
+  const topInfo = document.createElement("div");
+  topInfo.className = "attempt-item-meta";
+
   const dateLabel = new Date(attempt.date).toLocaleDateString();
   const delayLabel = formatResponseDelay(attempt.responseDelayMs);
   const wpmLabel = attempt.wpm ? `${Math.round(attempt.wpm)} wpm` : null;
-  topInfo.textContent = [
-    `Attempt ${getAttemptNumber(attempt)} · ${dateLabel} · ${formatDuration(attempt.durationMs)}`,
-    delayLabel,
-    wpmLabel,
-  ]
+
+  const metaLine = document.createElement("span");
+  metaLine.className = "mono";
+  metaLine.textContent = [`${dateLabel} · ${formatDuration(attempt.durationMs)}`, delayLabel, wpmLabel]
     .filter(Boolean)
     .join(" · ");
+
+  const attemptLine = document.createElement("span");
+  attemptLine.className = "mono attempt-item-number";
+  attemptLine.textContent = `Attempt ${getAttemptNumber(attempt)}`;
+
+  topInfo.appendChild(metaLine);
+  topInfo.appendChild(attemptLine);
 
   const stars = document.createElement("div");
   stars.className = "stars";

@@ -1074,6 +1074,17 @@ textarea {
   margin-bottom: 8px;
 }
 
+.attempt-item-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.attempt-item-number {
+  color: var(--text-secondary);
+}
+
 .attempt-item-question {
   font-size: 13px;
   line-height: 1.45;
