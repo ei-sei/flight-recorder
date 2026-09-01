@@ -404,6 +404,10 @@ export function exitReviewMode() {
 const VIEWFINDER_ASPECT = 4 / 3;
 
 function updateViewfinderSize() {
+  // Reset to flex-grow mode so the height measured below reflects what's
+  // actually available right now, not a stale explicit height from a
+  // previous width-bound run.
+  viewfinderEl.style.flex = "1 1 0";
   viewfinderEl.style.width = "";
   viewfinderEl.style.height = "";
 
@@ -416,11 +420,14 @@ function updateViewfinderSize() {
 
   const widthIfHeightBound = naturalHeight * VIEWFINDER_ASPECT;
   if (widthIfHeightBound <= availableWidth) {
-    // Panel height is the binding constraint; let flex keep controlling
+    // Panel height is the binding constraint; leave flex-grow controlling
     // height naturally and derive width from it.
     viewfinderEl.style.width = `${widthIfHeightBound}px`;
   } else {
-    // Panel width is the binding constraint; derive height from it instead.
+    // Panel width is the binding constraint. flex-grow would otherwise keep
+    // stretching height to fill the panel regardless of an explicit height,
+    // so it needs disabling here for the aspect ratio to actually hold.
+    viewfinderEl.style.flex = "0 0 auto";
     viewfinderEl.style.width = `${availableWidth}px`;
     viewfinderEl.style.height = `${availableWidth / VIEWFINDER_ASPECT}px`;
   }
