@@ -83,10 +83,7 @@ body {
   font-family: var(--font-sans);
   font-size: 14px;
   color: var(--text-primary);
-  background:
-    radial-gradient(1100px 520px at 15% -12%, var(--gradient-tint-1), transparent 60%),
-    radial-gradient(900px 480px at 100% 0%, var(--gradient-tint-2), transparent 55%),
-    var(--bg-base);
+  background: var(--bg-panel);
   -webkit-font-smoothing: antialiased;
   transition: background-color var(--ease), color var(--ease);
 }
@@ -356,7 +353,6 @@ textarea {
   gap: 4px;
   padding-top: 10px;
   background-color: var(--bg-panel);
-  border-right: 1px solid var(--border-strong);
 }
 
 .rail-btn {
