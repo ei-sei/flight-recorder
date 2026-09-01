@@ -303,8 +303,8 @@ function initMenuBar() {
         },
       },
       {
-        label: "Light/Dark mode",
-        checked: theme === "light",
+        label: "Dark mode",
+        checked: theme === "dark",
         onClick: async () => {
           const current = document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark";
           const next = current === "light" ? "dark" : "light";
