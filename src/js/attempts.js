@@ -175,14 +175,13 @@ function renderAttemptItem(attempt) {
 
   const dateLabel = new Date(attempt.date).toLocaleDateString();
   const delayLabel = formatResponseDelay(attempt.responseDelayMs);
-  const wpmLabel = attempt.wpm ? `${Math.round(attempt.wpm)} wpm` : null;
 
   const metaRow = document.createElement("div");
   metaRow.className = "attempt-item-meta-row";
 
   const metaLine = document.createElement("span");
   metaLine.className = "mono";
-  metaLine.textContent = [`${dateLabel} · ${formatDuration(attempt.durationMs)}`, delayLabel, wpmLabel]
+  metaLine.textContent = [`${dateLabel} · ${formatDuration(attempt.durationMs)}`, delayLabel]
     .filter(Boolean)
     .join(" · ");
 
