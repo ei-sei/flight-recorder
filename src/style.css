@@ -394,6 +394,13 @@ textarea {
   height: 15px;
 }
 
+.rail-btn-letter {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+}
+
 .rail-btn:hover {
   background-color: var(--bg-raised);
   color: var(--text-primary);
