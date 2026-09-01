@@ -220,7 +220,6 @@ textarea {
   padding: 0 0 0 14px;
   height: 32px;
   flex-shrink: 0;
-  border-bottom: 1px solid var(--border-strong);
   background-color: var(--bg-panel);
 }
 
