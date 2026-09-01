@@ -70,6 +70,27 @@ function initSidebar() {
   });
 }
 
+function isRailVisible() {
+  try {
+    return localStorage.getItem("railVisible") !== "false";
+  } catch (err) {
+    return true;
+  }
+}
+
+function setRailVisible(visible) {
+  document.getElementById("activity-rail").hidden = !visible;
+  try {
+    localStorage.setItem("railVisible", String(visible));
+  } catch (err) {
+    // localStorage unavailable; state just won't persist across launches
+  }
+}
+
+function initRail() {
+  setRailVisible(isRailVisible());
+}
+
 function tickClock() {
   const now = new Date();
   clockEl.textContent = now.toLocaleTimeString("en-GB", { hour12: false });
@@ -283,8 +304,8 @@ function initMenuBar() {
       },
       {
         label: "Show sidebar",
-        checked: isSidebarVisible(),
-        onClick: () => setSidebarVisible(!isSidebarVisible()),
+        checked: isRailVisible(),
+        onClick: () => setRailVisible(!isRailVisible()),
       },
     ]);
   });
@@ -325,6 +346,7 @@ async function init() {
   initMenuBar();
   initSettingsModal();
   initSidebar();
+  initRail();
 
   const settings = await getRecordingSettings();
   if (settings.alwaysOnTop) {
