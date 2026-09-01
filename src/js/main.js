@@ -248,16 +248,23 @@ async function exportData() {
   const { mkdir, writeFile } = window.__TAURI__.fs;
   const { revealItemInDir } = window.__TAURI__.opener;
 
-  const questions = await getQuestions();
-  const attempts = await getAttempts();
-  const data = { exportedAt: new Date().toISOString(), questions, attempts };
+  let filename, filePath;
+  try {
+    const questions = await getQuestions();
+    const attempts = await getAttempts();
+    const data = { exportedAt: new Date().toISOString(), questions, attempts };
 
-  const dir = await join(await videoDir(), "flight-recorder");
-  await mkdir(dir, { recursive: true });
-  const filename = `export-${new Date().toISOString().slice(0, 10)}.json`;
-  const filePath = await join(dir, filename);
-  const bytes = new TextEncoder().encode(JSON.stringify(data, null, 2));
-  await writeFile(filePath, bytes);
+    const dir = await join(await videoDir(), "flight-recorder");
+    await mkdir(dir, { recursive: true });
+    filename = `export-${new Date().toISOString().slice(0, 10)}.json`;
+    filePath = await join(dir, filename);
+    const bytes = new TextEncoder().encode(JSON.stringify(data, null, 2));
+    await writeFile(filePath, bytes);
+  } catch (err) {
+    console.error("Export data failed", err);
+    await showAlert({ title: "Export failed", message: String(err?.message ?? err) });
+    return;
+  }
 
   const showInFolder = await showConfirm({
     title: "Data exported",
