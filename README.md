@@ -26,8 +26,46 @@ Once installed, updates are handled in-app: Help → Check for updates, or the b
 - **Filter tabs** over the attempt log (All / Behavioral / Technical / Case), and a per-question view when you select a question in the bank.
 - **Response delay** - measures time from record start to first speech, using local mic-volume analysis. Fully local, works on every platform.
 - **Speech pace (WPM)** - live words-per-minute estimate using the browser's built-in speech recognition. Off by default; see [Data & privacy](#data--privacy) below. Only available on Chromium-based webviews (Windows).
-- **Light/dark theme**, a custom frameless window with its own titlebar and resize handles, and a VS Code-style File/View/Help menu bar.
+- **Light/dark theme**, a custom frameless window with its own titlebar and resize handles, and a File/View/Help menu bar.
 - **Check for updates** (Help menu) checks the project's GitHub Releases for a newer version and can download, install, and restart into it.
+
+## Tech stack
+
+- **[Tauri](https://tauri.app)** (v2) - Rust backend, paired with each OS's native webview (WebView2 on Windows, WebKitGTK on Linux, WKWebView on macOS) instead of bundling Chromium, which keeps the install small.
+- **Frontend**: plain HTML/CSS/JS - no React, Vue, or bundler. ES modules loaded directly by the webview.
+- **Plugins**: `tauri-plugin-store` (question/attempt/settings persistence), `tauri-plugin-fs` (video files), `tauri-plugin-opener` (reveal-in-folder, external links), `tauri-plugin-window-state`, `tauri-plugin-updater` + `tauri-plugin-process` (auto-updates).
+- Camera/mic capture and recording use standard `getUserMedia`/`MediaRecorder` Web APIs - no native plugin needed for that part.
+
+## Project structure
+
+```
+flight-recorder/
+├── src/                    Frontend (plain HTML/CSS/JS)
+│   ├── index.html
+│   ├── style.css
+│   └── js/
+│       ├── main.js          App init, menu bar, window controls, update bell
+│       ├── recorder.js       Webcam capture, recording, live viewfinder
+│       ├── attempts.js       Attempt log, video file I/O, orphaned-video recovery
+│       ├── questions.js      Question bank CRUD
+│       ├── store.js          tauri-plugin-store wrapper
+│       ├── modal.js          Confirm/alert dialogs
+│       ├── contextmenu.js    Custom right-click and menu-bar dropdowns
+│       └── util.js           Formatting, slugify, filename helpers
+├── src-tauri/              Rust backend
+│   ├── src/
+│   │   ├── lib.rs            Plugin registration, window icon, commands
+│   │   └── main.rs
+│   ├── capabilities/          Permission scoping (default.json)
+│   ├── icons/                 App icon set for every platform
+│   ├── Info.plist             macOS camera/mic usage descriptions
+│   ├── build.rs                Embeds the git commit SHA at compile time
+│   └── tauri.conf.json
+├── screenshots/             Images used in this README
+└── .github/
+    ├── workflows/              CI, security scanning, release builds
+    └── dependabot.yml
+```
 
 ## Prerequisites
 
@@ -84,7 +122,7 @@ Releases are signed with a minisign-style keypair (`tauri signer generate`); the
 
 ## Design language
 
-Dark, sleek, VS Code/Obsidian-style flat chrome: panels are tightly packed with a small gap and each has its own complete hairline border (no shared dividers, no rounded corners, no drop shadows), with a permanent left activity rail selecting sidebar content. Blue/indigo as the primary accent, red for recording/destructive actions, gold for star ratings, segmented pill-style filter tabs as the one deliberately rounded control, monospace timers and numeric readouts, sentence-case labels, compact/efficient spacing.
+Dark, sleek, flat editor-style chrome: panels are tightly packed with a small gap and each has its own complete hairline border (no shared dividers, no rounded corners, no drop shadows), with a permanent left activity rail selecting sidebar content. Blue/indigo as the primary accent, red for recording/destructive actions, gold for star ratings, segmented pill-style filter tabs as the one deliberately rounded control, monospace timers and numeric readouts, sentence-case labels, compact/efficient spacing.
 
 ## Acknowledgments
 
