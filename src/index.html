@@ -140,6 +140,11 @@
             <button class="btn btn-teal" id="back-to-live-btn" hidden>Back to live</button>
           </div>
 
+          <div class="review-notes" id="review-transcript-row" hidden>
+            <label class="review-notes-label" for="review-transcript-text">Transcript (auto-generated, may contain errors)</label>
+            <textarea class="notes-input" id="review-transcript-text" readonly tabindex="-1" rows="2"></textarea>
+          </div>
+
           <div class="review-notes" id="review-notes-row" hidden>
             <label class="review-notes-label" for="review-notes-input">Notes</label>
             <textarea class="notes-input" id="review-notes-input" placeholder="Notes…" rows="2"></textarea>
@@ -230,7 +235,8 @@
           <div class="toggle-copy">
             <span class="toggle-label">Speech pace (WPM)</span>
             <span class="toggle-hint" id="wpm-toggle-hint">
-              Off by default. When on, live audio is sent to Google's speech recognition to measure words per minute.
+              Off by default. When on, live audio is sent to Google's speech recognition to measure words per minute
+              and save a transcript you can review afterward.
             </span>
           </div>
         </div>

@@ -16,6 +16,8 @@ const backToLiveBtn = document.getElementById("back-to-live-btn");
 const currentQuestionEl = document.getElementById("current-question");
 const reviewNotesRow = document.getElementById("review-notes-row");
 const reviewNotesInput = document.getElementById("review-notes-input");
+const reviewTranscriptRow = document.getElementById("review-transcript-row");
+const reviewTranscriptText = document.getElementById("review-transcript-text");
 const liveReadoutsEl = document.getElementById("live-readouts");
 const readoutDelayEl = document.getElementById("readout-delay");
 const readoutWpmEl = document.getElementById("readout-wpm");
@@ -384,6 +386,9 @@ export async function enterReviewMode(attempt, attemptNumber) {
   renderReviewStars(attempt.id, attempt.score);
   viewfinderMetaEl.hidden = false;
 
+  reviewTranscriptRow.hidden = !attempt.transcript;
+  reviewTranscriptText.value = attempt.transcript || "";
+
   reviewNotesRow.hidden = false;
   reviewNotesInput.value = attempt.notes;
   reviewNotesInput.onblur = () => onNotesChange(attempt.id, reviewNotesInput.value);
@@ -415,6 +420,7 @@ export function exitReviewMode() {
   recordBtn.hidden = false;
   backToLiveBtn.hidden = true;
 
+  reviewTranscriptRow.hidden = true;
   reviewNotesRow.hidden = true;
   reviewNotesInput.onblur = null;
   viewfinderMetaEl.hidden = true;
