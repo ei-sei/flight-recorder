@@ -12,6 +12,9 @@ const recIndicatorEl = document.getElementById("rec-indicator");
 const reviewIndicatorEl = document.getElementById("review-indicator");
 const timerEl = document.getElementById("timer");
 const recordControlsEl = document.querySelector(".record-controls");
+const cameraToggleRowEl = document.querySelector(".camera-toggle-row");
+const cameraToggleBtn = document.getElementById("camera-toggle-btn");
+const cameraToggleSwitch = document.getElementById("camera-toggle-switch");
 const recordBtn = document.getElementById("record-btn");
 const backToLiveBtn = document.getElementById("back-to-live-btn");
 const currentQuestionEl = document.getElementById("current-question");
@@ -63,6 +66,8 @@ let onScoreChange = () => {};
 let onOpenSettings = () => {};
 
 let currentQuality = "720";
+let cameraEnabled = false;
+let cameraWasEnabledBeforeReview = false;
 
 const QUALITY_PRESETS = {
   720: { width: 1280, height: 720, bitrate: 2_500_000 },
@@ -102,7 +107,12 @@ async function acquireStream(cameraId, micId, quality) {
   }
 }
 
-async function initCamera() {
+// Camera starts off rather than requesting getUserMedia the instant the app
+// launches - a permission prompt firing with zero context on first open is a
+// bad first impression, and it also means the toggle button below is the one
+// and only path that ever requests camera/mic access.
+async function enableCamera() {
+  cameraToggleBtn.disabled = true;
   const settings = await getRecordingSettings();
   currentQuality = settings.quality;
 
@@ -110,11 +120,41 @@ async function initCamera() {
     stream = await acquireStream(settings.cameraId, settings.micId, currentQuality);
     previewEl.srcObject = stream;
     viewfinderEmptyEl.hidden = true;
+    cameraEnabled = true;
   } catch (err) {
     viewfinderEmptyEl.textContent = "Camera access denied or unavailable.";
+    viewfinderEmptyEl.hidden = false;
     console.error("Failed to access camera/microphone", err);
   }
+  updateCameraToggleUI();
   updateRecordButtonState();
+}
+
+function disableCamera() {
+  if (stream) {
+    for (const track of stream.getTracks()) track.stop();
+    stream = null;
+  }
+  previewEl.srcObject = null;
+  cameraEnabled = false;
+  viewfinderEmptyEl.textContent = "Camera is off.";
+  viewfinderEmptyEl.hidden = false;
+  updateCameraToggleUI();
+  updateRecordButtonState();
+}
+
+function updateCameraToggleUI() {
+  cameraToggleBtn.disabled = isReviewing || (mediaRecorder && mediaRecorder.state === "recording");
+  cameraToggleBtn.classList.toggle("active", cameraEnabled);
+  cameraToggleSwitch.classList.toggle("checked", cameraEnabled);
+}
+
+function toggleCamera() {
+  if (cameraEnabled) {
+    disableCamera();
+  } else {
+    enableCamera();
+  }
 }
 
 export async function listDevices() {
@@ -132,6 +172,8 @@ export async function applyRecordingSettings({ cameraId, micId, quality }) {
   if (mediaRecorder && mediaRecorder.state === "recording") {
     return; // don't disrupt an in-progress recording; takes effect on the next one
   }
+
+  if (!cameraEnabled) return; // changing settings shouldn't turn the camera on by itself
 
   if (stream) {
     for (const track of stream.getTracks()) track.stop();
@@ -294,6 +336,7 @@ function startRecording() {
 
   liveReadoutsEl.hidden = false;
   startResponseDelayDetection();
+  updateCameraToggleUI();
 
   if (wpmEnabled && SpeechRecognitionImpl) {
     startSpeechPaceTracking();
@@ -319,6 +362,7 @@ async function handleStop() {
   recordBtn.classList.remove("recording");
   viewfinderEl.classList.remove("recording");
   updateRecordButtonState();
+  updateCameraToggleUI();
 
   const durationMs = Date.now() - recordStartTs;
   const format = currentRecordingFormat ?? getSupportedRecordingFormat();
@@ -370,6 +414,18 @@ export async function enterReviewMode(attempt, attemptNumber) {
   reviewObjectUrl = URL.createObjectURL(new Blob([bytes], { type: mimeType }));
 
   isReviewing = true;
+
+  // Turn the camera off while reviewing - it's not shown (the recorded clip
+  // is), so leaving it running just keeps the camera light on and the
+  // device busy for no reason. Restored in exitReviewMode() only if it was
+  // actually on before review started.
+  cameraWasEnabledBeforeReview = cameraEnabled;
+  if (stream) {
+    for (const track of stream.getTracks()) track.stop();
+    stream = null;
+  }
+  cameraEnabled = false;
+
   previewEl.srcObject = null;
   previewEl.src = reviewObjectUrl;
   previewEl.muted = false;
@@ -407,6 +463,7 @@ export async function enterReviewMode(attempt, attemptNumber) {
   reviewNotesInput.oninput = () => autosizeTextarea(reviewNotesInput);
 
   updateRecordButtonState();
+  updateCameraToggleUI();
   updateViewfinderSize();
 }
 
@@ -439,8 +496,15 @@ export function exitReviewMode() {
   viewfinderMetaEl.hidden = true;
 
   updateRecordButtonState();
+  updateCameraToggleUI();
   updateViewfinderSize();
   onExitReview();
+
+  // Not awaited - re-acquiring the camera shouldn't block the rest of the
+  // exit-review teardown above, it can finish on its own a moment later.
+  if (cameraWasEnabledBeforeReview) {
+    enableCamera();
+  }
 }
 
 // Matches QUALITY_PRESETS (1280x720 / 1920x1080) — both 16:9. A mismatched
@@ -463,9 +527,13 @@ function updateViewfinderSize() {
   // the chrome that should always stay visible alongside it. Transcript and
   // notes are deliberately left out here: they're meant to scroll with the
   // rest of the panel instead of competing with the player for space.
-  const alwaysVisible = [viewfinderMetaEl, currentQuestionEl, liveReadoutsEl, recordControlsEl].filter(
-    (el) => !el.hidden,
-  );
+  const alwaysVisible = [
+    viewfinderMetaEl,
+    cameraToggleRowEl,
+    currentQuestionEl,
+    liveReadoutsEl,
+    recordControlsEl,
+  ].filter((el) => !el.hidden);
   const chromeHeight = alwaysVisible.reduce((sum, el) => sum + el.offsetHeight, 0);
   const gapsCount = alwaysVisible.length; // one gap between each always-visible element and the player
   const availableHeight = recorderPanelEl.clientHeight - verticalPadding - chromeHeight - gapsCount * gap;
@@ -524,8 +592,12 @@ export async function initRecorder(options = {}) {
 
   recordBtn.addEventListener("click", toggleRecording);
   backToLiveBtn.addEventListener("click", exitReviewMode);
+  // The browser's native video context menu (loop, save video as, PiP, "send
+  // tab to your devices", ...) doesn't apply to a packaged desktop app.
+  previewEl.addEventListener("contextmenu", (event) => event.preventDefault());
   reviewTranscriptSettingsBtn.addEventListener("click", onOpenSettings);
+  cameraToggleBtn.addEventListener("click", toggleCamera);
+  updateCameraToggleUI();
   initViewfinderSizing();
   await initWpmToggle();
-  await initCamera();
 }

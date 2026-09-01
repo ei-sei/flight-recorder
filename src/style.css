@@ -828,6 +828,38 @@ textarea {
   letter-spacing: 0.03em;
 }
 
+.camera-toggle-row {
+  display: flex;
+  justify-content: flex-start;
+  width: 100%;
+}
+
+.camera-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  padding: 2px;
+  cursor: pointer;
+  transition: color var(--ease);
+}
+
+.camera-toggle-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.camera-toggle-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.camera-toggle-btn.active {
+  color: var(--accent);
+}
+
 .record-controls {
   display: flex;
   align-items: center;

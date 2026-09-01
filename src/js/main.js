@@ -209,6 +209,12 @@ function tickClock() {
 }
 
 function handleQuestionSelectionChange(question) {
+  // No-ops if not currently reviewing (including the reverse path, where
+  // onPlay selects the attempt's question before entering review mode -
+  // isReviewing is still false at that point). Picking a different question
+  // from the sidebar while reviewing an attempt should return to the live
+  // camera view instead of leaving the reviewed video showing.
+  exitReviewMode();
   currentQuestionEl.textContent = question ? question.text : "Select a question to begin.";
   setRecordEnabled(Boolean(question));
   setSelectedQuestion(question);

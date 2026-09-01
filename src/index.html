@@ -118,7 +118,7 @@
           </div>
           <div class="viewfinder">
             <video id="preview" autoplay muted playsinline></video>
-            <div class="viewfinder-empty" id="viewfinder-empty">Camera preview will appear here.</div>
+            <div class="viewfinder-empty" id="viewfinder-empty">Camera is off.</div>
             <div class="viewfinder-overlay">
               <div class="rec-indicator" id="rec-indicator" hidden>
                 <span class="rec-dot"></span>rec
@@ -126,6 +126,25 @@
               <div class="review-indicator" id="review-indicator" hidden>reviewing</div>
               <div class="timer mono" id="timer">00:00.0</div>
             </div>
+          </div>
+
+          <div class="camera-toggle-row">
+            <button type="button" class="camera-toggle-btn" id="camera-toggle-btn">
+              <svg
+                class="camera-toggle-icon"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M23 7l-7 5 7 5V7z" />
+                <rect x="1" y="5" width="15" height="14" rx="2" />
+              </svg>
+              <span class="menu-switch" id="camera-toggle-switch"><span class="menu-switch-thumb"></span></span>
+            </button>
           </div>
 
           <div class="current-question" id="current-question">Select a question to begin.</div>
