@@ -1151,8 +1151,8 @@ textarea {
 
 .footer-note {
   flex-shrink: 0;
-  padding: 8px 24px;
-  font-size: 11px;
+  padding: 4px 24px;
+  font-size: 10px;
   color: var(--text-dim);
   text-align: center;
   background-color: var(--bg-panel);
