@@ -1143,7 +1143,6 @@ textarea {
 .attempt-item-top {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
   font-size: 11px;
   color: var(--text-dim);
@@ -1155,6 +1154,14 @@ textarea {
   flex-direction: column;
   gap: 2px;
   min-width: 0;
+  flex: 1;
+}
+
+.attempt-item-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .attempt-item-number {

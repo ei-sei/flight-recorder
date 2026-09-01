@@ -177,25 +177,30 @@ function renderAttemptItem(attempt) {
   const delayLabel = formatResponseDelay(attempt.responseDelayMs);
   const wpmLabel = attempt.wpm ? `${Math.round(attempt.wpm)} wpm` : null;
 
+  const metaRow = document.createElement("div");
+  metaRow.className = "attempt-item-meta-row";
+
   const metaLine = document.createElement("span");
   metaLine.className = "mono";
   metaLine.textContent = [`${dateLabel} · ${formatDuration(attempt.durationMs)}`, delayLabel, wpmLabel]
     .filter(Boolean)
     .join(" · ");
 
-  const attemptLine = document.createElement("span");
-  attemptLine.className = "mono attempt-item-number";
-  attemptLine.textContent = `Attempt ${getAttemptNumber(attempt)}`;
-
-  topInfo.appendChild(metaLine);
-  topInfo.appendChild(attemptLine);
-
   const stars = document.createElement("div");
   stars.className = "stars";
   renderStars(stars, attempt.score, null, true);
 
+  metaRow.appendChild(metaLine);
+  metaRow.appendChild(stars);
+
+  const attemptLine = document.createElement("span");
+  attemptLine.className = "mono attempt-item-number";
+  attemptLine.textContent = `Attempt ${getAttemptNumber(attempt)}`;
+
+  topInfo.appendChild(metaRow);
+  topInfo.appendChild(attemptLine);
+
   top.appendChild(topInfo);
-  top.appendChild(stars);
 
   const question = document.createElement("div");
   question.className = "attempt-item-question";
