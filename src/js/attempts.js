@@ -17,7 +17,7 @@ const listEl = document.getElementById("attempt-list");
 const subtitleEl = document.getElementById("log-subtitle");
 const filterTabsEl = document.getElementById("log-filter-tabs");
 
-async function computeVideoPath(question, date) {
+async function computeVideoPath(question, date, extension) {
   const base = await videoDir();
   const categorySlug = slugify(question.category);
   const dirPath = await join(base, "flight-recorder", categorySlug);
@@ -26,20 +26,20 @@ async function computeVideoPath(question, date) {
   const stamp = dateStamp(date);
   const questionSlug = slugify(question.text);
 
-  let filename = `${stamp}_${questionSlug}.webm`;
+  let filename = `${stamp}_${questionSlug}.${extension}`;
   let candidate = await join(dirPath, filename);
   let counter = 2;
   while (await exists(candidate)) {
-    filename = `${stamp}_${questionSlug}-${counter}.webm`;
+    filename = `${stamp}_${questionSlug}-${counter}.${extension}`;
     candidate = await join(dirPath, filename);
     counter += 1;
   }
   return candidate;
 }
 
-export async function saveAttempt({ blob, durationMs, question, responseDelayMs, wpm, transcript }) {
+export async function saveAttempt({ blob, extension, durationMs, question, responseDelayMs, wpm, transcript }) {
   const date = new Date();
-  const videoPath = await computeVideoPath(question, date);
+  const videoPath = await computeVideoPath(question, date, extension || "webm");
   const bytes = new Uint8Array(await blob.arrayBuffer());
   await writeFile(videoPath, bytes);
 

@@ -21,7 +21,7 @@ A local desktop app for practicing job interviews on webcam. Built with Tauri. R
 - Speech pace (WPM): live word-per-minute estimate using the browser's built-in speech recognition. Only works in Chrome/Edge-based webviews. Sends audio to Google's servers for this feature only. Everything else stays local.
 
 ## Data rules
-- Video files write straight to disk, in a folder structure like `videos/{category}/{date}_{question-slug}.webm`.
+- Video files write straight to disk, in a folder structure like `videos/{category}/{date}_{question-slug}.webm`. Actual extension is whatever the webview's `MediaRecorder` can support — `.webm` (VP8/VP9+Opus) on Chromium/WebKitGTK, falling back to `.mp4` (H.264) on engines that don't support WebM recording (historically Safari/WKWebView). Never assume `.webm` when reading a video path back.
 - Metadata (questions, scores, notes, delay, WPM, transcript) saves via `tauri-plugin-store`.
 - Be upfront about the one feature that isn't fully local: WPM. Never silently expand what talks to the internet without flagging it first.
 

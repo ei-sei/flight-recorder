@@ -59,7 +59,7 @@ Releases are signed with a minisign-style keypair (`tauri signer generate`); the
 
 ## Data & privacy
 
-- **Video recordings** are written straight to disk as `.webm` files under your OS "Videos" folder: `Videos/flight-recorder/{category}/{date}_{question-slug}.webm`. Nothing about video ever leaves the machine.
+- **Video recordings** are written straight to disk under your OS "Videos" folder: `Videos/flight-recorder/{category}/{date}_{question-slug}.webm`. The extension follows whatever format the webview can actually record — `.webm` (VP8/VP9+Opus) normally, falling back to `.mp4` (H.264) on webviews that don't support recording WebM (notably Safari/WKWebView). Nothing about video ever leaves the machine.
 - **Metadata** — the question bank, and each attempt's question/category/date/duration/score/notes/response-delay — is persisted locally via `tauri-plugin-store`, a JSON file in the app's local data directory.
 - **Speech pace (WPM)** is the one feature that isn't fully local. It's **off by default**. When you explicitly turn it on, live audio is sent to the webview's built-in speech recognition (Google's servers, on Chromium-based webviews) while recording, to estimate words-per-minute. It's only available on Chromium-based webviews (in practice: Windows/WebView2) — WebKitGTK (Linux) and WKWebView (macOS) don't implement the Web Speech API, so the toggle is disabled there.
 - Deleting an attempt removes both its metadata entry and its video file from disk.

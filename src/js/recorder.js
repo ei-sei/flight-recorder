@@ -243,12 +243,32 @@ function stopSpeechPaceTracking() {
   readoutWpmEl.hidden = true;
 }
 
+// Safari/WKWebView's MediaRecorder has historically only supported
+// recording to MP4, not WebM - so the format actually has to be
+// feature-detected per platform rather than assumed.
+const RECORDING_FORMAT_CANDIDATES = [
+  { mimeType: "video/webm;codecs=vp9,opus", extension: "webm" },
+  { mimeType: "video/webm;codecs=vp8,opus", extension: "webm" },
+  { mimeType: "video/webm", extension: "webm" },
+  { mimeType: "video/mp4", extension: "mp4" },
+];
+
+function getSupportedRecordingFormat() {
+  for (const candidate of RECORDING_FORMAT_CANDIDATES) {
+    if (MediaRecorder.isTypeSupported(candidate.mimeType)) return candidate;
+  }
+  return { mimeType: "", extension: "webm" };
+}
+
+let currentRecordingFormat = null;
+
 function startRecording() {
   if (!stream) return;
 
   chunks = [];
+  currentRecordingFormat = getSupportedRecordingFormat();
   mediaRecorder = new MediaRecorder(stream, {
-    mimeType: "video/webm",
+    ...(currentRecordingFormat.mimeType ? { mimeType: currentRecordingFormat.mimeType } : {}),
     videoBitsPerSecond: getQualityPreset().bitrate,
     audioBitsPerSecond: 128_000,
   });
@@ -295,11 +315,13 @@ async function handleStop() {
   updateRecordButtonState();
 
   const durationMs = Date.now() - recordStartTs;
-  const blob = new Blob(chunks, { type: "video/webm" });
+  const format = currentRecordingFormat ?? getSupportedRecordingFormat();
+  const blob = new Blob(chunks, { type: format.mimeType || `video/${format.extension}` });
   const question = getSelectedQuestion();
   if (question) {
     await onRecordingComplete({
       blob,
+      extension: format.extension,
       durationMs,
       question,
       responseDelayMs,
@@ -338,7 +360,8 @@ export async function enterReviewMode(attempt, attemptNumber) {
   }
 
   const bytes = await readFile(attempt.videoPath);
-  reviewObjectUrl = URL.createObjectURL(new Blob([bytes], { type: "video/webm" }));
+  const mimeType = attempt.videoPath.toLowerCase().endsWith(".mp4") ? "video/mp4" : "video/webm";
+  reviewObjectUrl = URL.createObjectURL(new Blob([bytes], { type: mimeType }));
 
   isReviewing = true;
   previewEl.srcObject = null;
