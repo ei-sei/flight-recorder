@@ -981,6 +981,50 @@ textarea {
   max-width: 420px;
 }
 
+.about-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.about-header .modal-title {
+  margin: 0;
+}
+
+.about-icon {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  fill: var(--record);
+  filter: drop-shadow(0 0 6px var(--record-glow));
+}
+
+.about-list {
+  margin: 0 0 20px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.about-row {
+  display: flex;
+  gap: 10px;
+  padding: 3px 0;
+}
+
+.about-row dt {
+  flex-shrink: 0;
+  width: 70px;
+  color: var(--text-dim);
+}
+
+.about-row dd {
+  margin: 0;
+  min-width: 0;
+  color: var(--text-primary);
+  overflow-wrap: break-word;
+}
+
 .settings-section {
   margin-bottom: 16px;
 }

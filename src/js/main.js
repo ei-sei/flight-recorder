@@ -252,12 +252,63 @@ async function showUpdatesInfo() {
   await relaunch();
 }
 
-async function showAboutInfo() {
-  const { getVersion } = window.__TAURI__.app;
-  const version = await getVersion();
-  showAlert({
-    title: "About Flight recorder",
-    message: `Version ${version}. A local practice tool for interview questions on webcam — video and data stay on this device except for the opt-in speech-pace (WPM) feature.`,
+async function getAboutFields() {
+  const { getVersion, getTauriVersion } = window.__TAURI__.app;
+  const [version, tauriVersion] = await Promise.all([getVersion(), getTauriVersion()]);
+  return {
+    Version: version,
+    Tauri: tauriVersion,
+    Platform: navigator.platform || "Unknown",
+  };
+}
+
+async function openAboutModal() {
+  const listEl = document.getElementById("about-list");
+  const fields = await getAboutFields();
+
+  listEl.innerHTML = "";
+  for (const [label, value] of Object.entries(fields)) {
+    const row = document.createElement("div");
+    row.className = "about-row";
+
+    const dt = document.createElement("dt");
+    dt.textContent = label;
+
+    const dd = document.createElement("dd");
+    dd.textContent = value;
+
+    row.appendChild(dt);
+    row.appendChild(dd);
+    listEl.appendChild(row);
+  }
+
+  document.getElementById("about-overlay").hidden = false;
+}
+
+function initAboutModal() {
+  const overlay = document.getElementById("about-overlay");
+  const closeBtn = document.getElementById("about-close");
+  const copyBtn = document.getElementById("about-copy");
+
+  closeBtn.addEventListener("click", () => {
+    overlay.hidden = true;
+  });
+  copyBtn.addEventListener("click", async () => {
+    const fields = await getAboutFields();
+    const text = Object.entries(fields)
+      .map(([label, value]) => `${label}: ${value}`)
+      .join("\n");
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (err) {
+      console.error("Failed to copy about info", err);
+    }
+  });
+  overlay.addEventListener("mousedown", (event) => {
+    if (event.target === overlay) overlay.hidden = true;
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !overlay.hidden) overlay.hidden = true;
   });
 }
 
@@ -327,7 +378,7 @@ function initMenuBar() {
         label: "Report an issue",
         onClick: () => window.__TAURI__.opener.openUrl("https://github.com/ei-sei/flight-recorder/issues"),
       },
-      { label: "About", onClick: showAboutInfo },
+      { label: "About", onClick: openAboutModal },
     ]);
   });
 }
@@ -355,6 +406,7 @@ async function init() {
   initWindowControls();
   initMenuBar();
   initSettingsModal();
+  initAboutModal();
   initSidebar();
   initRail();
 
