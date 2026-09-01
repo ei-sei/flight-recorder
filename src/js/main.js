@@ -278,25 +278,92 @@ async function showUpdatesInfo() {
   await relaunch();
 }
 
+let pendingUpdate = null;
+
 async function checkForUpdateBadge() {
   const { check } = window.__TAURI__.updater;
   const bellDot = document.getElementById("bell-dot");
   try {
-    const update = await check();
-    bellDot.hidden = !update;
+    pendingUpdate = await check();
+    bellDot.hidden = !pendingUpdate;
   } catch (err) {
     // Silent background check; the bell just stays un-badged on failure.
     console.error("Background update check failed", err);
   }
 }
 
+function renderNotifPopoverBody() {
+  const body = document.getElementById("notif-popover-body");
+  body.innerHTML = "";
+
+  if (!pendingUpdate) {
+    const empty = document.createElement("div");
+    empty.className = "notif-empty";
+    empty.textContent = "No new notifications";
+    body.appendChild(empty);
+    return;
+  }
+
+  const item = document.createElement("div");
+  item.className = "notif-item";
+
+  const title = document.createElement("div");
+  title.className = "notif-item-title";
+  title.textContent = "Update available";
+
+  const desc = document.createElement("div");
+  desc.className = "notif-item-body";
+  desc.textContent = `Version ${pendingUpdate.version} is ready to install.`;
+
+  const installBtn = document.createElement("button");
+  installBtn.type = "button";
+  installBtn.className = "btn btn-teal notif-item-action";
+  installBtn.textContent = "Download and install";
+  installBtn.addEventListener("click", async () => {
+    document.getElementById("notif-popover").hidden = true;
+    await pendingUpdate.downloadAndInstall();
+    await window.__TAURI__.process.relaunch();
+  });
+
+  item.appendChild(title);
+  item.appendChild(desc);
+  item.appendChild(installBtn);
+  body.appendChild(item);
+}
+
+function toggleNotifPopover() {
+  const popover = document.getElementById("notif-popover");
+  const bellBtn = document.getElementById("bell-btn");
+
+  if (!popover.hidden) {
+    popover.hidden = true;
+    return;
+  }
+
+  renderNotifPopoverBody();
+
+  const rect = bellBtn.getBoundingClientRect();
+  popover.style.right = `${window.innerWidth - rect.right}px`;
+  popover.style.bottom = `${window.innerHeight - rect.top + 8}px`;
+  popover.hidden = false;
+
+  document.addEventListener(
+    "click",
+    (event) => {
+      if (!popover.contains(event.target) && event.target !== bellBtn && !bellBtn.contains(event.target)) {
+        popover.hidden = true;
+      }
+    },
+    { once: true, capture: true },
+  );
+}
+
 function initUpdateBell() {
   const bellBtn = document.getElementById("bell-btn");
-  const bellDot = document.getElementById("bell-dot");
 
-  bellBtn.addEventListener("click", async () => {
-    await showUpdatesInfo();
-    bellDot.hidden = true;
+  bellBtn.addEventListener("click", () => {
+    toggleNotifPopover();
+    document.getElementById("bell-dot").hidden = true;
   });
 
   checkForUpdateBadge();
