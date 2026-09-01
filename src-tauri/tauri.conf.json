@@ -37,7 +37,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IENFODJDMzIzQkYyNjI2MkUKUldRdUppYS9JOE9DenRqT0ZSVTEyRUxnSzdjUnliSWdkb2tsd0dpRDY5UUtQanhnVDNBblRmbU4K",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEFCMDA1RjMyNjUzQjY1M0IKUldRN1pUdGxNbDhBcThnU29tQTcyb1NqNTR5K2JuWHFSVFFQOGJkVTgyM1dlalZkbXVlczJwZlAK",
       "endpoints": ["https://github.com/ei-sei/flight-recorder/releases/latest/download/latest.json"]
     }
   }
