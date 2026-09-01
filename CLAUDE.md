@@ -26,10 +26,17 @@ A local desktop app for practicing job interviews on webcam. Built with Tauri. R
 - Be upfront about the one feature that isn't fully local: WPM. Never silently expand what talks to the internet without flagging it first.
 
 ## Design language
-(Revised — supersedes the original hairline-cockpit direction below.)
-Dark, sleek, card-based. Near-black navy base with rounded panel cards (soft shadows, not hairline dividers). Blue/indigo as the primary accent (buttons, active tabs, selection, focus rings). Red for recording state and destructive actions. Gold for star ratings only. Segmented pill-style filter tabs. Generous padding/whitespace. Monospace for timers and numeric readouts. Sentence-case labels. Smooth transitions and soft glow effects on hover/active states rather than hard color swaps.
+(Revised again — supersedes the card-based direction below.)
+Dark, sleek, VS Code/Obsidian-style flat chrome. Near-black navy base. Panels sit flush edge-to-edge with hairline borders between them — no gaps, no rounded corners, no drop shadows. A permanent left activity rail (icon strip) selects sidebar content, matching VS Code's activity bar treatment. Blue/indigo as the primary accent (buttons, active tabs, selection, focus rings). Red for recording state and destructive actions. Gold for star ratings only. Segmented pill-style filter tabs are the one deliberately rounded/card-like control, kept as an accent against the otherwise flat chrome. Efficient, compact padding — not generous whitespace. Monospace for timers and numeric readouts. Sentence-case labels. Smooth transitions and soft glow effects on hover/active states rather than hard color swaps.
 
 Do not fabricate decorative metrics or visualizations for capabilities the app doesn't have (e.g. no fake "eye contact" or "clarity" score charts) — only real data (response delay, WPM, star score, notes) gets shown.
+
+<details>
+<summary>Card-based design language (superseded)</summary>
+
+Dark, sleek, card-based. Near-black navy base with rounded panel cards (soft shadows, not hairline dividers). Generous padding/whitespace. Otherwise same accent colors as current.
+
+</details>
 
 <details>
 <summary>Original design language (superseded)</summary>

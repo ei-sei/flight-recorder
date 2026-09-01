@@ -67,7 +67,7 @@ Releases are signed with a minisign-style keypair (`tauri signer generate`); the
 
 ## Design language
 
-Dark, sleek, card-based: near-black navy base with rounded panel cards (soft shadows, not hairline dividers), blue/indigo as the primary accent, red for recording/destructive actions, gold for star ratings, segmented pill-style filter tabs, monospace timers and numeric readouts, sentence-case labels.
+Dark, sleek, VS Code/Obsidian-style flat chrome: panels sit flush with hairline borders (no gaps, no rounded corners, no drop shadows), with a permanent left activity rail selecting sidebar content. Blue/indigo as the primary accent, red for recording/destructive actions, gold for star ratings, segmented pill-style filter tabs as the one deliberately rounded control, monospace timers and numeric readouts, sentence-case labels, compact/efficient spacing.
 
 ## Acknowledgments
 
