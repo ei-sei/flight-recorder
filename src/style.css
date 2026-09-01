@@ -1000,6 +1000,13 @@ textarea {
   filter: drop-shadow(0 0 6px var(--record-glow));
 }
 
+.about-description {
+  margin: 0 0 16px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
 .about-list {
   margin: 0 0 20px;
   font-family: var(--font-mono);

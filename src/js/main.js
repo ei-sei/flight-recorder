@@ -254,9 +254,15 @@ async function showUpdatesInfo() {
 
 async function getAboutFields() {
   const { getVersion, getTauriVersion } = window.__TAURI__.app;
-  const [version, tauriVersion] = await Promise.all([getVersion(), getTauriVersion()]);
+  const { invoke } = window.__TAURI__.core;
+  const [version, tauriVersion, commitSha] = await Promise.all([
+    getVersion(),
+    getTauriVersion(),
+    invoke("get_commit_sha"),
+  ]);
   return {
     Version: version,
+    Commit: commitSha,
     Tauri: tauriVersion,
     Platform: navigator.platform || "Unknown",
   };

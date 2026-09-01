@@ -1,5 +1,10 @@
 use tauri::Manager;
 
+#[tauri::command]
+fn get_commit_sha() -> &'static str {
+    env!("GIT_COMMIT_SHA")
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -9,6 +14,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        .invoke_handler(tauri::generate_handler![get_commit_sha])
         .setup(|app| {
             // GTK on Linux doesn't pick up the bundle icon at runtime (that's
             // packaging-only), so the taskbar/window icon needs setting explicitly.
