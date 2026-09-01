@@ -1025,6 +1025,11 @@ textarea {
   color: var(--text-dim);
 }
 
+.about-box .modal-actions {
+  padding-top: 14px;
+  border-top: 1px solid var(--border-strong);
+}
+
 .about-row dd {
   margin: 0;
   min-width: 0;
