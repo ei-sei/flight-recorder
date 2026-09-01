@@ -278,6 +278,30 @@ async function showUpdatesInfo() {
   await relaunch();
 }
 
+async function checkForUpdateBadge() {
+  const { check } = window.__TAURI__.updater;
+  const bellDot = document.getElementById("bell-dot");
+  try {
+    const update = await check();
+    bellDot.hidden = !update;
+  } catch (err) {
+    // Silent background check; the bell just stays un-badged on failure.
+    console.error("Background update check failed", err);
+  }
+}
+
+function initUpdateBell() {
+  const bellBtn = document.getElementById("bell-btn");
+  const bellDot = document.getElementById("bell-dot");
+
+  bellBtn.addEventListener("click", async () => {
+    await showUpdatesInfo();
+    bellDot.hidden = true;
+  });
+
+  checkForUpdateBadge();
+}
+
 async function getAboutFields() {
   const { getVersion, getTauriVersion } = window.__TAURI__.app;
   const { invoke } = window.__TAURI__.core;
@@ -439,6 +463,7 @@ async function init() {
   initMenuBar();
   initSettingsModal();
   initAboutModal();
+  initUpdateBell();
   initSidebar();
   initLogPanelToggle();
   initRail();
