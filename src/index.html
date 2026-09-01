@@ -142,7 +142,21 @@
 
           <div class="review-notes" id="review-transcript-row" hidden>
             <label class="review-notes-label" for="review-transcript-text">Transcript (auto-generated, may contain errors)</label>
-            <textarea class="notes-input" id="review-transcript-text" readonly tabindex="-1" rows="2"></textarea>
+            <textarea
+              class="notes-input transcript-autosize"
+              id="review-transcript-text"
+              readonly
+              tabindex="-1"
+              rows="2"
+              hidden
+            ></textarea>
+            <div class="transcript-empty" id="review-transcript-empty" hidden>
+              <span
+                >No transcript for this attempt. Turn on Speech pace (WPM) to capture one for your next
+                recording.</span
+              >
+              <button type="button" class="btn btn-teal" id="review-transcript-settings-btn">Open Settings</button>
+            </div>
           </div>
 
           <div class="review-notes" id="review-notes-row" hidden>

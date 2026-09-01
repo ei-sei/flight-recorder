@@ -18,6 +18,8 @@ const reviewNotesRow = document.getElementById("review-notes-row");
 const reviewNotesInput = document.getElementById("review-notes-input");
 const reviewTranscriptRow = document.getElementById("review-transcript-row");
 const reviewTranscriptText = document.getElementById("review-transcript-text");
+const reviewTranscriptEmpty = document.getElementById("review-transcript-empty");
+const reviewTranscriptSettingsBtn = document.getElementById("review-transcript-settings-btn");
 const liveReadoutsEl = document.getElementById("live-readouts");
 const readoutDelayEl = document.getElementById("readout-delay");
 const readoutWpmEl = document.getElementById("readout-wpm");
@@ -57,6 +59,7 @@ let reviewObjectUrl = null;
 let onExitReview = () => {};
 let onNotesChange = () => {};
 let onScoreChange = () => {};
+let onOpenSettings = () => {};
 
 let currentQuality = "720";
 
@@ -386,8 +389,17 @@ export async function enterReviewMode(attempt, attemptNumber) {
   renderReviewStars(attempt.id, attempt.score);
   viewfinderMetaEl.hidden = false;
 
-  reviewTranscriptRow.hidden = !attempt.transcript;
-  reviewTranscriptText.value = attempt.transcript || "";
+  reviewTranscriptRow.hidden = false;
+  if (attempt.transcript) {
+    reviewTranscriptText.hidden = false;
+    reviewTranscriptEmpty.hidden = true;
+    reviewTranscriptText.value = attempt.transcript;
+    reviewTranscriptText.style.height = "auto";
+    reviewTranscriptText.style.height = `${reviewTranscriptText.scrollHeight}px`;
+  } else {
+    reviewTranscriptText.hidden = true;
+    reviewTranscriptEmpty.hidden = false;
+  }
 
   reviewNotesRow.hidden = false;
   reviewNotesInput.value = attempt.notes;
@@ -501,9 +513,11 @@ export async function initRecorder(options = {}) {
   onExitReview = options.onExitReview ?? (() => {});
   onNotesChange = options.onNotesChange ?? (() => {});
   onScoreChange = options.onScoreChange ?? (() => {});
+  onOpenSettings = options.onOpenSettings ?? (() => {});
 
   recordBtn.addEventListener("click", toggleRecording);
   backToLiveBtn.addEventListener("click", exitReviewMode);
+  reviewTranscriptSettingsBtn.addEventListener("click", onOpenSettings);
   initViewfinderSizing();
   await initWpmToggle();
   await initCamera();
