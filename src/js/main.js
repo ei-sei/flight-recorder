@@ -99,10 +99,10 @@ function initPanelResize() {
   const layoutEl = document.querySelector(".layout");
   const SIDEBAR_MIN = 200;
   const SIDEBAR_MAX = 500;
-  const SIDEBAR_DEFAULT = 280;
+  const SIDEBAR_DEFAULT = 257;
   const LOG_MIN = 260;
   const LOG_MAX = 600;
-  const LOG_DEFAULT = 340;
+  const LOG_DEFAULT = 299;
 
   function getStoredWidth(key, fallback) {
     try {

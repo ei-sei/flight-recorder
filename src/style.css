@@ -335,8 +335,8 @@ textarea {
 }
 
 .layout {
-  --sidebar-w: 280px;
-  --log-w: 340px;
+  --sidebar-w: 257px;
+  --log-w: 299px;
   flex: 1;
   display: grid;
   grid-template-columns: var(--sidebar-w) 6px minmax(360px, 1fr) 6px var(--log-w);
