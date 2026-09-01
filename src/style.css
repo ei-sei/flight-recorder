@@ -331,7 +331,7 @@ textarea {
   flex: 1;
   display: grid;
   grid-template-columns: var(--sidebar-col) minmax(360px, 1.75fr) minmax(260px, 1fr);
-  gap: 6px;
+  gap: 4px;
   padding: 6px;
   min-height: 0;
 }
