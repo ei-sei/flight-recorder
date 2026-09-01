@@ -55,7 +55,6 @@ let transcript = "";
 let wpm = null;
 
 let isReviewing = false;
-let plyrInstance = null;
 let reviewObjectUrl = null;
 let onExitReview = () => {};
 let onNotesChange = () => {};
@@ -376,10 +375,6 @@ export async function enterReviewMode(attempt, attemptNumber) {
   previewEl.controls = true;
   previewEl.play().catch(() => {});
 
-  // iconUrl points at our own vendored copy - Plyr's default points at
-  // cdn.plyr.io, which would silently make this a networked feature.
-  plyrInstance = new Plyr(previewEl, { iconUrl: "./vendor/plyr/plyr.svg" });
-
   viewfinderEmptyEl.hidden = true;
   viewfinderEl.classList.add("reviewing");
   reviewIndicatorEl.hidden = false;
@@ -417,10 +412,6 @@ export function exitReviewMode() {
   if (!isReviewing) return;
 
   isReviewing = false;
-  if (plyrInstance) {
-    plyrInstance.destroy();
-    plyrInstance = null;
-  }
   previewEl.controls = false;
   previewEl.removeAttribute("src");
   previewEl.load();
