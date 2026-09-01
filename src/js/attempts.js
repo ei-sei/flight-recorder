@@ -3,7 +3,7 @@ const { mkdir, writeFile, exists, remove } = window.__TAURI__.fs;
 const { revealItemInDir } = window.__TAURI__.opener;
 
 import { getAttempts, saveAttempts } from "./store.js";
-import { slugify, dateStamp, formatDuration, renderStars } from "./util.js";
+import { slugify, shortDateStamp, abbreviateQuestion, formatDuration, renderStars } from "./util.js";
 import { showConfirm } from "./modal.js";
 import { showContextMenu } from "./contextmenu.js";
 
@@ -23,14 +23,15 @@ async function computeVideoPath(question, date, extension) {
   const dirPath = await join(base, "flight-recorder", categorySlug);
   await mkdir(dirPath, { recursive: true });
 
-  const stamp = dateStamp(date);
-  const questionSlug = slugify(question.text);
+  const stamp = shortDateStamp(date);
+  const abbreviation = abbreviateQuestion(question.text);
+  const attemptNumber = attempts.filter((a) => a.questionId === question.id).length + 1;
 
-  let filename = `${stamp}_${questionSlug}.${extension}`;
+  let filename = `${stamp}-a${attemptNumber}-${abbreviation}.${extension}`;
   let candidate = await join(dirPath, filename);
   let counter = 2;
   while (await exists(candidate)) {
-    filename = `${stamp}_${questionSlug}-${counter}.${extension}`;
+    filename = `${stamp}-a${attemptNumber}-${abbreviation}-${counter}.${extension}`;
     candidate = await join(dirPath, filename);
     counter += 1;
   }

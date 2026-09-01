@@ -8,11 +8,25 @@ export function slugify(text) {
   return slug || "question";
 }
 
-export function dateStamp(date = new Date()) {
-  const yyyy = date.getFullYear();
+export function shortDateStamp(date = new Date()) {
+  const yy = String(date.getFullYear()).slice(-2);
   const mm = String(date.getMonth() + 1).padStart(2, "0");
   const dd = String(date.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
+  return `${yy}${mm}${dd}`;
+}
+
+// Initials of each word, dropping single-letter words (like "a"/"I") so
+// short connective words don't drown out the words that actually carry the
+// question's meaning - "Describe a project you're proud of and why." becomes
+// "dpypoaw" rather than a long slugified sentence.
+export function abbreviateQuestion(text) {
+  const initials = text
+    .split(/\s+/)
+    .map((word) => word.replace(/[^a-zA-Z0-9]/g, ""))
+    .filter((word) => word.length > 1)
+    .map((word) => word[0])
+    .join("");
+  return initials.toLowerCase() || "q";
 }
 
 export function formatDuration(ms) {
