@@ -710,7 +710,11 @@ textarea {
   left: 10px;
   right: 10px;
   display: flex;
-  justify-content: space-between;
+  /* justify-content: space-between would put the timer wherever it lands
+     among hidden siblings (left when alone, right once rec-indicator
+     shows up) - margin-left: auto on .timer instead pins it to the right
+     edge regardless of which siblings are visible. */
+  justify-content: flex-start;
   align-items: center;
   pointer-events: none;
 }
@@ -771,6 +775,7 @@ textarea {
 }
 
 .timer {
+  margin-left: auto;
   color: var(--text-primary);
   font-size: 13px;
   background-color: rgba(5, 7, 10, 0.65);
