@@ -338,11 +338,15 @@ textarea {
 
 .layout {
   --sidebar-w: 257px;
-  --log-w: 299px;
+  /* Wider than the sidebar by more than its own extra width alone would
+     suggest - the log panel's filter bar has 4 segments (All + 3
+     categories) against the sidebar's 3, so it needs the extra room to
+     keep each pill the same size instead of rendering narrower/cramped. */
+  --log-w: 332px;
   flex: 1;
   display: grid;
   grid-template-columns: var(--sidebar-w) 3px minmax(360px, 1fr) 3px var(--log-w);
-  gap: 2px;
+  gap: 1px;
   padding: 3px;
   min-height: 0;
 }
@@ -719,7 +723,10 @@ textarea {
   display: flex;
   align-items: center;
   gap: 6px;
-  color: var(--text-primary);
+  /* Fixed light color, not var(--text-primary) - this sits on the
+     viewfinder's always-black camera backdrop regardless of app theme, and
+     --text-primary turns near-black in light theme, making it unreadable. */
+  color: #eef2f7;
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -776,7 +783,7 @@ textarea {
 }
 
 .timer {
-  color: var(--text-primary);
+  color: inherit;
 }
 
 .current-question {
@@ -825,7 +832,11 @@ textarea {
   display: block;
   width: 100%;
   height: 36px;
-  background-color: rgba(5, 7, 10, 0.4);
+  /* Theme-aware, not the fixed dark rgba used for viewfinder overlay chips -
+     this sits in the regular themed panel below the video, not over the
+     always-black camera feed, so a hardcoded dark background clashed badly
+     in light theme. */
+  background-color: var(--bg-raised);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
 }
@@ -833,6 +844,11 @@ textarea {
 .review-stats {
   font-size: 12px;
   color: var(--text-secondary);
+}
+
+.stat-hint {
+  cursor: pointer;
+  border-bottom: 1px dotted var(--text-dim);
 }
 
 .review-notes {
@@ -1040,6 +1056,20 @@ textarea {
 
 .context-menu-item.danger:hover {
   color: var(--danger);
+}
+
+.info-tip {
+  position: fixed;
+  z-index: 2000;
+  max-width: 220px;
+  padding: 6px 8px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-secondary);
+  background-color: var(--bg-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 1px 2px var(--shadow-soft), 0 16px 32px -12px var(--shadow-strong);
 }
 
 /* Modal */
