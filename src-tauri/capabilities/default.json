@@ -24,7 +24,7 @@
     "process:allow-restart",
     {
       "identifier": "fs:scope",
-      "allow": ["$VIDEO/flight-recorder/**"]
+      "allow": ["$VIDEO/flight-recorder", "$VIDEO/flight-recorder/**"]
     },
     {
       "identifier": "opener:allow-open-path",
