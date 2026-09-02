@@ -15,15 +15,7 @@ import {
   updateAttemptNotes,
   updateAttemptScore,
 } from "./attempts.js";
-import {
-  getQuestions,
-  getAttempts,
-  getRecordingSettings,
-  saveRecordingSettings,
-  clearAllData,
-  getTheme,
-  setTheme,
-} from "./store.js";
+import { getRecordingSettings, saveRecordingSettings, clearAllData, getTheme, setTheme } from "./store.js";
 import { showAlert, showConfirm } from "./modal.js";
 import { showContextMenu, hideContextMenu, isContextMenuVisible } from "./contextmenu.js";
 
@@ -257,37 +249,6 @@ async function openRecordingsFolder() {
     console.error("Open recordings folder failed", err);
     await showAlert({ title: "Couldn't open folder", message: String(err?.message ?? err) });
   }
-}
-
-async function exportData() {
-  const { videoDir, join } = window.__TAURI__.path;
-  const { mkdir, writeFile } = window.__TAURI__.fs;
-  const { revealItemInDir } = window.__TAURI__.opener;
-
-  let filename, filePath;
-  try {
-    const questions = await getQuestions();
-    const attempts = await getAttempts();
-    const data = { exportedAt: new Date().toISOString(), questions, attempts };
-
-    const dir = await join(await videoDir(), "flight-recorder");
-    await mkdir(dir, { recursive: true });
-    filename = `export-${new Date().toISOString().slice(0, 10)}.json`;
-    filePath = await join(dir, filename);
-    const bytes = new TextEncoder().encode(JSON.stringify(data, null, 2));
-    await writeFile(filePath, bytes);
-  } catch (err) {
-    console.error("Export data failed", err);
-    await showAlert({ title: "Export failed", message: String(err?.message ?? err) });
-    return;
-  }
-
-  const showInFolder = await showConfirm({
-    title: "Data exported",
-    message: `Saved as ${filename} in your recordings folder.`,
-    confirmLabel: "Show in folder",
-  });
-  if (showInFolder) revealItemInDir(filePath);
 }
 
 async function resetAllData() {
@@ -591,7 +552,6 @@ function initMenuBar() {
     openMenu(fileBtn, [
       { label: "Settings", onClick: openSettingsModal },
       { label: "Open recordings folder", onClick: openRecordingsFolder },
-      { label: "Export data", onClick: exportData },
       { label: "Reset all data", danger: true, onClick: resetAllData },
     ]);
   });
