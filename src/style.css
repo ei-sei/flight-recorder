@@ -816,13 +816,6 @@ textarea {
 
 .live-readouts {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  width: 100%;
-}
-
-.live-readouts-text {
-  display: flex;
   gap: 16px;
   font-size: 12px;
   color: var(--text-secondary);
@@ -830,15 +823,18 @@ textarea {
 
 .voice-waveform {
   display: block;
-  width: 100%;
-  height: 36px;
-  /* Theme-aware, not the fixed dark rgba used for viewfinder overlay chips -
-     this sits in the regular themed panel below the video, not over the
-     always-black camera feed, so a hardcoded dark background clashed badly
-     in light theme. */
-  background-color: var(--bg-raised);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  /* Absolutely positioned and centered independently of the toggle button's
+     flex flow, so it sits centered on the player at a fixed proportion of
+     its width regardless of the toggle's own size/position. */
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 75%;
+  height: 18px;
+  /* Bare line on the panel's own background - no chip/box styling. Always
+     present (not tied to recording state), so it reads as a permanent
+     fixture rather than a popup. */
 }
 
 .review-stats {
@@ -866,8 +862,10 @@ textarea {
 
 .camera-toggle-row {
   display: flex;
+  align-items: center;
   justify-content: flex-start;
-  width: 100%;
+  gap: 12px;
+  position: relative;
 }
 
 .camera-toggle-btn {
