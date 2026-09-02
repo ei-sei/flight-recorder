@@ -44,6 +44,21 @@ function migrateBehaviouralSpelling(records) {
   return { migrated, changed };
 }
 
+// Questions created before prep notes existed have no prepNotes key at all.
+// Reading it with `?? ""` already covers that, but leaving the on-disk
+// schema inconsistent forever (only backfilled the moment someone happens
+// to edit it) is untidy - normalize it the same way the spelling migration
+// above does, rather than relying on scattered read-time fallbacks.
+function backfillPrepNotes(questions) {
+  let changed = false;
+  const migrated = questions.map((question) => {
+    if (question.prepNotes !== undefined) return question;
+    changed = true;
+    return { ...question, prepNotes: "" };
+  });
+  return { migrated, changed };
+}
+
 let storePromise = null;
 
 async function resolveStorePath() {
@@ -121,12 +136,13 @@ export async function getQuestions() {
   const store = await getStore();
   const existing = await store.get("questions");
   if (existing) {
-    const { migrated, changed } = migrateBehaviouralSpelling(existing);
-    if (changed) {
-      await store.set("questions", migrated);
+    const spelling = migrateBehaviouralSpelling(existing);
+    const notes = backfillPrepNotes(spelling.migrated);
+    if (spelling.changed || notes.changed) {
+      await store.set("questions", notes.migrated);
       await store.save();
     }
-    return migrated;
+    return notes.migrated;
   }
 
   const seeded = [
@@ -135,6 +151,7 @@ export async function getQuestions() {
       category: STAPLE_QUESTION.category,
       text: STAPLE_QUESTION.text,
       createdAt: new Date().toISOString(),
+      prepNotes: "",
     },
   ];
   await store.set("questions", seeded);
