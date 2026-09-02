@@ -1,9 +1,35 @@
 const { Store } = window.__TAURI__.store;
+const { videoDir, join } = window.__TAURI__.path;
+const { mkdir, writeFile, exists } = window.__TAURI__.fs;
+
+import { slugify } from "./util.js";
+
+// The only categories a question can be tagged with (fixed sidebar tabs,
+// not a user-extensible list) - kept here just to pre-create their folders
+// on first launch, not as a shared source of truth used elsewhere.
+const CATEGORIES = ["Behavioural", "Technical", "Case"];
 
 // The one staple every real interview opens with - worth having on first
 // launch so the question bank isn't completely empty. Everything else is
 // left for the user to add themselves.
 const STAPLE_QUESTION = { category: "Behavioural", text: "Tell me about yourself." };
+
+const FOLDER_README = `This folder is managed by Flight Recorder - your practice recordings and data live here.
+
+- library.json holds your questions, attempts, notes and scores. Don't rename it or edit it by hand.
+- Each subfolder holds recordings for one category (Behavioural, Technical, Case).
+- To move your data to a different computer: copy this whole folder into the Videos folder there, then launch the app - it picks everything up automatically, no import needed.
+
+https://github.com/ei-sei/flight-recorder
+`;
+
+// Only written if missing, not overwritten on every launch - if the user's
+// ever edited or removed it, that's their call, not something to stomp on.
+async function ensureFolderReadme(dir) {
+  const path = await join(dir, "README.txt");
+  if (await exists(path)) return;
+  await writeFile(path, new TextEncoder().encode(FOLDER_README));
+}
 
 // "Behavioral" was the category's original (American) spelling; anything
 // already saved under it gets silently relabelled on next load rather than
@@ -20,9 +46,73 @@ function migrateBehaviouralSpelling(records) {
 
 let storePromise = null;
 
+async function resolveStorePath() {
+  const dir = await join(await videoDir(), "flight-recorder");
+  await mkdir(dir, { recursive: true });
+
+  // Pre-create each category's folder so Videos/flight-recorder/ looks
+  // organized from the very first launch, rather than only growing a
+  // category's folder the first time something is actually recorded under
+  // it (computeVideoRelativePath in attempts.js still creates it lazily
+  // too, so this is just about first impressions, not a hard dependency).
+  for (const category of CATEGORIES) {
+    await mkdir(await join(dir, slugify(category)), { recursive: true });
+  }
+  await ensureFolderReadme(dir);
+
+  return join(dir, "library.json");
+}
+
+// The store used to live in the OS-hidden app-data directory - it now lives
+// inside Videos/flight-recorder/ instead, alongside the video files it
+// describes, so the whole folder is one portable, self-contained unit:
+// copy it to a different machine (even a different OS) and the app just
+// picks it up, no export/import step needed. Anyone who already had data
+// under the old location gets it copied over once, including converting
+// each attempt's absolute videoPath into one relative to this folder - an
+// absolute path baked in on one machine/OS never resolves on another,
+// which was the actual point of moving the store here in the first place.
+async function migrateFromOldStoreLocation(newStore) {
+  const alreadyHasData = await newStore.get("questions");
+  if (alreadyHasData) return;
+
+  let oldStore;
+  try {
+    oldStore = await Store.load("flight-recorder.json");
+  } catch (err) {
+    return; // no old store to migrate from
+  }
+  const oldQuestions = await oldStore.get("questions");
+  if (!oldQuestions) return;
+
+  const flightRecorderDir = await join(await videoDir(), "flight-recorder");
+  const oldAttempts = (await oldStore.get("attempts")) ?? [];
+  const migratedAttempts = oldAttempts.map((attempt) => {
+    const { videoPath, ...rest } = attempt;
+    if (!videoPath) return attempt;
+    const relative = videoPath.startsWith(flightRecorderDir)
+      ? videoPath.slice(flightRecorderDir.length).replace(/^[/\\]/, "")
+      : videoPath;
+    return { ...rest, videoRelativePath: relative };
+  });
+
+  await newStore.set("questions", oldQuestions);
+  await newStore.set("attempts", migratedAttempts);
+  for (const key of ["wpmEnabled", "recordingSettings", "theme"]) {
+    const value = await oldStore.get(key);
+    if (value !== undefined) await newStore.set(key, value);
+  }
+  await newStore.save();
+}
+
 function getStore() {
   if (!storePromise) {
-    storePromise = Store.load("flight-recorder.json");
+    storePromise = resolveStorePath()
+      .then((path) => Store.load(path))
+      .then(async (store) => {
+        await migrateFromOldStoreLocation(store);
+        return store;
+      });
   }
   return storePromise;
 }
