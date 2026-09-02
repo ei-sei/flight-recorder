@@ -18,18 +18,18 @@ A local desktop app for practising job interviews on webcam. Built with Tauri. R
 - User adds a star score and notes after reviewing.
 - Filter tabs over the attempt log (All / Behavioural / Technical / Case).
 - Response delay: measures time from record start to first speech. Uses mic volume. Fully local. Works in any browser/webview.
-- Speech pace (WPM): live word-per-minute estimate using the browser's built-in speech recognition. Only works in Chrome/Edge-based webviews. Sends audio to Google's servers for this feature only. Everything else stays local. Also saves the resulting transcript, shown read-only during review when present, and the recogniser's average confidence across the recording, shown as "X% confidence" alongside delay/WPM in review — a real signal from the same recogniser already in use, not a fabricated score.
+- Speech pace (WPM): live word-per-minute estimate using the browser's built-in speech recognition. Only works in Chrome/Edge-based webviews. Sends audio to Google's servers for this feature only. Everything else stays local. Also saves the resulting transcript, shown read-only during review when present.
 
 ## Data rules
 - Video files write straight to disk, in a folder structure like `videos/{category}/{date}_{question-slug}.webm`. Actual extension is whatever the webview's `MediaRecorder` can support — `.webm` (VP8/VP9+Opus) on Chromium/WebKitGTK, falling back to `.mp4` (H.264) on engines that don't support WebM recording (historically Safari/WKWebView). Never assume `.webm` when reading a video path back.
-- Metadata (questions, scores, notes, delay, WPM, transcript, speech confidence) saves via `tauri-plugin-store`.
+- Metadata (questions, scores, notes, delay, WPM, transcript) saves via `tauri-plugin-store`.
 - Be upfront about the one feature that isn't fully local: WPM. Never silently expand what talks to the internet without flagging it first.
 
 ## Design language
 (Revised again — supersedes the card-based direction below.)
 Dark, sleek, flat editor-style chrome. Near-black navy base. Panels are tightly packed with a small (6px) gap between them, each with its own complete hairline border — no shared/single-line dividers, no rounded corners, no drop shadows. A permanent left activity rail (icon strip) selects sidebar content. Blue/indigo as the primary accent (buttons, active tabs, selection, focus rings). Red for recording state and destructive actions. Gold for star ratings only. Segmented pill-style filter tabs are the one deliberately rounded/card-like control, kept as an accent against the otherwise flat chrome. Efficient, compact padding — not generous whitespace. Monospace for timers and numeric readouts. Sentence-case labels. Smooth transitions and soft glow effects on hover/active states rather than hard colour swaps.
 
-Do not fabricate decorative metrics or visualizations for capabilities the app doesn't have (e.g. no fake "eye contact" or "clarity" score charts) — only real data (response delay, WPM, transcript, speech recognition confidence, star score, notes) gets shown.
+Do not fabricate decorative metrics or visualizations for capabilities the app doesn't have (e.g. no fake "eye contact" or "clarity" score charts) — only real data (response delay, WPM, transcript, star score, notes) gets shown.
 
 <details>
 <summary>Card-based design language (superseded)</summary>
