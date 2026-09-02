@@ -578,13 +578,23 @@ export async function enterReviewMode(attempt, attemptNumber) {
   const mimeType = attempt.videoPath.toLowerCase().endsWith(".mp4") ? "video/mp4" : "video/webm";
   reviewObjectUrl = URL.createObjectURL(new Blob([bytes], { type: mimeType }));
 
+  const wasAlreadyReviewing = isReviewing;
   isReviewing = true;
 
   // Turn the camera off while reviewing - it's not shown (the recorded clip
   // is), so leaving it running just keeps the camera light on and the
   // device busy for no reason. Restored in exitReviewMode() only if it was
   // actually on before review started.
-  cameraWasEnabledBeforeReview = cameraEnabled;
+  //
+  // Only snapshot this on the first transition into review, not on every
+  // switch between attempts while already reviewing - the previous attempt's
+  // exit may have fired an in-flight (fire-and-forget) camera restore that
+  // hasn't resolved yet, and re-snapshotting here would misread that
+  // still-off camera as "was off", permanently forgetting it should come
+  // back once the user actually returns to the live view.
+  if (!wasAlreadyReviewing) {
+    cameraWasEnabledBeforeReview = cameraEnabled;
+  }
   if (stream) {
     for (const track of stream.getTracks()) track.stop();
     stream = null;
@@ -605,7 +615,7 @@ export async function enterReviewMode(attempt, attemptNumber) {
   backToLiveBtn.hidden = false;
   currentQuestionEl.textContent = `Reviewing: “${attempt.questionText}”`;
 
-  const dateLabel = new Date(attempt.date).toLocaleDateString();
+  const dateLabel = new Date(attempt.date).toLocaleDateString("en-GB");
   viewfinderMetaInfoEl.textContent = `Attempt ${attemptNumber} · ${dateLabel} · ${attempt.category} · Duration: ${formatDuration(attempt.durationMs)}`;
   renderReviewStars(attempt.id, attempt.score);
   viewfinderMetaEl.hidden = false;

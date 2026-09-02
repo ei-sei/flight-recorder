@@ -66,13 +66,6 @@ async function confirmDeleteQuestion(question) {
 }
 
 function selectQuestion(id) {
-  // Re-selecting the already-selected question is a no-op for the sidebar,
-  // but onSelectionChange also exits review mode - re-firing it while an
-  // attempt on this question is already being reviewed (e.g. clicking the
-  // same attempt in the log twice) briefly exits and re-enters review,
-  // racing enterReviewMode's video setup against exitReviewMode's
-  // fire-and-forget camera restore.
-  if (id === selectedId) return;
   selectedId = id;
   render();
   onSelectionChange(getSelectedQuestion());
@@ -137,6 +130,15 @@ export function getSelectedQuestion() {
 export function selectQuestionById(id) {
   const question = questions.find((q) => q.id === id);
   if (!question) return;
+
+  // Only used to sync the sidebar before entering review mode for an
+  // attempt (see onPlay in main.js) - skip if already selected, since
+  // onSelectionChange also exits review mode, and re-firing it here (right
+  // before re-entering review) races enterReviewMode's video setup against
+  // exitReviewMode's fire-and-forget camera restore. Unlike a direct
+  // sidebar click (selectQuestion below), this path never needs to force
+  // an exit back to the live view.
+  if (id === selectedId) return;
 
   setActiveCategory(question.category);
   selectQuestion(question.id);
