@@ -44,6 +44,21 @@ export function formatTimer(ms) {
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}.${tenths}`;
 }
 
+export function formatResponseDelay(ms) {
+  if (ms === null || ms === undefined) return null;
+  return `delay ${(ms / 1000).toFixed(1)}s`;
+}
+
+export function formatWpm(wpm) {
+  if (wpm === null || wpm === undefined) return null;
+  return `${Math.round(wpm)} wpm`;
+}
+
+export function formatConfidence(confidence) {
+  if (confidence === null || confidence === undefined) return null;
+  return `${Math.round(confidence * 100)}% confidence`;
+}
+
 export function autosizeTextarea(el) {
   el.style.height = "auto";
   el.style.height = `${el.scrollHeight}px`;
