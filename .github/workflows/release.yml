@@ -13,19 +13,49 @@ jobs:
     outputs:
       release_id: ${{ steps.create.outputs.id }}
     steps:
+      - uses: actions/checkout@v7
+        with:
+          # Need full history and tags to diff against the previous release -
+          # a shallow checkout wouldn't have the earlier tag to compare from.
+          fetch-depth: 0
+          fetch-tags: true
+
+      # GitHub's own generate_release_notes only summarizes merged pull
+      # requests - this repo pushes straight to main, so it produced an
+      # empty "What's Changed" (just a bare compare link) every time. Build
+      # real notes from the commit log instead, since that's what actually
+      # exists in this workflow.
+      - name: build release notes from commit log
+        run: |
+          PREV_TAG=$(git tag --sort=-v:refname | grep -vFx "$GITHUB_REF_NAME" | head -1)
+          if [ -n "$PREV_TAG" ]; then
+            {
+              echo "## What's Changed"
+              git log "$PREV_TAG..$GITHUB_REF_NAME" --pretty=format:'- %s'
+              echo ""
+              echo ""
+              echo "**Full Changelog**: https://github.com/$GITHUB_REPOSITORY/compare/$PREV_TAG...$GITHUB_REF_NAME"
+            } > notes.md
+          else
+            echo "Initial release." > notes.md
+          fi
+
       - name: create draft release
         id: create
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          RESPONSE=$(gh api "repos/${{ github.repository }}/releases" \
+          # body=@notes.md reads the field value from the file, rather than
+          # interpolating commit messages into the shell command - avoids
+          # any risk of a commit subject containing shell-meaningful
+          # characters breaking or injecting into this command.
+          RESPONSE=$(gh api "repos/${GITHUB_REPOSITORY}/releases" \
             -f "tag_name=${GITHUB_REF_NAME}" \
             -f "name=Flight recorder v${VERSION}" \
-            -f "body=See the assets below to download and install this version." \
+            -f "body=@notes.md" \
             -F draft=true \
-            -F prerelease=false \
-            -F generate_release_notes=true)
+            -F prerelease=false)
           echo "id=$(echo "$RESPONSE" | jq -r .id)" >> "$GITHUB_OUTPUT"
 
   release:
