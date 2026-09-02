@@ -38,7 +38,7 @@ async function computeVideoPath(question, date, extension) {
   return candidate;
 }
 
-export async function saveAttempt({ blob, extension, durationMs, question, responseDelayMs, wpm, transcript }) {
+export async function saveAttempt({ blob, extension, durationMs, question, responseDelayMs, wpm, transcript, speechConfidence }) {
   const date = new Date();
   const videoPath = await computeVideoPath(question, date, extension || "webm");
   const bytes = new Uint8Array(await blob.arrayBuffer());
@@ -57,6 +57,7 @@ export async function saveAttempt({ blob, extension, durationMs, question, respo
     responseDelayMs: responseDelayMs ?? null,
     wpm: wpm ?? null,
     transcript: transcript ?? null,
+    speechConfidence: speechConfidence ?? null,
   };
 
   attempts.unshift(attempt);
@@ -131,11 +132,6 @@ export async function deleteAttemptsForQuestion(questionId) {
   render();
 }
 
-function formatResponseDelay(ms) {
-  if (ms === null || ms === undefined) return null;
-  return `delay ${(ms / 1000).toFixed(1)}s`;
-}
-
 // Computed once per render instead of re-filtering/re-sorting the whole
 // attempts array per row (which renderAttemptItem needs twice per row) -
 // that pattern was effectively quadratic in the attempt count.
@@ -181,16 +177,13 @@ function renderAttemptItem(attempt, attemptNumber) {
   topInfo.className = "attempt-item-meta";
 
   const dateLabel = new Date(attempt.date).toLocaleDateString();
-  const delayLabel = formatResponseDelay(attempt.responseDelayMs);
 
   const metaRow = document.createElement("div");
   metaRow.className = "attempt-item-meta-row";
 
   const metaLine = document.createElement("span");
   metaLine.className = "mono";
-  metaLine.textContent = [`${dateLabel} · ${formatDuration(attempt.durationMs)}`, delayLabel]
-    .filter(Boolean)
-    .join(" · ");
+  metaLine.textContent = `${dateLabel} · ${formatDuration(attempt.durationMs)}`;
 
   const stars = document.createElement("div");
   stars.className = "stars";
