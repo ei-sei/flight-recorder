@@ -15,6 +15,13 @@ export function shortDateStamp(date = new Date()) {
   return `${yy}${mm}${dd}`;
 }
 
+export function watermarkDateStamp(date = new Date()) {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 // Initials of each word, dropping single-letter words (like "a"/"I") so
 // short connective words don't drown out the words that actually carry the
 // question's meaning - "Describe a project you're proud of and why." becomes
