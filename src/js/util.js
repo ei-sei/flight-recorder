@@ -61,11 +61,6 @@ export function formatWpm(wpm) {
   return `${Math.round(wpm)} wpm`;
 }
 
-export function formatConfidence(confidence) {
-  if (confidence === null || confidence === undefined) return null;
-  return `${Math.round(confidence * 100)}% confidence`;
-}
-
 export function autosizeTextarea(el) {
   el.style.height = "auto";
   el.style.height = `${el.scrollHeight}px`;
