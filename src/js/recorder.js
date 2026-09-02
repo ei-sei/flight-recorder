@@ -1,4 +1,12 @@
-import { formatTimer, formatDuration, renderStars, autosizeTextarea } from "./util.js";
+import {
+  formatTimer,
+  formatDuration,
+  renderStars,
+  autosizeTextarea,
+  formatResponseDelay,
+  formatWpm,
+  formatConfidence,
+} from "./util.js";
 import { getWpmEnabled, setWpmEnabled, getRecordingSettings, saveRecordingSettings } from "./store.js";
 
 const previewEl = document.getElementById("preview");
@@ -9,6 +17,8 @@ const viewfinderEl = document.querySelector(".viewfinder");
 const recorderPanelEl = document.querySelector(".recorder-panel");
 const viewfinderEmptyEl = document.getElementById("viewfinder-empty");
 const recIndicatorEl = document.getElementById("rec-indicator");
+const recDotEl = document.getElementById("rec-dot");
+const recLabelEl = document.getElementById("rec-label");
 const reviewIndicatorEl = document.getElementById("review-indicator");
 const timerEl = document.getElementById("timer");
 const recordControlsEl = document.querySelector(".record-controls");
@@ -20,11 +30,14 @@ const backToLiveBtn = document.getElementById("back-to-live-btn");
 const currentQuestionEl = document.getElementById("current-question");
 const reviewNotesRow = document.getElementById("review-notes-row");
 const reviewNotesInput = document.getElementById("review-notes-input");
+const reviewStatsRow = document.getElementById("review-stats-row");
 const reviewTranscriptRow = document.getElementById("review-transcript-row");
 const reviewTranscriptText = document.getElementById("review-transcript-text");
 const reviewTranscriptEmpty = document.getElementById("review-transcript-empty");
 const reviewTranscriptSettingsBtn = document.getElementById("review-transcript-settings-btn");
 const liveReadoutsEl = document.getElementById("live-readouts");
+const waveformCanvasEl = document.getElementById("voice-waveform");
+const waveformCtx = waveformCanvasEl.getContext("2d");
 const readoutDelayEl = document.getElementById("readout-delay");
 const readoutWpmEl = document.getElementById("readout-wpm");
 const wpmToggleRow = document.getElementById("wpm-toggle-row");
@@ -52,11 +65,14 @@ let volumeData = null;
 let volumeRafId = null;
 let speechAboveThresholdSinceTs = null;
 let responseDelayMs = null;
+let waveformStrokeStyle = "#4c7cf6";
 
 let wpmEnabled = false;
 let speechRecognizer = null;
 let transcript = "";
 let wpm = null;
+let finalResultConfidences = [];
+let speechConfidence = null;
 
 let isReviewing = false;
 let reviewObjectUrl = null;
@@ -112,7 +128,16 @@ async function acquireStream(cameraId, micId, quality) {
 // bad first impression, and it also means the toggle button below is the one
 // and only path that ever requests camera/mic access.
 async function enableCamera() {
+  // Flip the switch and swap the empty-state copy immediately, before
+  // awaiting anything - getUserMedia's own hardware negotiation already
+  // takes a real, unavoidable moment, and the toggle looked stuck when it
+  // only updated after that whole chain resolved.
   cameraToggleBtn.disabled = true;
+  cameraToggleBtn.classList.add("active");
+  cameraToggleSwitch.classList.add("checked");
+  viewfinderEmptyEl.textContent = "Turning on camera…";
+  viewfinderEmptyEl.hidden = false;
+
   const settings = await getRecordingSettings();
   currentQuality = settings.quality;
 
@@ -197,6 +222,26 @@ function updateTimer() {
   timerEl.textContent = formatTimer(Date.now() - recordStartTs);
 }
 
+function drawWaveform() {
+  const { width, height } = waveformCanvasEl;
+  waveformCtx.clearRect(0, 0, width, height);
+  waveformCtx.beginPath();
+  const sliceWidth = width / volumeData.length;
+  let x = 0;
+  for (let i = 0; i < volumeData.length; i++) {
+    const y = (0.5 + volumeData[i] * 0.5) * height;
+    if (i === 0) {
+      waveformCtx.moveTo(x, y);
+    } else {
+      waveformCtx.lineTo(x, y);
+    }
+    x += sliceWidth;
+  }
+  waveformCtx.strokeStyle = waveformStrokeStyle;
+  waveformCtx.lineWidth = 1.5;
+  waveformCtx.stroke();
+}
+
 function pollVolume() {
   analyser.getFloatTimeDomainData(volumeData);
   let sumSquares = 0;
@@ -204,6 +249,8 @@ function pollVolume() {
     sumSquares += volumeData[i] * volumeData[i];
   }
   const rms = Math.sqrt(sumSquares / volumeData.length);
+
+  drawWaveform();
 
   if (responseDelayMs === null) {
     const now = Date.now();
@@ -226,6 +273,14 @@ function startResponseDelayDetection() {
   responseDelayMs = null;
   speechAboveThresholdSinceTs = null;
   readoutDelayEl.textContent = "delay —";
+
+  // Canvas backing size is set explicitly (rather than relying on its CSS
+  // size) so the waveform draws crisply instead of being stretched - read
+  // once here rather than every animation frame.
+  const dpr = window.devicePixelRatio || 1;
+  waveformCanvasEl.width = waveformCanvasEl.clientWidth * dpr;
+  waveformCanvasEl.height = waveformCanvasEl.clientHeight * dpr;
+  waveformStrokeStyle = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#4c7cf6";
 
   audioCtx = new AudioContext();
   const source = audioCtx.createMediaStreamSource(stream);
@@ -256,6 +311,8 @@ function countWords(text) {
 function startSpeechPaceTracking() {
   transcript = "";
   wpm = null;
+  finalResultConfidences = [];
+  speechConfidence = null;
   readoutWpmEl.hidden = false;
   readoutWpmEl.textContent = "wpm —";
 
@@ -267,7 +324,14 @@ function startSpeechPaceTracking() {
   speechRecognizer.onresult = (event) => {
     let combined = "";
     for (let i = 0; i < event.results.length; i++) {
-      combined += event.results[i][0].transcript + " ";
+      const result = event.results[i];
+      combined += result[0].transcript + " ";
+      // Confidence is only meaningful once a result is finalized - interim
+      // results report 0. Indices don't change once final, so overwriting
+      // by index each event naturally de-dupes without double-counting.
+      if (result.isFinal) {
+        finalResultConfidences[i] = result[0].confidence;
+      }
     }
     transcript = combined.trim();
 
@@ -292,6 +356,9 @@ function stopSpeechPaceTracking() {
     speechRecognizer = null;
   }
   readoutWpmEl.hidden = true;
+
+  const confidences = finalResultConfidences.filter((c) => typeof c === "number");
+  speechConfidence = confidences.length ? confidences.reduce((sum, c) => sum + c, 0) / confidences.length : null;
 }
 
 // Safari/WKWebView's MediaRecorder has historically only supported
@@ -330,7 +397,8 @@ function startRecording() {
   mediaRecorder.start();
 
   recordStartTs = Date.now();
-  recIndicatorEl.hidden = false;
+  recDotEl.hidden = false;
+  recLabelEl.hidden = false;
   timerEl.textContent = "00:00.0";
   timerInterval = setInterval(updateTimer, 100);
   recordBtn.textContent = "Stop";
@@ -358,7 +426,8 @@ async function handleStop() {
   if (wpmEnabled && SpeechRecognitionImpl) {
     stopSpeechPaceTracking();
   }
-  recIndicatorEl.hidden = true;
+  recDotEl.hidden = true;
+  recLabelEl.hidden = true;
   liveReadoutsEl.hidden = true;
   timerEl.textContent = "00:00.0";
   recordBtn.textContent = "Record";
@@ -380,6 +449,7 @@ async function handleStop() {
       responseDelayMs,
       wpm: wpmEnabled ? wpm : null,
       transcript: wpmEnabled ? transcript : null,
+      speechConfidence: wpmEnabled ? speechConfidence : null,
     });
   }
 }
@@ -438,7 +508,7 @@ export async function enterReviewMode(attempt, attemptNumber) {
   viewfinderEmptyEl.hidden = true;
   viewfinderEl.classList.add("reviewing");
   reviewIndicatorEl.hidden = false;
-  timerEl.hidden = true;
+  recIndicatorEl.hidden = true;
   recordBtn.hidden = true;
   backToLiveBtn.hidden = false;
   currentQuestionEl.textContent = `Reviewing: “${attempt.questionText}”`;
@@ -447,6 +517,12 @@ export async function enterReviewMode(attempt, attemptNumber) {
   viewfinderMetaInfoEl.textContent = `Attempt ${attemptNumber} · ${dateLabel} · ${attempt.category} · Duration: ${formatDuration(attempt.durationMs)}`;
   renderReviewStars(attempt.id, attempt.score);
   viewfinderMetaEl.hidden = false;
+
+  const statsLine = [formatResponseDelay(attempt.responseDelayMs), formatWpm(attempt.wpm), formatConfidence(attempt.speechConfidence)]
+    .filter(Boolean)
+    .join(" · ");
+  reviewStatsRow.textContent = statsLine;
+  reviewStatsRow.hidden = !statsLine;
 
   reviewTranscriptRow.hidden = false;
   if (attempt.transcript) {
@@ -488,10 +564,11 @@ export function exitReviewMode() {
   viewfinderEmptyEl.hidden = Boolean(stream);
   viewfinderEl.classList.remove("reviewing");
   reviewIndicatorEl.hidden = true;
-  timerEl.hidden = false;
+  recIndicatorEl.hidden = false;
   recordBtn.hidden = false;
   backToLiveBtn.hidden = true;
 
+  reviewStatsRow.hidden = true;
   reviewTranscriptRow.hidden = true;
   reviewNotesRow.hidden = true;
   reviewNotesInput.onblur = null;
