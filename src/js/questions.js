@@ -90,10 +90,18 @@ async function addQuestion(text) {
     category: activeCategory,
     text: trimmed,
     createdAt: new Date().toISOString(),
+    prepNotes: "",
   };
   questions.push(question);
   await saveQuestions(questions);
   render();
+}
+
+export async function updateQuestionPrepNotes(id, prepNotes) {
+  const question = questions.find((q) => q.id === id);
+  if (!question) return;
+  question.prepNotes = prepNotes;
+  await saveQuestions(questions);
 }
 
 function setActiveCategory(category) {
