@@ -6,7 +6,29 @@ on:
       - "v*"
 
 jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      release_id: ${{ steps.create.outputs.id }}
+    steps:
+      - name: create draft release
+        id: create
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          RESPONSE=$(gh api "repos/${{ github.repository }}/releases" \
+            -f "tag_name=${GITHUB_REF_NAME}" \
+            -f "name=Flight recorder v${VERSION}" \
+            -f "body=See the assets below to download and install this version." \
+            -F draft=true \
+            -F prerelease=false)
+          echo "id=$(echo "$RESPONSE" | jq -r .id)" >> "$GITHUB_OUTPUT"
+
   release:
+    needs: create-release
     permissions:
       contents: write
     strategy:
@@ -64,9 +86,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: "Flight recorder v__VERSION__"
-          releaseBody: "See the assets below to download and install this version."
-          releaseDraft: true
-          prerelease: false
+          # All 4 legs upload into this single pre-created release instead
+          # of each independently finding-or-creating one by tag name - that
+          # raced when run in parallel (v1.0.8 lost its Windows and macOS
+          # Intel assets, and latest.json, to a later job's stale overwrite).
+          releaseId: ${{ needs.create-release.outputs.release_id }}
           args: ${{ matrix.args }}
