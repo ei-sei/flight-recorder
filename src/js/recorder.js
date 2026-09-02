@@ -153,6 +153,7 @@ async function enableCamera() {
     previewEl.srcObject = stream;
     viewfinderEmptyEl.hidden = true;
     cameraEnabled = true;
+    startWaveformMonitoring();
   } catch (err) {
     viewfinderEmptyEl.textContent = "Camera access denied or unavailable.";
     viewfinderEmptyEl.hidden = false;
@@ -163,6 +164,7 @@ async function enableCamera() {
 }
 
 function disableCamera() {
+  stopWaveformMonitoring();
   if (stream) {
     for (const track of stream.getTracks()) track.stop();
     stream = null;
@@ -210,6 +212,9 @@ export async function applyRecordingSettings({ cameraId, micId, quality }) {
 
   if (!cameraEnabled) return; // changing settings shouldn't turn the camera on by itself
 
+  // The analyser is bound to the old stream's source node, so it has to be
+  // torn down and rebuilt against the replacement stream.
+  stopWaveformMonitoring();
   if (stream) {
     for (const track of stream.getTracks()) track.stop();
   }
@@ -217,6 +222,7 @@ export async function applyRecordingSettings({ cameraId, micId, quality }) {
   stream = await acquireStream(cameraId, micId, quality);
   previewEl.srcObject = stream;
   viewfinderEmptyEl.hidden = true;
+  startWaveformMonitoring();
   updateRecordButtonState();
 }
 
@@ -238,6 +244,8 @@ const WAVEFORM_GAIN = 5;
 // them) - fewer points drawn as a smoothed curve reads as a soft, "cute"
 // wave rather than a jagged oscilloscope trace of the literal signal.
 const WAVEFORM_POINTS = 28;
+const WAVEFORM_FPS = 30;
+let waveformLastDrawTs = 0;
 
 function sizeWaveformCanvas() {
   // Backing size is set explicitly (rather than relying on CSS size) so the
@@ -298,38 +306,54 @@ function drawWaveform() {
   strokeWaveformPoints(points);
 }
 
-function pollVolume() {
-  analyser.getFloatTimeDomainData(volumeData);
-  let sumSquares = 0;
-  for (let i = 0; i < volumeData.length; i++) {
-    sumSquares += volumeData[i] * volumeData[i];
-  }
-  const rms = Math.sqrt(sumSquares / volumeData.length);
+function isRecordingActive() {
+  return Boolean(mediaRecorder && mediaRecorder.state === "recording");
+}
 
+function pollVolume(timestamp) {
+  volumeRafId = requestAnimationFrame(pollVolume);
+
+  // Throttled below the display refresh rate. This loop runs the whole time
+  // the camera is on (not just while recording), so redrawing every frame
+  // burns CPU indefinitely for a visual that reads identically at 30fps -
+  // same reasoning as the watermark compositor's own throttle.
+  if (timestamp - waveformLastDrawTs < 1000 / WAVEFORM_FPS) return;
+  waveformLastDrawTs = timestamp;
+
+  analyser.getFloatTimeDomainData(volumeData);
   drawWaveform();
 
-  if (responseDelayMs === null) {
+  // Response delay only makes sense relative to an actual recording's start
+  // time - the analyser itself runs continuously whenever the camera/mic is
+  // on, well before (and after) any given recording.
+  if (isRecordingActive() && responseDelayMs === null) {
+    let sumSquares = 0;
+    for (let i = 0; i < volumeData.length; i++) {
+      sumSquares += volumeData[i] * volumeData[i];
+    }
+    const rms = Math.sqrt(sumSquares / volumeData.length);
+
     const now = Date.now();
     if (rms > SPEECH_RMS_THRESHOLD) {
       if (speechAboveThresholdSinceTs === null) {
         speechAboveThresholdSinceTs = now;
       } else if (now - speechAboveThresholdSinceTs >= SPEECH_SUSTAIN_MS) {
         responseDelayMs = speechAboveThresholdSinceTs - recordStartTs;
-        readoutDelayEl.textContent = `delay ${(responseDelayMs / 1000).toFixed(1)}s`;
+        readoutDelayEl.textContent = formatResponseDelay(responseDelayMs);
       }
     } else {
       speechAboveThresholdSinceTs = null;
     }
   }
-
-  volumeRafId = requestAnimationFrame(pollVolume);
 }
 
-function startResponseDelayDetection() {
-  responseDelayMs = null;
-  speechAboveThresholdSinceTs = null;
-  readoutDelayEl.textContent = "delay —";
-
+// Tied to the camera/mic being on, not to active recording - the waveform
+// should react to your voice as soon as the mic is live, not just once you
+// hit Record.
+function startWaveformMonitoring() {
+  // Idempotent - re-entering without a teardown would leak the previous
+  // AudioContext and leave two rAF loops drawing over each other.
+  stopWaveformMonitoring();
   sizeWaveformCanvas();
   waveformStrokeStyle = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#4c7cf6";
 
@@ -340,10 +364,13 @@ function startResponseDelayDetection() {
   volumeData = new Float32Array(analyser.fftSize);
   source.connect(analyser);
 
-  pollVolume();
+  // Scheduled rather than called directly so the first invocation gets a
+  // real rAF timestamp to throttle against.
+  waveformLastDrawTs = 0;
+  volumeRafId = requestAnimationFrame(pollVolume);
 }
 
-function stopResponseDelayDetection() {
+function stopWaveformMonitoring() {
   if (volumeRafId !== null) {
     cancelAnimationFrame(volumeRafId);
     volumeRafId = null;
@@ -353,6 +380,12 @@ function stopResponseDelayDetection() {
     audioCtx = null;
   }
   drawIdleWaveform();
+}
+
+function resetResponseDelayTracking() {
+  responseDelayMs = null;
+  speechAboveThresholdSinceTs = null;
+  readoutDelayEl.textContent = "delay —";
 }
 
 function countWords(text) {
@@ -518,7 +551,7 @@ function startRecording() {
   viewfinderEl.classList.add("recording");
 
   liveReadoutsEl.hidden = false;
-  startResponseDelayDetection();
+  resetResponseDelayTracking();
   updateCameraToggleUI();
 
   if (wpmEnabled && SpeechRecognitionImpl) {
@@ -535,7 +568,6 @@ function stopRecording() {
 async function handleStop() {
   clearInterval(timerInterval);
   stopWatermarkCompositing();
-  stopResponseDelayDetection();
   if (wpmEnabled && SpeechRecognitionImpl) {
     stopSpeechPaceTracking();
   }
@@ -589,13 +621,6 @@ function renderReviewStars(attemptId, score) {
 export async function enterReviewMode(attempt, attemptNumber) {
   if (mediaRecorder && mediaRecorder.state === "recording") return;
 
-  // convertFileSrc lets the webview stream the file directly off disk
-  // through Tauri's asset protocol, rather than reading the whole video
-  // into memory as a Blob first (the previous approach) - for a long
-  // recording that upfront full-file read across the IPC boundary was
-  // exactly why review playback took a noticeable moment to start.
-  previewEl.src = convertFileSrc(attempt.videoPath);
-
   const wasAlreadyReviewing = isReviewing;
   isReviewing = true;
 
@@ -613,13 +638,23 @@ export async function enterReviewMode(attempt, attemptNumber) {
   if (!wasAlreadyReviewing) {
     cameraWasEnabledBeforeReview = cameraEnabled;
   }
+  stopWaveformMonitoring();
   if (stream) {
     for (const track of stream.getTracks()) track.stop();
     stream = null;
   }
   cameraEnabled = false;
 
+  // srcObject has to be cleared before src is set - per spec srcObject wins
+  // when both are present, so assigning src first would rely on clearing it
+  // afterwards to re-trigger resource selection.
   previewEl.srcObject = null;
+  // convertFileSrc lets the webview stream the file directly off disk
+  // through Tauri's asset protocol, rather than reading the whole video
+  // into memory as a Blob first (the previous approach) - for a long
+  // recording that upfront full-file read across the IPC boundary was
+  // exactly why review playback took a noticeable moment to start.
+  previewEl.src = convertFileSrc(attempt.videoPath);
   previewEl.muted = false;
   previewEl.controls = true;
   previewEl.play().catch(() => {});
