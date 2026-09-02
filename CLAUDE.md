@@ -22,7 +22,7 @@ A local desktop app for practising job interviews on webcam. Built with Tauri. R
 
 ## Data rules
 - Video files write straight to disk, in a folder structure like `videos/{category}/{date}_{question-slug}.webm`. Actual extension is whatever the webview's `MediaRecorder` can support — `.webm` (VP8/VP9+Opus) on Chromium/WebKitGTK, falling back to `.mp4` (H.264) on engines that don't support WebM recording (historically Safari/WKWebView). Never assume `.webm` when reading a video path back.
-- Metadata (questions, scores, notes, delay, WPM, transcript) saves via `tauri-plugin-store`.
+- Metadata (questions, scores, notes, delay, WPM, transcript) saves via `tauri-plugin-store` to `library.json`, deliberately placed *inside* `Videos/flight-recorder/` (next to the video files it describes) rather than the OS-hidden app-data directory. The whole `flight-recorder` folder is meant to be one portable, self-contained unit — copy it to a different machine (even a different OS) and it just works, no export/import step. This only holds if `attempt.videoRelativePath` stays relative to that folder (never store an absolute path there) - `resolveVideoPath()` in `attempts.js` is the only place that turns it back into a real path, resolved against wherever the *current* machine's Videos folder is.
 - Be upfront about the one feature that isn't fully local: WPM. Never silently expand what talks to the internet without flagging it first.
 
 ## Design language
