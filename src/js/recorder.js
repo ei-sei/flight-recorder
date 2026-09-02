@@ -29,6 +29,8 @@ const cameraToggleSwitch = document.getElementById("camera-toggle-switch");
 const recordBtn = document.getElementById("record-btn");
 const backToLiveBtn = document.getElementById("back-to-live-btn");
 const currentQuestionEl = document.getElementById("current-question");
+const prepNotesRow = document.getElementById("prep-notes-row");
+const prepNotesInput = document.getElementById("prep-notes-input");
 const reviewNotesRow = document.getElementById("review-notes-row");
 const reviewNotesInput = document.getElementById("review-notes-input");
 const reviewStatsRow = document.getElementById("review-stats-row");
@@ -57,7 +59,9 @@ let chunks = [];
 let recordStartTs = 0;
 let timerInterval = null;
 let hasSelection = false;
+let currentQuestion = null;
 let onRecordingComplete = () => {};
+let onPrepNotesChange = () => {};
 let getSelectedQuestion = () => null;
 
 let audioCtx = null;
@@ -552,6 +556,7 @@ function startRecording() {
   viewfinderEl.classList.add("recording");
 
   liveReadoutsEl.hidden = false;
+  updatePrepNotesVisibility();
   resetResponseDelayTracking();
   updateCameraToggleUI();
 
@@ -575,6 +580,7 @@ async function handleStop() {
   recDotEl.hidden = true;
   recLabelEl.hidden = true;
   liveReadoutsEl.hidden = true;
+  updatePrepNotesVisibility();
   timerEl.textContent = "00:00.0";
   recordBtn.textContent = "Record";
   recordBtn.classList.remove("recording");
@@ -607,9 +613,26 @@ function toggleRecording() {
   }
 }
 
-export function setRecordEnabled(enabled) {
-  hasSelection = enabled;
+// Renamed from setRecordEnabled(enabled) - now also carries the question
+// itself, so its prep notes can be shown alongside enabling the button.
+export function setActiveQuestion(question) {
+  hasSelection = Boolean(question);
   updateRecordButtonState();
+
+  currentQuestion = question;
+  prepNotesInput.value = question?.prepNotes ?? "";
+  // Visibility before autosize - measuring scrollHeight on a still-hidden
+  // (display: none) textarea reads 0, so the height would be wrong until
+  // some later, unrelated trigger happened to recalculate it.
+  updatePrepNotesVisibility();
+  autosizeTextarea(prepNotesInput);
+}
+
+function updatePrepNotesVisibility() {
+  // Only shown while actually preparing to record: a question picked, not
+  // mid-recording (the live-readouts row takes this space then), and not
+  // reviewing (which has its own separate, after-the-fact notes field).
+  prepNotesRow.hidden = !currentQuestion || isReviewing || isRecordingActive();
 }
 
 function renderReviewStars(attemptId, score) {
@@ -666,6 +689,7 @@ export async function enterReviewMode(attempt, attemptNumber) {
   recIndicatorEl.hidden = true;
   recordBtn.hidden = true;
   backToLiveBtn.hidden = false;
+  updatePrepNotesVisibility();
   currentQuestionEl.textContent = `Reviewing: “${attempt.questionText}”`;
 
   const dateLabel = new Date(attempt.date).toLocaleDateString("en-GB");
@@ -715,6 +739,7 @@ export function exitReviewMode() {
   recIndicatorEl.hidden = false;
   recordBtn.hidden = false;
   backToLiveBtn.hidden = true;
+  updatePrepNotesVisibility();
 
   reviewStatsRow.hidden = true;
   reviewTranscriptRow.hidden = true;
@@ -821,6 +846,7 @@ export async function initRecorder(options = {}) {
   onNotesChange = options.onNotesChange ?? (() => {});
   onScoreChange = options.onScoreChange ?? (() => {});
   onOpenSettings = options.onOpenSettings ?? (() => {});
+  onPrepNotesChange = options.onPrepNotesChange ?? (() => {});
 
   recordBtn.addEventListener("click", toggleRecording);
   backToLiveBtn.addEventListener("click", exitReviewMode);
@@ -829,6 +855,10 @@ export async function initRecorder(options = {}) {
   previewEl.addEventListener("contextmenu", (event) => event.preventDefault());
   reviewTranscriptSettingsBtn.addEventListener("click", onOpenSettings);
   cameraToggleBtn.addEventListener("click", toggleCamera);
+  prepNotesInput.addEventListener("blur", () => {
+    if (currentQuestion) onPrepNotesChange(currentQuestion.id, prepNotesInput.value);
+  });
+  prepNotesInput.addEventListener("input", () => autosizeTextarea(prepNotesInput));
   updateCameraToggleUI();
   initViewfinderSizing();
   sizeWaveformCanvas();
