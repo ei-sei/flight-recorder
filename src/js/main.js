@@ -1,7 +1,7 @@
-import { initQuestions, getSelectedQuestion, selectQuestionById } from "./questions.js";
+import { initQuestions, getSelectedQuestion, selectQuestionById, updateQuestionPrepNotes } from "./questions.js";
 import {
   initRecorder,
-  setRecordEnabled,
+  setActiveQuestion,
   enterReviewMode,
   exitReviewMode,
   listDevices,
@@ -219,7 +219,7 @@ function handleQuestionSelectionChange(question) {
   // camera view instead of leaving the reviewed video showing.
   exitReviewMode();
   currentQuestionEl.textContent = question ? question.text : "Select a question to begin.";
-  setRecordEnabled(Boolean(question));
+  setActiveQuestion(question);
   setSelectedQuestion(question);
 }
 
@@ -677,6 +677,7 @@ async function init() {
     onNotesChange: updateAttemptNotes,
     onScoreChange: updateAttemptScore,
     onOpenSettings: openSettingsModal,
+    onPrepNotesChange: updateQuestionPrepNotes,
   });
 }
 
