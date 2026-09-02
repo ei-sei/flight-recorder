@@ -176,7 +176,7 @@ function renderAttemptItem(attempt, attemptNumber) {
   const topInfo = document.createElement("div");
   topInfo.className = "attempt-item-meta";
 
-  const dateLabel = new Date(attempt.date).toLocaleDateString();
+  const dateLabel = new Date(attempt.date).toLocaleDateString("en-GB");
 
   const metaRow = document.createElement("div");
   metaRow.className = "attempt-item-meta-row";
