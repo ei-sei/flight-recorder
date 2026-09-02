@@ -24,7 +24,8 @@ jobs:
             -f "name=Flight recorder v${VERSION}" \
             -f "body=See the assets below to download and install this version." \
             -F draft=true \
-            -F prerelease=false)
+            -F prerelease=false \
+            -F generate_release_notes=true)
           echo "id=$(echo "$RESPONSE" | jq -r .id)" >> "$GITHUB_OUTPUT"
 
   release:
