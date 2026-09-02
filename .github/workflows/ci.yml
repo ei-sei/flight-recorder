@@ -12,6 +12,19 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - uses: actions/setup-node@v7
+        with:
+          node-version: lts/*
+
+      # The Rust side is ~50 lines; essentially all of this app's logic lives
+      # in src/js. Without this, a syntax error there ships to a release
+      # completely unchecked. No dependencies needed - node parses the files.
+      - name: syntax-check frontend JavaScript
+        run: |
+          for f in src/js/*.js; do
+            node --check "$f"
+          done
+
       - name: install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:

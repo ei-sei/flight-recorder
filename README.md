@@ -49,7 +49,6 @@ flight-recorder/
 │       ├── store.js          tauri-plugin-store wrapper
 │       ├── modal.js          Confirm/alert dialogs
 │       ├── contextmenu.js    Custom right-click and menu-bar dropdowns
-│       ├── infotip.js        Click-triggered info popover
 │       └── util.js           Formatting, slugify, filename helpers
 ├── src-tauri/              Rust backend
 │   ├── src/
@@ -106,7 +105,7 @@ Releases are signed with a minisign-style keypair (`tauri signer generate`); the
 
 ## CI & security
 
-- **`.github/workflows/ci.yml`** - on every push/PR to `main`: `cargo fmt --check`, `cargo clippy -D warnings`, `cargo build`.
+- **`.github/workflows/ci.yml`** - on every push/PR to `main`: a `node --check` syntax pass over `src/js/`, then `cargo fmt --check`, `cargo clippy -D warnings`, `cargo build`.
 - **`.github/workflows/security.yml`** - `cargo audit` (RustSec advisories) and `npm audit`, on every push/PR plus a weekly schedule so newly-disclosed advisories against unchanged dependencies still get caught.
 - **`.github/dependabot.yml`** - weekly automated update PRs for Cargo, npm, and GitHub Actions dependencies.
 
