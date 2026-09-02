@@ -6,8 +6,10 @@ import {
   formatResponseDelay,
   formatWpm,
   formatConfidence,
+  watermarkDateStamp,
 } from "./util.js";
 import { getWpmEnabled, setWpmEnabled, getRecordingSettings, saveRecordingSettings } from "./store.js";
+import { showInfoTip } from "./infotip.js";
 
 const previewEl = document.getElementById("preview");
 const viewfinderMetaEl = document.getElementById("viewfinder-meta");
@@ -142,7 +144,17 @@ async function enableCamera() {
   currentQuality = settings.quality;
 
   try {
-    stream = await acquireStream(settings.cameraId, settings.micId, currentQuality);
+    const acquiredStream = await acquireStream(settings.cameraId, settings.micId, currentQuality);
+    // enableCamera() is called fire-and-forget from exitReviewMode() to
+    // restore the camera; if review mode was re-entered while this was
+    // still negotiating (e.g. rapidly switching between attempts), the
+    // review video is already showing again by the time we get here -
+    // release this stream instead of clobbering previewEl.srcObject.
+    if (isReviewing) {
+      for (const track of acquiredStream.getTracks()) track.stop();
+      return;
+    }
+    stream = acquiredStream;
     previewEl.srcObject = stream;
     viewfinderEmptyEl.hidden = true;
     cameraEnabled = true;
@@ -222,6 +234,12 @@ function updateTimer() {
   timerEl.textContent = formatTimer(Date.now() - recordStartTs);
 }
 
+// Normal speech only swings a small fraction of the mic's full -1..1
+// range, so the raw samples render as a nearly flat line - gain them up so
+// the wave actually visibly reacts to a normal speaking voice, clamping so
+// louder moments don't just draw off the edge of the canvas.
+const WAVEFORM_GAIN = 5;
+
 function drawWaveform() {
   const { width, height } = waveformCanvasEl;
   waveformCtx.clearRect(0, 0, width, height);
@@ -229,7 +247,8 @@ function drawWaveform() {
   const sliceWidth = width / volumeData.length;
   let x = 0;
   for (let i = 0; i < volumeData.length; i++) {
-    const y = (0.5 + volumeData[i] * 0.5) * height;
+    const amplified = Math.max(-1, Math.min(1, volumeData[i] * WAVEFORM_GAIN));
+    const y = (0.5 + amplified * 0.5) * height;
     if (i === 0) {
       waveformCtx.moveTo(x, y);
     } else {
@@ -326,7 +345,7 @@ function startSpeechPaceTracking() {
     for (let i = 0; i < event.results.length; i++) {
       const result = event.results[i];
       combined += result[0].transcript + " ";
-      // Confidence is only meaningful once a result is finalized - interim
+      // Confidence is only meaningful once a result is finalised - interim
       // results report 0. Indices don't change once final, so overwriting
       // by index each event naturally de-dupes without double-counting.
       if (result.isFinal) {
@@ -380,12 +399,85 @@ function getSupportedRecordingFormat() {
 
 let currentRecordingFormat = null;
 
+// Burns the date/timer into the saved video, camcorder-style - the on-screen
+// badge is a UI overlay only and was never part of the recorded pixels.
+// Composites the live preview frame onto a hidden canvas each tick and
+// records THAT canvas's stream (recombined with the mic's audio track)
+// instead of the raw camera stream.
+const WATERMARK_FPS = 30;
+const WATERMARK_FONT = 'ui-monospace, "Cascadia Code", "SF Mono", Consolas, "Liberation Mono", monospace';
+const watermarkCanvas = document.createElement("canvas");
+const watermarkCtx = watermarkCanvas.getContext("2d");
+let watermarkStream = null;
+let watermarkRafId = null;
+let watermarkLastDrawTs = 0;
+
+function drawWatermarkFrame(timestamp) {
+  watermarkRafId = requestAnimationFrame(drawWatermarkFrame);
+  // Throttled below the display refresh rate - captureStream re-sends the
+  // last drawn frame on its own schedule, so redrawing less often than that
+  // saves CPU without dropping frames from the actual recording.
+  if (timestamp - watermarkLastDrawTs < 1000 / WATERMARK_FPS) return;
+  watermarkLastDrawTs = timestamp;
+
+  const { width, height } = watermarkCanvas;
+  watermarkCtx.drawImage(previewEl, 0, 0, width, height);
+
+  const text = `${watermarkDateStamp()}  ${formatTimer(Date.now() - recordStartTs)}`;
+  const fontSize = Math.round(height * 0.032);
+  watermarkCtx.font = `${fontSize}px ${WATERMARK_FONT}`;
+  const paddingX = fontSize * 0.6;
+  const paddingY = fontSize * 0.45;
+  const boxX = fontSize * 0.5;
+  const boxY = fontSize * 0.5;
+  const boxWidth = watermarkCtx.measureText(text).width + paddingX * 2;
+  const boxHeight = fontSize + paddingY * 2;
+
+  watermarkCtx.fillStyle = "rgba(5, 7, 10, 0.65)";
+  watermarkCtx.fillRect(boxX, boxY, boxWidth, boxHeight);
+
+  watermarkCtx.fillStyle = "#eef2f7";
+  watermarkCtx.textBaseline = "middle";
+  watermarkCtx.fillText(text, boxX + paddingX, boxY + boxHeight / 2);
+}
+
+function startWatermarkCompositing() {
+  // The actual negotiated resolution, not the preset's ideal - getUserMedia
+  // constraints use "ideal", not "exact", so what the camera actually
+  // delivers can differ; sizing off the preset instead would stretch every
+  // frame to fit the wrong aspect ratio.
+  const preset = getQualityPreset();
+  watermarkCanvas.width = previewEl.videoWidth || preset.width;
+  watermarkCanvas.height = previewEl.videoHeight || preset.height;
+  watermarkLastDrawTs = 0;
+  watermarkRafId = requestAnimationFrame(drawWatermarkFrame);
+
+  watermarkStream = watermarkCanvas.captureStream(WATERMARK_FPS);
+  return new MediaStream([...watermarkStream.getVideoTracks(), ...stream.getAudioTracks()]);
+}
+
+function stopWatermarkCompositing() {
+  if (watermarkRafId !== null) {
+    cancelAnimationFrame(watermarkRafId);
+    watermarkRafId = null;
+  }
+  if (watermarkStream) {
+    for (const track of watermarkStream.getTracks()) track.stop();
+    watermarkStream = null;
+  }
+}
+
 function startRecording() {
   if (!stream) return;
 
   chunks = [];
   currentRecordingFormat = getSupportedRecordingFormat();
-  mediaRecorder = new MediaRecorder(stream, {
+  // Set before starting the watermark loop - it reads recordStartTs on its
+  // very first drawn frame, which would otherwise show a garbage elapsed
+  // time computed against the stale value from the previous recording.
+  recordStartTs = Date.now();
+  const recordingStream = startWatermarkCompositing();
+  mediaRecorder = new MediaRecorder(recordingStream, {
     ...(currentRecordingFormat.mimeType ? { mimeType: currentRecordingFormat.mimeType } : {}),
     videoBitsPerSecond: getQualityPreset().bitrate,
     audioBitsPerSecond: 128_000,
@@ -396,7 +488,6 @@ function startRecording() {
   mediaRecorder.onstop = handleStop;
   mediaRecorder.start();
 
-  recordStartTs = Date.now();
   recDotEl.hidden = false;
   recLabelEl.hidden = false;
   timerEl.textContent = "00:00.0";
@@ -422,6 +513,7 @@ function stopRecording() {
 
 async function handleStop() {
   clearInterval(timerInterval);
+  stopWatermarkCompositing();
   stopResponseDelayDetection();
   if (wpmEnabled && SpeechRecognitionImpl) {
     stopSpeechPaceTracking();
@@ -518,11 +610,30 @@ export async function enterReviewMode(attempt, attemptNumber) {
   renderReviewStars(attempt.id, attempt.score);
   viewfinderMetaEl.hidden = false;
 
-  const statsLine = [formatResponseDelay(attempt.responseDelayMs), formatWpm(attempt.wpm), formatConfidence(attempt.speechConfidence)]
-    .filter(Boolean)
-    .join(" · ");
-  reviewStatsRow.textContent = statsLine;
-  reviewStatsRow.hidden = !statsLine;
+  reviewStatsRow.innerHTML = "";
+  const delayLabel = formatResponseDelay(attempt.responseDelayMs);
+  const wpmLabel = formatWpm(attempt.wpm);
+  const confidenceLabel = formatConfidence(attempt.speechConfidence);
+  const statsParts = [];
+  if (delayLabel) statsParts.push({ text: delayLabel });
+  if (wpmLabel) statsParts.push({ text: wpmLabel });
+  if (confidenceLabel) {
+    statsParts.push({
+      text: confidenceLabel,
+      hint: "How confident the recogniser was in what it heard - not a validated clarity score.",
+    });
+  }
+  statsParts.forEach((part, index) => {
+    if (index > 0) reviewStatsRow.appendChild(document.createTextNode(" · "));
+    const span = document.createElement("span");
+    span.textContent = part.text;
+    if (part.hint) {
+      span.classList.add("stat-hint");
+      span.addEventListener("click", () => showInfoTip(span, part.hint));
+    }
+    reviewStatsRow.appendChild(span);
+  });
+  reviewStatsRow.hidden = statsParts.length === 0;
 
   reviewTranscriptRow.hidden = false;
   if (attempt.transcript) {
