@@ -181,9 +181,16 @@ async function resetView() {
   setLogPanelVisible(true);
   setRailVisible(true);
 
-  // Must match tauri.conf.json's app.windows[0] width/height default.
-  const { LogicalSize } = window.__TAURI__.window;
-  await appWindow.setSize(new LogicalSize(1280, 800));
+  try {
+    // Must match tauri.conf.json's app.windows[0] width/height default.
+    // Needs core:window:allow-set-size in capabilities - core:default only
+    // grants read-only window commands, so without it this rejects.
+    const { LogicalSize } = window.__TAURI__.window;
+    await appWindow.setSize(new LogicalSize(1280, 800));
+  } catch (err) {
+    console.error("Reset window size failed", err);
+    await showAlert({ title: "Couldn't resize window", message: String(err?.message ?? err) });
+  }
 }
 
 function isRailVisible() {
@@ -389,7 +396,13 @@ async function showUpdatesInfo() {
   });
   if (!shouldInstall) return;
 
-  await update.downloadAndInstall();
+  try {
+    await update.downloadAndInstall();
+  } catch (err) {
+    console.error("Update install failed", err);
+    await showAlert({ title: "Update failed", message: String(err?.message ?? err) });
+    return;
+  }
   await relaunch();
 }
 
@@ -436,7 +449,13 @@ function renderNotifPopoverBody() {
   installBtn.textContent = "Download and install";
   installBtn.addEventListener("click", async () => {
     document.getElementById("notif-popover").hidden = true;
-    await pendingUpdate.downloadAndInstall();
+    try {
+      await pendingUpdate.downloadAndInstall();
+    } catch (err) {
+      console.error("Update install failed", err);
+      await showAlert({ title: "Update failed", message: String(err?.message ?? err) });
+      return;
+    }
     await window.__TAURI__.process.relaunch();
   });
 
@@ -655,12 +674,16 @@ async function init() {
   initPanelResize();
   initRail();
 
-  const settings = await getRecordingSettings();
+  // Read-only store lookups, so they can overlap. getAttempts/getQuestions
+  // below are deliberately left sequential - both can write (the Behavioural
+  // migration), and racing two save() calls on the same store risks one
+  // snapshot clobbering the other.
+  const [settings, theme] = await Promise.all([getRecordingSettings(), getTheme()]);
   if (settings.alwaysOnTop) {
     await appWindow.setAlwaysOnTop(true);
   }
 
-  applyTheme(await getTheme());
+  applyTheme(theme);
 
   await initAttempts({
     onPlay: (attempt, attemptNumber) => {
@@ -672,7 +695,21 @@ async function init() {
   await initQuestions({ onSelectionChange: handleQuestionSelectionChange });
   await initRecorder({
     getSelectedQuestion,
-    onRecordingComplete: saveAttempt,
+    // Wrapped rather than passing saveAttempt directly: this runs from
+    // MediaRecorder's onstop handler, which nothing awaits, so a failure
+    // here (disk full, permissions) would otherwise reject into nowhere and
+    // lose the recording without telling anyone.
+    onRecordingComplete: async (recording) => {
+      try {
+        await saveAttempt(recording);
+      } catch (err) {
+        console.error("Failed to save recording", err);
+        await showAlert({
+          title: "Recording not saved",
+          message: `The recording couldn't be written to disk and has been lost: ${String(err?.message ?? err)}`,
+        });
+      }
+    },
     onExitReview: () => {
       handleQuestionSelectionChange(getSelectedQuestion());
       clearReviewing();
