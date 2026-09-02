@@ -1,6 +1,6 @@
 # Flight Recorder
 
-A local desktop app for practicing job interviews on webcam. Built with Tauri. Runs fully on the user's machine. No cloud storage of video or data, except for live speech-to-text (see below).
+A local desktop app for practising job interviews on webcam. Built with Tauri. Runs fully on the user's machine. No cloud storage of video or data, except for live speech-to-text (see below).
 
 ## Stack
 - Tauri (Rust backend, native OS webview frontend).
@@ -12,13 +12,13 @@ A local desktop app for practicing job interviews on webcam. Built with Tauri. R
 - Confirmation prompts (delete question/attempt) are an in-app modal, not the native OS dialog — keeps the UI visually consistent with the rest of the app.
 
 ## Core features
-- Question bank, organized by category (Behavioral, Technical, Case). User can add and remove questions.
+- Question bank, organised by category (Behavioural, Technical, Case). User can add and remove questions.
 - Live webcam viewfinder using `getUserMedia`. Record/stop tied to the selected question.
 - Each recording becomes a logged attempt. Captures question, category, date, and duration automatically.
 - User adds a star score and notes after reviewing.
-- Filter tabs over the attempt log (All / Behavioral / Technical / Case).
+- Filter tabs over the attempt log (All / Behavioural / Technical / Case).
 - Response delay: measures time from record start to first speech. Uses mic volume. Fully local. Works in any browser/webview.
-- Speech pace (WPM): live word-per-minute estimate using the browser's built-in speech recognition. Only works in Chrome/Edge-based webviews. Sends audio to Google's servers for this feature only. Everything else stays local. Also saves the resulting transcript, shown read-only during review when present, and the recognizer's average confidence across the recording, shown as "X% confidence" alongside delay/WPM in review — a real signal from the same recognizer already in use, not a fabricated score.
+- Speech pace (WPM): live word-per-minute estimate using the browser's built-in speech recognition. Only works in Chrome/Edge-based webviews. Sends audio to Google's servers for this feature only. Everything else stays local. Also saves the resulting transcript, shown read-only during review when present, and the recogniser's average confidence across the recording, shown as "X% confidence" alongside delay/WPM in review — a real signal from the same recogniser already in use, not a fabricated score.
 
 ## Data rules
 - Video files write straight to disk, in a folder structure like `videos/{category}/{date}_{question-slug}.webm`. Actual extension is whatever the webview's `MediaRecorder` can support — `.webm` (VP8/VP9+Opus) on Chromium/WebKitGTK, falling back to `.mp4` (H.264) on engines that don't support WebM recording (historically Safari/WKWebView). Never assume `.webm` when reading a video path back.
@@ -27,7 +27,7 @@ A local desktop app for practicing job interviews on webcam. Built with Tauri. R
 
 ## Design language
 (Revised again — supersedes the card-based direction below.)
-Dark, sleek, flat editor-style chrome. Near-black navy base. Panels are tightly packed with a small (6px) gap between them, each with its own complete hairline border — no shared/single-line dividers, no rounded corners, no drop shadows. A permanent left activity rail (icon strip) selects sidebar content. Blue/indigo as the primary accent (buttons, active tabs, selection, focus rings). Red for recording state and destructive actions. Gold for star ratings only. Segmented pill-style filter tabs are the one deliberately rounded/card-like control, kept as an accent against the otherwise flat chrome. Efficient, compact padding — not generous whitespace. Monospace for timers and numeric readouts. Sentence-case labels. Smooth transitions and soft glow effects on hover/active states rather than hard color swaps.
+Dark, sleek, flat editor-style chrome. Near-black navy base. Panels are tightly packed with a small (6px) gap between them, each with its own complete hairline border — no shared/single-line dividers, no rounded corners, no drop shadows. A permanent left activity rail (icon strip) selects sidebar content. Blue/indigo as the primary accent (buttons, active tabs, selection, focus rings). Red for recording state and destructive actions. Gold for star ratings only. Segmented pill-style filter tabs are the one deliberately rounded/card-like control, kept as an accent against the otherwise flat chrome. Efficient, compact padding — not generous whitespace. Monospace for timers and numeric readouts. Sentence-case labels. Smooth transitions and soft glow effects on hover/active states rather than hard colour swaps.
 
 Do not fabricate decorative metrics or visualizations for capabilities the app doesn't have (e.g. no fake "eye contact" or "clarity" score charts) — only real data (response delay, WPM, transcript, speech recognition confidence, star score, notes) gets shown.
 
