@@ -175,11 +175,15 @@ function initPanelResize() {
 
 let resetPanelWidths = () => {};
 
-function resetView() {
+async function resetView() {
   resetPanelWidths();
   setSidebarVisible(true);
   setLogPanelVisible(true);
   setRailVisible(true);
+
+  // Must match tauri.conf.json's app.windows[0] width/height default.
+  const { LogicalSize } = window.__TAURI__.window;
+  await appWindow.setSize(new LogicalSize(1280, 800));
 }
 
 function isRailVisible() {
