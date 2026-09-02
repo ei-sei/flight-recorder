@@ -38,7 +38,7 @@ async function computeVideoPath(question, date, extension) {
   return candidate;
 }
 
-export async function saveAttempt({ blob, extension, durationMs, question, responseDelayMs, wpm, transcript, speechConfidence }) {
+export async function saveAttempt({ blob, extension, durationMs, question, responseDelayMs, wpm, transcript }) {
   const date = new Date();
   const videoPath = await computeVideoPath(question, date, extension || "webm");
   const bytes = new Uint8Array(await blob.arrayBuffer());
@@ -57,7 +57,6 @@ export async function saveAttempt({ blob, extension, durationMs, question, respo
     responseDelayMs: responseDelayMs ?? null,
     wpm: wpm ?? null,
     transcript: transcript ?? null,
-    speechConfidence: speechConfidence ?? null,
   };
 
   attempts.unshift(attempt);
