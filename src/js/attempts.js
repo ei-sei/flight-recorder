@@ -17,7 +17,18 @@ const listEl = document.getElementById("attempt-list");
 const subtitleEl = document.getElementById("log-subtitle");
 const filterTabsEl = document.getElementById("log-filter-tabs");
 
-async function computeVideoPath(question, date, extension) {
+// Resolves a video's path relative to the flight-recorder folder into a
+// real, absolute one for the current machine - stored paths are relative
+// specifically so the flight-recorder folder (videos + library.json) stays
+// portable: copy it anywhere, even a different OS, and playback/delete/
+// reveal-in-folder all resolve correctly against wherever THIS machine's
+// Videos folder actually is, instead of a path baked in on another machine.
+export async function resolveVideoPath(relativePath) {
+  const base = await videoDir();
+  return join(base, "flight-recorder", relativePath);
+}
+
+async function computeVideoRelativePath(question, date, extension) {
   const base = await videoDir();
   const categorySlug = slugify(question.category);
   const dirPath = await join(base, "flight-recorder", categorySlug);
@@ -35,14 +46,14 @@ async function computeVideoPath(question, date, extension) {
     candidate = await join(dirPath, filename);
     counter += 1;
   }
-  return candidate;
+  return join(categorySlug, filename);
 }
 
 export async function saveAttempt({ blob, extension, durationMs, question, responseDelayMs, wpm, transcript }) {
   const date = new Date();
-  const videoPath = await computeVideoPath(question, date, extension || "webm");
+  const videoRelativePath = await computeVideoRelativePath(question, date, extension || "webm");
   const bytes = new Uint8Array(await blob.arrayBuffer());
-  await writeFile(videoPath, bytes);
+  await writeFile(await resolveVideoPath(videoRelativePath), bytes);
 
   const attempt = {
     id: crypto.randomUUID(),
@@ -51,7 +62,7 @@ export async function saveAttempt({ blob, extension, durationMs, question, respo
     category: question.category,
     date: date.toISOString(),
     durationMs,
-    videoPath,
+    videoRelativePath,
     score: 0,
     notes: "",
     responseDelayMs: responseDelayMs ?? null,
@@ -99,7 +110,7 @@ async function deleteAttempt(id) {
   }
 
   try {
-    await remove(attempt.videoPath);
+    await remove(await resolveVideoPath(attempt.videoRelativePath));
   } catch (err) {
     console.error("Failed to remove video file", err);
   }
@@ -120,7 +131,7 @@ export async function deleteAttemptsForQuestion(questionId) {
 
   for (const attempt of toDelete) {
     try {
-      await remove(attempt.videoPath);
+      await remove(await resolveVideoPath(attempt.videoRelativePath));
     } catch (err) {
       console.error("Failed to remove video file", err);
     }
@@ -161,7 +172,7 @@ function renderAttemptItem(attempt, attemptNumber) {
   item.addEventListener("contextmenu", (event) => {
     event.preventDefault();
     showContextMenu(event.clientX, event.clientY, [
-      { label: "Show in folder", onClick: () => revealItemInDir(attempt.videoPath) },
+      { label: "Show in folder", onClick: async () => revealItemInDir(await resolveVideoPath(attempt.videoRelativePath)) },
       { label: "Delete", danger: true, onClick: () => deleteAttempt(attempt.id) },
     ]);
   });
