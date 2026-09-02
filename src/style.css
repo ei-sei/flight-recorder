@@ -710,10 +710,6 @@ textarea {
   left: 10px;
   right: 10px;
   display: flex;
-  /* justify-content: space-between would put the timer wherever it lands
-     among hidden siblings (left when alone, right once rec-indicator
-     shows up) - margin-left: auto on .timer instead pins it to the right
-     edge regardless of which siblings are visible. */
   justify-content: flex-start;
   align-items: center;
   pointer-events: none;
@@ -723,21 +719,26 @@ textarea {
   display: flex;
   align-items: center;
   gap: 6px;
-  color: var(--record);
+  color: var(--text-primary);
   font-size: 12px;
   font-weight: 600;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.02em;
   background-color: rgba(5, 7, 10, 0.65);
-  border: 1px solid rgba(244, 65, 92, 0.35);
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 3px 9px;
   backdrop-filter: blur(4px);
 }
 
+#rec-label {
+  color: var(--record);
+  letter-spacing: 0.04em;
+}
+
 .review-indicator {
-  /* Pushes it to the right side of the overlay row regardless of the
-     (hidden during review) rec-indicator/timer siblings - top-left was
-     overlapping the native video controls' top-right fullscreen button. */
+  /* Pushes it to the right side of the overlay row - rec-indicator (hidden
+     during review) sits at the left, and top-left was overlapping the
+     native video controls' top-right fullscreen button. */
   margin-left: auto;
   color: var(--accent);
   font-size: 12px;
@@ -775,14 +776,7 @@ textarea {
 }
 
 .timer {
-  margin-left: auto;
   color: var(--text-primary);
-  font-size: 13px;
-  background-color: rgba(5, 7, 10, 0.65);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 3px 9px;
-  backdrop-filter: blur(4px);
 }
 
 .current-question {
@@ -815,7 +809,28 @@ textarea {
 
 .live-readouts {
   display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.live-readouts-text {
+  display: flex;
   gap: 16px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.voice-waveform {
+  display: block;
+  width: 100%;
+  height: 36px;
+  background-color: rgba(5, 7, 10, 0.4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.review-stats {
   font-size: 12px;
   color: var(--text-secondary);
 }

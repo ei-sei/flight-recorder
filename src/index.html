@@ -120,11 +120,12 @@
             <video id="preview" autoplay muted playsinline></video>
             <div class="viewfinder-empty" id="viewfinder-empty">Camera is off.</div>
             <div class="viewfinder-overlay">
-              <div class="rec-indicator" id="rec-indicator" hidden>
-                <span class="rec-dot"></span>rec
+              <div class="rec-indicator" id="rec-indicator">
+                <span class="rec-dot" id="rec-dot" hidden></span>
+                <span id="rec-label" hidden>rec</span>
+                <span class="timer mono" id="timer">00:00.0</span>
               </div>
               <div class="review-indicator" id="review-indicator" hidden>reviewing</div>
-              <div class="timer mono" id="timer">00:00.0</div>
             </div>
           </div>
 
@@ -149,15 +150,20 @@
 
           <div class="current-question" id="current-question">Select a question to begin.</div>
 
-          <div class="live-readouts mono" id="live-readouts" hidden>
-            <span class="readout" id="readout-delay">delay —</span>
-            <span class="readout" id="readout-wpm" hidden>wpm —</span>
-          </div>
-
           <div class="record-controls">
             <button class="btn btn-record" id="record-btn" disabled>Record</button>
             <button class="btn btn-teal" id="back-to-live-btn" hidden>Back to live</button>
           </div>
+
+          <div class="live-readouts" id="live-readouts" hidden>
+            <canvas class="voice-waveform" id="voice-waveform"></canvas>
+            <div class="live-readouts-text mono">
+              <span class="readout" id="readout-delay">delay —</span>
+              <span class="readout" id="readout-wpm" hidden>wpm —</span>
+            </div>
+          </div>
+
+          <div class="review-stats mono" id="review-stats-row" hidden></div>
 
           <div class="review-notes" id="review-transcript-row" hidden>
             <label class="review-notes-label" for="review-transcript-text">Transcript (auto-generated, may contain errors)</label>
