@@ -25,7 +25,7 @@ Once installed, updates are handled in-app: Help → Check for updates, or the b
 - **Attempt log** - every recording is captured automatically with question, category, date, duration, and a per-question attempt number. Review any past attempt's video, rate it (1-5 stars), and add notes.
 - **Filter tabs** over the attempt log (All / Behavioral / Technical / Case), and a per-question view when you select a question in the bank.
 - **Response delay** - measures time from record start to first speech, using local mic-volume analysis. Fully local, works on every platform.
-- **Speech pace (WPM)** - live words-per-minute estimate using the browser's built-in speech recognition. Off by default; see [Data & privacy](#data--privacy) below. Only available on Chromium-based webviews (Windows).
+- **Speech pace (WPM)** - live words-per-minute estimate using the browser's built-in speech recognition, plus the recognizer's average confidence for the recording (a real signal from the same recognizer, not a fabricated score). Off by default; see [Data & privacy](#data--privacy) below. Only available on Chromium-based webviews (Windows).
 - **Light/dark theme**, a custom frameless window with its own titlebar and resize handles, and a File/View/Help menu bar.
 - **Check for updates** (Help menu) checks the project's GitHub Releases for a newer version and can download, install, and restart into it.
 
@@ -114,7 +114,7 @@ Releases are signed with a minisign-style keypair (`tauri signer generate`); the
 ## Data & privacy
 
 - **Video recordings** are written straight to disk under your OS "Videos" folder: `Videos/flight-recorder/{category}/{YYMMDD}-a{attempt number}-{question abbreviation}.webm` - e.g. `260901-a2-tmatydwt.webm` for the second attempt at "Tell me about a time you disagreed with a teammate." The extension follows whatever format the webview can actually record - `.webm` (VP8/VP9+Opus) normally, falling back to `.mp4` (H.264) on webviews that don't support recording WebM (notably Safari/WKWebView). Nothing about video ever leaves the machine.
-- **Metadata** - the question bank, and each attempt's question/category/date/duration/score/notes/response-delay - is persisted locally via `tauri-plugin-store`, a JSON file in the app's local data directory.
+- **Metadata** - the question bank, and each attempt's question/category/date/duration/score/notes/response-delay - is persisted locally via `tauri-plugin-store`, a JSON file in the app's local data directory. When Speech pace (WPM) is on, the transcript and the recognizer's average confidence are saved alongside it.
 - **Speech pace (WPM)** is the one feature that isn't fully local. It's **off by default**. When you explicitly turn it on, live audio is sent to the webview's built-in speech recognition (Google's servers, on Chromium-based webviews) while recording, to estimate words-per-minute. It's only available on Chromium-based webviews (in practice: Windows/WebView2) - WebKitGTK (Linux) and WKWebView (macOS) don't implement the Web Speech API, so the toggle is disabled there.
 - Deleting an attempt removes both its metadata entry and its video file from disk.
 - Deleting a question also deletes every attempt (and video file) recorded under it - the confirmation prompt tells you how many before you commit.
