@@ -4,7 +4,7 @@ import { showConfirm } from "./modal.js";
 import { showContextMenu } from "./contextmenu.js";
 
 let questions = [];
-let activeCategory = "Behavioral";
+let activeCategory = "Behavioural";
 let selectedId = null;
 let onSelectionChange = () => {};
 
@@ -66,6 +66,13 @@ async function confirmDeleteQuestion(question) {
 }
 
 function selectQuestion(id) {
+  // Re-selecting the already-selected question is a no-op for the sidebar,
+  // but onSelectionChange also exits review mode - re-firing it while an
+  // attempt on this question is already being reviewed (e.g. clicking the
+  // same attempt in the log twice) briefly exits and re-enters review,
+  // racing enterReviewMode's video setup against exitReviewMode's
+  // fire-and-forget camera restore.
+  if (id === selectedId) return;
   selectedId = id;
   render();
   onSelectionChange(getSelectedQuestion());

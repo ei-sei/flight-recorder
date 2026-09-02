@@ -3,7 +3,20 @@ const { Store } = window.__TAURI__.store;
 // The one staple every real interview opens with - worth having on first
 // launch so the question bank isn't completely empty. Everything else is
 // left for the user to add themselves.
-const STAPLE_QUESTION = { category: "Behavioral", text: "Tell me about yourself." };
+const STAPLE_QUESTION = { category: "Behavioural", text: "Tell me about yourself." };
+
+// "Behavioral" was the category's original (American) spelling; anything
+// already saved under it gets silently relabelled on next load rather than
+// left stranded out of the renamed "Behavioural" tab/filter.
+function migrateBehaviouralSpelling(records) {
+  let changed = false;
+  const migrated = records.map((record) => {
+    if (record.category !== "Behavioral") return record;
+    changed = true;
+    return { ...record, category: "Behavioural" };
+  });
+  return { migrated, changed };
+}
 
 let storePromise = null;
 
@@ -17,7 +30,14 @@ function getStore() {
 export async function getQuestions() {
   const store = await getStore();
   const existing = await store.get("questions");
-  if (existing) return existing;
+  if (existing) {
+    const { migrated, changed } = migrateBehaviouralSpelling(existing);
+    if (changed) {
+      await store.set("questions", migrated);
+      await store.save();
+    }
+    return migrated;
+  }
 
   const seeded = [
     {
@@ -41,7 +61,14 @@ export async function saveQuestions(questions) {
 export async function getAttempts() {
   const store = await getStore();
   const attempts = await store.get("attempts");
-  return attempts ?? [];
+  if (!attempts) return [];
+
+  const { migrated, changed } = migrateBehaviouralSpelling(attempts);
+  if (changed) {
+    await store.set("attempts", migrated);
+    await store.save();
+  }
+  return migrated;
 }
 
 export async function saveAttempts(attempts) {
