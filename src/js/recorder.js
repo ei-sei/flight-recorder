@@ -8,6 +8,7 @@ import {
   watermarkDateStamp,
 } from "./util.js";
 import { getWpmEnabled, setWpmEnabled, getRecordingSettings, saveRecordingSettings } from "./store.js";
+import { resolveVideoPath } from "./attempts.js";
 
 const previewEl = document.getElementById("preview");
 const viewfinderMetaEl = document.getElementById("viewfinder-meta");
@@ -654,7 +655,7 @@ export async function enterReviewMode(attempt, attemptNumber) {
   // into memory as a Blob first (the previous approach) - for a long
   // recording that upfront full-file read across the IPC boundary was
   // exactly why review playback took a noticeable moment to start.
-  previewEl.src = convertFileSrc(attempt.videoPath);
+  previewEl.src = convertFileSrc(await resolveVideoPath(attempt.videoRelativePath));
   previewEl.muted = false;
   previewEl.controls = true;
   previewEl.play().catch(() => {});
