@@ -49,11 +49,14 @@ jobs:
           # body=@notes.md reads the field value from the file, rather than
           # interpolating commit messages into the shell command - avoids
           # any risk of a commit subject containing shell-meaningful
-          # characters breaking or injecting into this command.
+          # characters breaking or injecting into this command. The @path
+          # file-read syntax is only honoured by -F (typed field), not -f
+          # (raw string) - using -f here sent the literal string "@notes.md"
+          # instead of the file's contents.
           RESPONSE=$(gh api "repos/${GITHUB_REPOSITORY}/releases" \
             -f "tag_name=${GITHUB_REF_NAME}" \
             -f "name=Flight recorder v${VERSION}" \
-            -f "body=@notes.md" \
+            -F "body=@notes.md" \
             -F draft=true \
             -F prerelease=false)
           echo "id=$(echo "$RESPONSE" | jq -r .id)" >> "$GITHUB_OUTPUT"
