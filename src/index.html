@@ -146,6 +146,7 @@
               </svg>
               <span class="menu-switch" id="camera-toggle-switch"><span class="menu-switch-thumb"></span></span>
             </button>
+            <canvas class="voice-waveform" id="voice-waveform"></canvas>
           </div>
 
           <div class="current-question" id="current-question">Select a question to begin.</div>
@@ -155,12 +156,9 @@
             <button class="btn btn-teal" id="back-to-live-btn" hidden>Back to live</button>
           </div>
 
-          <div class="live-readouts" id="live-readouts" hidden>
-            <canvas class="voice-waveform" id="voice-waveform"></canvas>
-            <div class="live-readouts-text mono">
-              <span class="readout" id="readout-delay">delay —</span>
-              <span class="readout" id="readout-wpm" hidden>wpm —</span>
-            </div>
+          <div class="live-readouts mono" id="live-readouts" hidden>
+            <span class="readout" id="readout-delay">delay —</span>
+            <span class="readout" id="readout-wpm" hidden>wpm —</span>
           </div>
 
           <div class="review-stats mono" id="review-stats-row" hidden></div>
