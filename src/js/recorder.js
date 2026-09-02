@@ -5,11 +5,9 @@ import {
   autosizeTextarea,
   formatResponseDelay,
   formatWpm,
-  formatConfidence,
   watermarkDateStamp,
 } from "./util.js";
 import { getWpmEnabled, setWpmEnabled, getRecordingSettings, saveRecordingSettings } from "./store.js";
-import { showInfoTip } from "./infotip.js";
 
 const previewEl = document.getElementById("preview");
 const viewfinderMetaEl = document.getElementById("viewfinder-meta");
@@ -46,7 +44,7 @@ const wpmToggleRow = document.getElementById("wpm-toggle-row");
 const wpmToggleInput = document.getElementById("wpm-toggle-input");
 const wpmToggleHint = document.getElementById("wpm-toggle-hint");
 
-const { readFile } = window.__TAURI__.fs;
+const { convertFileSrc } = window.__TAURI__.core;
 
 const SPEECH_RMS_THRESHOLD = 0.02;
 const SPEECH_SUSTAIN_MS = 150;
@@ -73,11 +71,8 @@ let wpmEnabled = false;
 let speechRecognizer = null;
 let transcript = "";
 let wpm = null;
-let finalResultConfidences = [];
-let speechConfidence = null;
 
 let isReviewing = false;
-let reviewObjectUrl = null;
 let onExitReview = () => {};
 let onNotesChange = () => {};
 let onScoreChange = () => {};
@@ -239,26 +234,68 @@ function updateTimer() {
 // the wave actually visibly reacts to a normal speaking voice, clamping so
 // louder moments don't just draw off the edge of the canvas.
 const WAVEFORM_GAIN = 5;
+// Downsampled to a handful of points, not one per raw sample (2048 of
+// them) - fewer points drawn as a smoothed curve reads as a soft, "cute"
+// wave rather than a jagged oscilloscope trace of the literal signal.
+const WAVEFORM_POINTS = 28;
 
-function drawWaveform() {
+function sizeWaveformCanvas() {
+  // Backing size is set explicitly (rather than relying on CSS size) so the
+  // line draws crisply instead of being stretched.
+  const dpr = window.devicePixelRatio || 1;
+  waveformCanvasEl.width = waveformCanvasEl.clientWidth * dpr;
+  waveformCanvasEl.height = waveformCanvasEl.clientHeight * dpr;
+}
+
+function strokeWaveformPoints(points) {
   const { width, height } = waveformCanvasEl;
   waveformCtx.clearRect(0, 0, width, height);
   waveformCtx.beginPath();
-  const sliceWidth = width / volumeData.length;
-  let x = 0;
-  for (let i = 0; i < volumeData.length; i++) {
-    const amplified = Math.max(-1, Math.min(1, volumeData[i] * WAVEFORM_GAIN));
-    const y = (0.5 + amplified * 0.5) * height;
-    if (i === 0) {
-      waveformCtx.moveTo(x, y);
-    } else {
-      waveformCtx.lineTo(x, y);
-    }
-    x += sliceWidth;
+  waveformCtx.moveTo(points[0].x, points[0].y);
+  // Quadratic-curve through the midpoint of each pair of points, rather
+  // than straight lineTo segments between them - that's what actually
+  // softens the line into a smooth curve instead of a jagged zig-zag.
+  for (let i = 0; i < points.length - 1; i++) {
+    const midX = (points[i].x + points[i + 1].x) / 2;
+    const midY = (points[i].y + points[i + 1].y) / 2;
+    waveformCtx.quadraticCurveTo(points[i].x, points[i].y, midX, midY);
   }
+  const last = points[points.length - 1];
+  waveformCtx.quadraticCurveTo(last.x, last.y, last.x, last.y);
+
   waveformCtx.strokeStyle = waveformStrokeStyle;
-  waveformCtx.lineWidth = 1.5;
+  waveformCtx.lineWidth = 2;
+  waveformCtx.lineJoin = "round";
+  waveformCtx.lineCap = "round";
   waveformCtx.stroke();
+}
+
+function drawIdleWaveform() {
+  const { width, height } = waveformCanvasEl;
+  const points = [];
+  for (let i = 0; i < WAVEFORM_POINTS; i++) {
+    points.push({ x: (i / (WAVEFORM_POINTS - 1)) * width, y: height / 2 });
+  }
+  strokeWaveformPoints(points);
+}
+
+function drawWaveform() {
+  const { width, height } = waveformCanvasEl;
+  const bucketSize = Math.floor(volumeData.length / WAVEFORM_POINTS) || 1;
+  const points = [];
+  for (let i = 0; i < WAVEFORM_POINTS; i++) {
+    // Peak-per-bucket, keeping its sign - preserves the wave's up/down
+    // shape instead of collapsing to a one-sided envelope.
+    let peak = 0;
+    const start = i * bucketSize;
+    const end = Math.min(start + bucketSize, volumeData.length);
+    for (let j = start; j < end; j++) {
+      if (Math.abs(volumeData[j]) > Math.abs(peak)) peak = volumeData[j];
+    }
+    const amplified = Math.max(-1, Math.min(1, peak * WAVEFORM_GAIN));
+    points.push({ x: (i / (WAVEFORM_POINTS - 1)) * width, y: (0.5 + amplified * 0.5) * height });
+  }
+  strokeWaveformPoints(points);
 }
 
 function pollVolume() {
@@ -293,12 +330,7 @@ function startResponseDelayDetection() {
   speechAboveThresholdSinceTs = null;
   readoutDelayEl.textContent = "delay —";
 
-  // Canvas backing size is set explicitly (rather than relying on its CSS
-  // size) so the waveform draws crisply instead of being stretched - read
-  // once here rather than every animation frame.
-  const dpr = window.devicePixelRatio || 1;
-  waveformCanvasEl.width = waveformCanvasEl.clientWidth * dpr;
-  waveformCanvasEl.height = waveformCanvasEl.clientHeight * dpr;
+  sizeWaveformCanvas();
   waveformStrokeStyle = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#4c7cf6";
 
   audioCtx = new AudioContext();
@@ -320,6 +352,7 @@ function stopResponseDelayDetection() {
     audioCtx.close();
     audioCtx = null;
   }
+  drawIdleWaveform();
 }
 
 function countWords(text) {
@@ -330,8 +363,6 @@ function countWords(text) {
 function startSpeechPaceTracking() {
   transcript = "";
   wpm = null;
-  finalResultConfidences = [];
-  speechConfidence = null;
   readoutWpmEl.hidden = false;
   readoutWpmEl.textContent = "wpm —";
 
@@ -343,14 +374,7 @@ function startSpeechPaceTracking() {
   speechRecognizer.onresult = (event) => {
     let combined = "";
     for (let i = 0; i < event.results.length; i++) {
-      const result = event.results[i];
-      combined += result[0].transcript + " ";
-      // Confidence is only meaningful once a result is finalised - interim
-      // results report 0. Indices don't change once final, so overwriting
-      // by index each event naturally de-dupes without double-counting.
-      if (result.isFinal) {
-        finalResultConfidences[i] = result[0].confidence;
-      }
+      combined += event.results[i][0].transcript + " ";
     }
     transcript = combined.trim();
 
@@ -375,9 +399,6 @@ function stopSpeechPaceTracking() {
     speechRecognizer = null;
   }
   readoutWpmEl.hidden = true;
-
-  const confidences = finalResultConfidences.filter((c) => typeof c === "number");
-  speechConfidence = confidences.length ? confidences.reduce((sum, c) => sum + c, 0) / confidences.length : null;
 }
 
 // Safari/WKWebView's MediaRecorder has historically only supported
@@ -541,7 +562,6 @@ async function handleStop() {
       responseDelayMs,
       wpm: wpmEnabled ? wpm : null,
       transcript: wpmEnabled ? transcript : null,
-      speechConfidence: wpmEnabled ? speechConfidence : null,
     });
   }
 }
@@ -569,14 +589,12 @@ function renderReviewStars(attemptId, score) {
 export async function enterReviewMode(attempt, attemptNumber) {
   if (mediaRecorder && mediaRecorder.state === "recording") return;
 
-  if (reviewObjectUrl) {
-    URL.revokeObjectURL(reviewObjectUrl);
-    reviewObjectUrl = null;
-  }
-
-  const bytes = await readFile(attempt.videoPath);
-  const mimeType = attempt.videoPath.toLowerCase().endsWith(".mp4") ? "video/mp4" : "video/webm";
-  reviewObjectUrl = URL.createObjectURL(new Blob([bytes], { type: mimeType }));
+  // convertFileSrc lets the webview stream the file directly off disk
+  // through Tauri's asset protocol, rather than reading the whole video
+  // into memory as a Blob first (the previous approach) - for a long
+  // recording that upfront full-file read across the IPC boundary was
+  // exactly why review playback took a noticeable moment to start.
+  previewEl.src = convertFileSrc(attempt.videoPath);
 
   const wasAlreadyReviewing = isReviewing;
   isReviewing = true;
@@ -602,7 +620,6 @@ export async function enterReviewMode(attempt, attemptNumber) {
   cameraEnabled = false;
 
   previewEl.srcObject = null;
-  previewEl.src = reviewObjectUrl;
   previewEl.muted = false;
   previewEl.controls = true;
   previewEl.play().catch(() => {});
@@ -620,30 +637,9 @@ export async function enterReviewMode(attempt, attemptNumber) {
   renderReviewStars(attempt.id, attempt.score);
   viewfinderMetaEl.hidden = false;
 
-  reviewStatsRow.innerHTML = "";
-  const delayLabel = formatResponseDelay(attempt.responseDelayMs);
-  const wpmLabel = formatWpm(attempt.wpm);
-  const confidenceLabel = formatConfidence(attempt.speechConfidence);
-  const statsParts = [];
-  if (delayLabel) statsParts.push({ text: delayLabel });
-  if (wpmLabel) statsParts.push({ text: wpmLabel });
-  if (confidenceLabel) {
-    statsParts.push({
-      text: confidenceLabel,
-      hint: "How confident the recogniser was in what it heard - not a validated clarity score.",
-    });
-  }
-  statsParts.forEach((part, index) => {
-    if (index > 0) reviewStatsRow.appendChild(document.createTextNode(" · "));
-    const span = document.createElement("span");
-    span.textContent = part.text;
-    if (part.hint) {
-      span.classList.add("stat-hint");
-      span.addEventListener("click", () => showInfoTip(span, part.hint));
-    }
-    reviewStatsRow.appendChild(span);
-  });
-  reviewStatsRow.hidden = statsParts.length === 0;
+  const statsLine = [formatResponseDelay(attempt.responseDelayMs), formatWpm(attempt.wpm)].filter(Boolean).join(" · ");
+  reviewStatsRow.textContent = statsLine;
+  reviewStatsRow.hidden = !statsLine;
 
   reviewTranscriptRow.hidden = false;
   if (attempt.transcript) {
@@ -676,11 +672,6 @@ export function exitReviewMode() {
   previewEl.load();
   previewEl.muted = true;
   previewEl.srcObject = stream;
-
-  if (reviewObjectUrl) {
-    URL.revokeObjectURL(reviewObjectUrl);
-    reviewObjectUrl = null;
-  }
 
   viewfinderEmptyEl.hidden = Boolean(stream);
   viewfinderEl.classList.remove("reviewing");
@@ -755,10 +746,14 @@ function updateViewfinderSize() {
     viewfinderEl.style.height = `${finalWidth / VIEWFINDER_ASPECT}px`;
   }
 
-  // Keep the review-mode info bar the same width as the player itself,
-  // instead of an arbitrary CSS cap that left mismatched whitespace on
-  // both sides whenever the player was wider than that guess.
+  // Keep the review-mode info bar, and the camera toggle/waveform row,
+  // the same width as the player itself - otherwise they stretch to the
+  // panel's full width (via .recorder-panel's flex stretch) and drift away
+  // from the video's actual left edge whenever the panel is wider than the
+  // aspect-ratio-locked, centered video (e.g. with both side panels
+  // retracted).
   viewfinderMetaEl.style.width = `${finalWidth}px`;
+  cameraToggleRowEl.style.width = `${finalWidth}px`;
 }
 
 function initViewfinderSizing() {
@@ -800,5 +795,12 @@ export async function initRecorder(options = {}) {
   cameraToggleBtn.addEventListener("click", toggleCamera);
   updateCameraToggleUI();
   initViewfinderSizing();
+  sizeWaveformCanvas();
+  waveformStrokeStyle = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || waveformStrokeStyle;
+  drawIdleWaveform();
+  new ResizeObserver(() => {
+    sizeWaveformCanvas();
+    if (!mediaRecorder || mediaRecorder.state !== "recording") drawIdleWaveform();
+  }).observe(waveformCanvasEl);
   await initWpmToggle();
 }
