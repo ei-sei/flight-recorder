@@ -42,6 +42,9 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+          # A clippy or fmt failure shouldn't throw away a full dependency
+          # build - the next push would otherwise start cold.
+          cache-on-failure: true
 
       - name: cargo fmt --check
         run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
@@ -77,6 +80,7 @@ jobs:
         with:
           workspaces: src-tauri
           key: windows
+          cache-on-failure: true
 
       - name: cargo build
         run: cargo build --manifest-path src-tauri/Cargo.toml

@@ -128,6 +128,13 @@ jobs:
           # Each matrix leg is a different OS/target, so they'd otherwise
           # collide on (or uselessly share) the same cache key.
           key: ${{ matrix.platform }}-${{ matrix.args }}
+          # Saves the cache even when the build fails. GitHub scopes cache
+          # reads to the current ref, so a tag's cache is only ever readable
+          # by another run on that same tag - which is exactly what a retry
+          # is. Without this a failed release leg saves nothing and the retry
+          # recompiles whisper.cpp from scratch, which is how the two failed
+          # macOS releases each cost a full cold build to diagnose.
+          cache-on-failure: true
 
       - uses: actions/setup-node@v7
         with:
@@ -157,3 +164,36 @@ jobs:
           # Intel assets, and latest.json, to a later job's stale overwrite).
           releaseId: ${{ needs.create-release.outputs.release_id }}
           args: ${{ matrix.args }}
+
+  # A tag's caches are worth ~2GB and are readable by exactly one thing: a
+  # re-run of that same tag. Once every leg has passed there's nothing left
+  # to retry, so they become dead weight competing for the repo's 10GB cache
+  # budget - and the thing they evict is main's CI caches, which are used on
+  # every single push. Four releases' worth had accumulated to 5.7GB before
+  # this existed.
+  #
+  # Only runs when the whole matrix succeeded. A failed release keeps its
+  # caches precisely so the retry is fast (see cache-on-failure above).
+  cleanup-caches:
+    needs: release
+    if: success()
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: delete this tag's build caches
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ids=$(gh api "/repos/$GITHUB_REPOSITORY/actions/caches?ref=$GITHUB_REF&per_page=100" \
+            --jq '.actions_caches[].id')
+          if [ -z "$ids" ]; then
+            echo "No caches scoped to $GITHUB_REF."
+            exit 0
+          fi
+          for id in $ids; do
+            echo "Deleting cache $id"
+            gh api --method DELETE "/repos/$GITHUB_REPOSITORY/actions/caches/$id"
+          done
+          gh api "/repos/$GITHUB_REPOSITORY/actions/cache/usage" \
+            --jq '"Remaining: \(.active_caches_size_in_bytes/1048576 | floor)MB across \(.active_caches_count) caches"'
