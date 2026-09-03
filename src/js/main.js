@@ -171,7 +171,9 @@ let resetPanelWidths = () => {};
 
 async function resetView() {
   resetPanelWidths();
-  setSidebarVisible(true);
+  // Sidebar starts collapsed - a clean, recording-focused default. The rail
+  // (kept visible) is what lets you bring it back with one click.
+  setSidebarVisible(false);
   setLogPanelVisible(true);
   setRailVisible(true);
 
