@@ -1,5 +1,5 @@
-# whisper.cpp/ggml (pulled in via whisper-rs, macOS/Linux only - see
-# Cargo.toml) needs libc++ and the Accelerate framework linked on macOS.
+# whisper.cpp/ggml (pulled in via whisper-rs, every platform - see Cargo.toml)
+# needs libc++ and the Accelerate framework linked on macOS specifically.
 [target.x86_64-apple-darwin]
 rustflags = ["-lc++", "-lframework=Accelerate"]
 

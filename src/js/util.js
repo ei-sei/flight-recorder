@@ -106,7 +106,13 @@ const FILLER_PHRASES = [
   "uh",
   "er",
   "ah",
-  "like",
+  // Bare "like" was on this list and is deliberately off it now. It is an
+  // ordinary verb and an ordinary preposition ("I like working in teams",
+  // "something like that"), so every one of those counted as a filler and
+  // inflated the total on answers containing none. Nothing replaces it:
+  // separating filler "like" from ordinary "like" needs the grammar around
+  // it, which this cannot see, and over-counting is worse than missing it -
+  // the number is shown bare, with nothing to signal it might be wrong.
 ];
 
 export function countFillers(text) {

@@ -1176,9 +1176,12 @@ export function exitReviewMode() {
   previewEl.removeAttribute("src");
   previewEl.load();
   previewEl.muted = true;
-  previewEl.srcObject = stream;
 
-  viewfinderEmptyEl.hidden = Boolean(stream);
+  // The camera is always off at this point - enterReviewMode stopped it and
+  // nothing restores it until the enableCamera() call at the end of this
+  // function. There used to be a `previewEl.srcObject = stream` here, which
+  // only ever assigned null.
+  viewfinderEmptyEl.hidden = false;
   viewfinderEl.classList.remove("reviewing");
   reviewIndicatorEl.hidden = true;
   recIndicatorEl.hidden = false;
@@ -1506,14 +1509,15 @@ async function initWpmToggle() {
         // separate close step first.
         await showAlert({ title: "Download failed", message: String(err?.message ?? err) });
         wpmToggleInput.checked = false;
+        return;
+      } finally {
+        // Both branches used to repeat these three lines, and neither ran if
+        // setWhisperModelDownloaded threw - which left a progress listener
+        // attached for the rest of the session and the toggle stuck disabled.
+        unlisten();
         wpmToggleInput.disabled = false;
         wpmToggleHint.textContent = WHISPER_WPM_HINT;
-        unlisten();
-        return;
       }
-      unlisten();
-      wpmToggleInput.disabled = false;
-      wpmToggleHint.textContent = WHISPER_WPM_HINT;
     }
     wpmEnabled = wpmToggleInput.checked;
     setWpmEnabled(wpmEnabled);
