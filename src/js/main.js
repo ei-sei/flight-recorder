@@ -321,12 +321,27 @@ async function openSettingsModal() {
   overlay.hidden = false;
 }
 
+// The three ways every overlay in this app closes: its own close button, a
+// click on the backdrop but not the box, and Escape. Settings and About each
+// spelled this out separately, and modal.js has its own variant because it has
+// to resolve a promise as well.
+function wireOverlayDismiss(overlay, closeBtn) {
+  const close = () => {
+    overlay.hidden = true;
+  };
+  closeBtn.addEventListener("click", close);
+  overlay.addEventListener("mousedown", (event) => {
+    if (event.target === overlay) close();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !overlay.hidden) close();
+  });
+}
+
 function initSettingsModal() {
-  const overlay = document.getElementById("settings-overlay");
   const cameraSelect = document.getElementById("settings-camera");
   const micSelect = document.getElementById("settings-mic");
   const qualitySelect = document.getElementById("settings-quality");
-  const closeBtn = document.getElementById("settings-close");
 
   async function applyDeviceChange() {
     await applyRecordingSettings({
@@ -340,21 +355,15 @@ function initSettingsModal() {
   micSelect.addEventListener("change", applyDeviceChange);
   qualitySelect.addEventListener("change", applyDeviceChange);
 
-  closeBtn.addEventListener("click", () => {
-    overlay.hidden = true;
-  });
-  overlay.addEventListener("mousedown", (event) => {
-    if (event.target === overlay) overlay.hidden = true;
-  });
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && !overlay.hidden) overlay.hidden = true;
-  });
+  wireOverlayDismiss(
+    document.getElementById("settings-overlay"),
+    document.getElementById("settings-close"),
+  );
 }
 
 async function showUpdatesInfo() {
   const { getVersion } = window.__TAURI__.app;
   const { check } = window.__TAURI__.updater;
-  const { relaunch } = window.__TAURI__.process;
   const version = await getVersion();
 
   let update;
@@ -384,6 +393,12 @@ async function showUpdatesInfo() {
   });
   if (!shouldInstall) return;
 
+  await installUpdate(update);
+}
+
+// Both entry points to installing an update - the Help menu and the bell
+// popover - want the same thing: install, restart, and say so if it fails.
+async function installUpdate(update) {
   try {
     await update.downloadAndInstall();
   } catch (err) {
@@ -391,7 +406,7 @@ async function showUpdatesInfo() {
     await showAlert({ title: "Update failed", message: String(err?.message ?? err) });
     return;
   }
-  await relaunch();
+  await window.__TAURI__.process.relaunch();
 }
 
 let pendingUpdate = null;
@@ -437,14 +452,7 @@ function renderNotifPopoverBody() {
   installBtn.textContent = "Download and install";
   installBtn.addEventListener("click", async () => {
     document.getElementById("notif-popover").hidden = true;
-    try {
-      await pendingUpdate.downloadAndInstall();
-    } catch (err) {
-      console.error("Update install failed", err);
-      await showAlert({ title: "Update failed", message: String(err?.message ?? err) });
-      return;
-    }
-    await window.__TAURI__.process.relaunch();
+    await installUpdate(pendingUpdate);
   });
 
   item.appendChild(title);
@@ -536,13 +544,8 @@ async function openAboutModal() {
 }
 
 function initAboutModal() {
-  const overlay = document.getElementById("about-overlay");
-  const closeBtn = document.getElementById("about-close");
   const copyBtn = document.getElementById("about-copy");
 
-  closeBtn.addEventListener("click", () => {
-    overlay.hidden = true;
-  });
   copyBtn.addEventListener("click", async () => {
     const fields = await getAboutFields();
     const text = Object.entries(fields)
@@ -554,12 +557,11 @@ function initAboutModal() {
       console.error("Failed to copy about info", err);
     }
   });
-  overlay.addEventListener("mousedown", (event) => {
-    if (event.target === overlay) overlay.hidden = true;
-  });
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && !overlay.hidden) overlay.hidden = true;
-  });
+
+  wireOverlayDismiss(
+    document.getElementById("about-overlay"),
+    document.getElementById("about-close"),
+  );
 }
 
 let activeMenuButton = null;
