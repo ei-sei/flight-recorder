@@ -85,11 +85,11 @@ export function formatSpeakingRatio(ratio) {
 // longest-first so "you know" is matched before "know" would be, and so the
 // multi-word phrases can't be double-counted by their parts.
 //
-// Worth knowing: speech recognition often strips these out. Google's engine
-// drops "um" and "uh" almost entirely, and Whisper keeps them inconsistently.
-// A zero here means "none survived transcription", not necessarily "none
-// said" - which is why the pause figures, measured straight off the mic, are
-// the more trustworthy signal.
+// Worth knowing: Whisper keeps fillers far better than a browser speech API
+// does, but still inconsistently - it's transcribing for readability, not
+// for stenographic accuracy. A zero here means "none survived
+// transcription", not necessarily "none said", which is why the pause
+// figures, measured straight off the mic, are the more trustworthy signal.
 const FILLER_PHRASES = [
   "you know",
   "i mean",

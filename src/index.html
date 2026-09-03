@@ -156,7 +156,6 @@
             <button class="btn btn-teal" id="back-to-live-btn" hidden>Back to live</button>
             <div class="live-readouts mono" id="live-readouts" hidden>
               <span class="readout" id="readout-delay">delay —</span>
-              <span class="readout" id="readout-wpm" hidden>wpm —</span>
             </div>
             <div class="review-stats mono" id="review-stats-row" hidden></div>
           </div>
@@ -227,9 +226,7 @@
 
       <footer class="footer-note">
         <span class="footer-note-text">
-          Video and attempt data stay on this device. Speech pace (WPM) is the one exception - when turned on, it
-          either sends audio to an online speech service or transcribes it locally, depending on your platform
-          (see Settings).
+          Everything stays on this device. Video, notes and transcripts are never uploaded.
         </span>
         <button type="button" class="bell-btn" id="bell-btn" title="Check for updates" aria-label="Check for updates">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -306,8 +303,8 @@
           <div class="toggle-copy">
             <span class="toggle-label">Speech pace (WPM)</span>
             <span class="toggle-hint" id="wpm-toggle-hint">
-              Off by default. When on, live audio is sent to Google's speech recognition to measure words per minute
-              and save a transcript you can review afterward.
+              Off by default. When on, your recording is transcribed on this device after you stop it, to measure
+              words per minute and save a transcript you can review afterward.
             </span>
           </div>
         </div>
@@ -332,9 +329,9 @@
           <h3 class="modal-title">Flight recorder</h3>
         </div>
         <p class="about-description">
-          A local practice tool for interview questions on webcam. Video and attempt data stay on this device,
-          except for the opt-in speech-pace (WPM) feature, which either sends audio to an online speech service
-          or transcribes it locally depending on your platform - see Settings for details.
+          A local practice tool for interview questions on webcam. Everything runs on this device - video, notes
+          and speech transcription alike. Nothing is uploaded. The only time it touches the network is the
+          one-off speech model download, if you turn speech pace (WPM) on, and app update checks.
         </p>
         <dl class="about-list" id="about-list"></dl>
         <div class="modal-actions">

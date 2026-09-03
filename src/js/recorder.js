@@ -12,7 +12,6 @@ import {
   countFillers,
   watermarkDateStamp,
   enableTabIndent,
-  countWords,
 } from "./util.js";
 import {
   getWpmEnabled,
@@ -65,7 +64,6 @@ const liveReadoutsEl = document.getElementById("live-readouts");
 const waveformCanvasEl = document.getElementById("voice-waveform");
 const waveformCtx = waveformCanvasEl.getContext("2d");
 const readoutDelayEl = document.getElementById("readout-delay");
-const readoutWpmEl = document.getElementById("readout-wpm");
 const wpmToggleInput = document.getElementById("wpm-toggle-input");
 const wpmToggleHint = document.getElementById("wpm-toggle-hint");
 
@@ -86,7 +84,6 @@ const PAUSE_MIN_MS = 1200;
 // How long the level has to stay down before a run of speech is considered
 // over. Covers the dips between syllables and words.
 const SILENCE_HOLD_MS = 400;
-const SpeechRecognitionImpl = window.SpeechRecognition || window.webkitSpeechRecognition;
 
 let stream = null;
 let mediaRecorder = null;
@@ -116,11 +113,8 @@ let longestPauseMs = 0;
 let waveformStrokeStyle = "#4c7cf6";
 
 let wpmEnabled = false;
-let speechRecognizer = null;
-let transcript = "";
 let prepNotesCollapsed = false;
 let prepNotesHeight = 0;
-let wpm = null;
 
 let isReviewing = false;
 let onExitReview = () => {};
@@ -550,71 +544,6 @@ function resetResponseDelayTracking() {
   resetSpeechAnalysis();
 }
 
-function startSpeechPaceTracking() {
-  transcript = "";
-  wpm = null;
-  readoutWpmEl.hidden = false;
-  readoutWpmEl.textContent = "wpm —";
-
-  speechRecognizer = new SpeechRecognitionImpl();
-  speechRecognizer.continuous = true;
-  speechRecognizer.interimResults = true;
-  speechRecognizer.lang = "en-US";
-
-  speechRecognizer.onresult = (event) => {
-    let combined = "";
-    for (let i = 0; i < event.results.length; i++) {
-      combined += event.results[i][0].transcript + " ";
-    }
-    transcript = combined.trim();
-
-    const elapsedMinutes = (Date.now() - recordStartTs) / 60000;
-    if (elapsedMinutes > 0) {
-      wpm = countWords(transcript) / elapsedMinutes;
-      readoutWpmEl.textContent = `${Math.round(wpm)} wpm`;
-    }
-  };
-  speechRecognizer.onerror = (event) => {
-    console.error("Speech recognition error", event.error);
-  };
-
-  speechRecognizer.start();
-}
-
-// Calling .stop() doesn't end things instantly - the engine typically still
-// fires one more "result" a moment later, finalizing whatever was just
-// said. Returning a promise that resolves on "end" (rather than nulling
-// onresult and reading the transcript immediately) gives that last result
-// a chance to land instead of silently dropping the last few words.
-function stopSpeechPaceTracking() {
-  readoutWpmEl.hidden = true;
-  if (!speechRecognizer) return Promise.resolve();
-
-  const recognizer = speechRecognizer;
-  speechRecognizer = null;
-
-  return new Promise((resolve) => {
-    let settled = false;
-    const finish = () => {
-      if (settled) return;
-      settled = true;
-      recognizer.onresult = null;
-      recognizer.onerror = null;
-      recognizer.onend = null;
-      resolve();
-    };
-    recognizer.onend = finish;
-    recognizer.onerror = (event) => {
-      console.error("Speech recognition error", event.error);
-      finish();
-    };
-    // onend should follow stop() quickly - this just guards against a
-    // recording getting stuck waiting to save if it never fires.
-    setTimeout(finish, 1500);
-    recognizer.stop();
-  });
-}
-
 // MP4/H.264/AAC first, on every platform. It's the only combination all
 // three target webviews can *play*, and the library folder is meant to be
 // portable - a WebM recorded on Windows won't open after the folder is
@@ -822,10 +751,6 @@ function startRecording() {
   updatePrepNotesVisibility();
   resetResponseDelayTracking();
   updateCameraToggleUI();
-
-  if (wpmEnabled && SpeechRecognitionImpl) {
-    startSpeechPaceTracking();
-  }
 }
 
 function stopRecording() {
@@ -837,9 +762,6 @@ function stopRecording() {
 async function handleStop() {
   clearInterval(timerInterval);
   stopWatermarkCompositing();
-  if (wpmEnabled && SpeechRecognitionImpl) {
-    await stopSpeechPaceTracking();
-  }
   recDotEl.hidden = true;
   recLabelEl.hidden = true;
   liveReadoutsEl.hidden = true;
@@ -868,12 +790,12 @@ async function handleStop() {
       // Voiced time over total time. Measured from mic level, so it works on
       // every platform - unlike anything derived from a transcript.
       speakingRatio: durationMs > 0 ? Math.min(1, speakingMs / durationMs) : null,
-      wpm: wpmEnabled ? wpm : null,
-      transcript: wpmEnabled ? transcript : null,
-      // On platforms without a browser SpeechRecognition engine, wpm/
-      // transcript above are always null - this tells saveAttempt() to kick
-      // off local (Whisper) transcription in the background instead.
-      needsWhisperTranscription: wpmEnabled && !SpeechRecognitionImpl,
+      // Always null at this point - transcription happens after the file is
+      // written, not during the recording. saveAttempt() kicks it off in the
+      // background and patches the attempt when it lands.
+      wpm: null,
+      transcript: null,
+      needsWhisperTranscription: wpmEnabled,
     });
   }
 }
@@ -993,14 +915,22 @@ export async function enterReviewMode(attempt, attemptNumber) {
   } else {
     reviewTranscriptText.hidden = true;
     reviewTranscriptEmpty.hidden = false;
-    // transcript is "" when WPM was on but nothing was heard, vs. null/
-    // undefined when WPM was off for this attempt entirely - those need
-    // different messages, since "turn on WPM" is wrong advice for the first.
-    const wpmWasOn = attempt.transcript === "";
-    reviewTranscriptEmptyText.textContent = wpmWasOn
-      ? "No speech detected in this recording."
-      : "No transcript for this attempt. Turn on Speech pace (WPM) to capture one for your next recording.";
-    reviewTranscriptSettingsBtn.hidden = wpmWasOn;
+    // Three different reasons there's no transcript, and only one of them is
+    // fixed by opening Settings. Transcription is still running (wait), it
+    // ran and heard nothing (nothing to do), or WPM was off for this attempt
+    // (turn it on) - telling someone to enable a setting that's already on,
+    // or that's mid-download, is the wrong advice twice over.
+    if (attempt.transcribing) {
+      reviewTranscriptEmptyText.textContent = "Transcribing this recording… it'll appear here in a moment.";
+      reviewTranscriptSettingsBtn.hidden = true;
+    } else if (attempt.transcript === "") {
+      reviewTranscriptEmptyText.textContent = "No speech detected in this recording.";
+      reviewTranscriptSettingsBtn.hidden = true;
+    } else {
+      reviewTranscriptEmptyText.textContent =
+        "No transcript for this attempt. Turn on Speech pace (WPM) to capture one for your next recording.";
+      reviewTranscriptSettingsBtn.hidden = false;
+    }
   }
 
   reviewNotesRow.hidden = false;
@@ -1224,19 +1154,6 @@ const WHISPER_WPM_HINT =
   "Off by default. When on, your recording is transcribed on this device after you stop it, to measure words per minute and save a transcript you can review afterward.";
 
 async function initWpmToggle() {
-  if (SpeechRecognitionImpl) {
-    wpmEnabled = await getWpmEnabled();
-    wpmToggleInput.checked = wpmEnabled;
-
-    wpmToggleInput.addEventListener("change", () => {
-      wpmEnabled = wpmToggleInput.checked;
-      setWpmEnabled(wpmEnabled);
-    });
-    return;
-  }
-
-  // No browser speech engine on this platform (Mac/Linux) - local Whisper
-  // transcription takes over instead of just disabling the feature.
   wpmToggleHint.textContent = WHISPER_WPM_HINT;
   wpmEnabled = await getWpmEnabled();
   wpmToggleInput.checked = wpmEnabled;

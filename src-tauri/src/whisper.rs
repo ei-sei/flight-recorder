@@ -5,7 +5,6 @@ const MODEL_URL: &str =
     "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en-q5_1.bin";
 const WHISPER_SAMPLE_RATE: u32 = 16_000;
 
-#[cfg(not(target_os = "windows"))]
 mod backend {
     use super::{MODEL_FILENAME, MODEL_URL, WHISPER_SAMPLE_RATE};
     use rubato::{
@@ -44,9 +43,9 @@ mod backend {
     }
 
     // Demuxes/decodes the audio track of a recorded video file (MP4/AAC is
-    // the real case on macOS/Linux webviews; WebM/Opus is a defensive
-    // fallback - see getSupportedRecordingFormat() in recorder.js), downmixes
-    // to mono, and resamples to the 16kHz mono f32 PCM whisper.cpp expects.
+    // the real case everywhere now; WebM/Opus is a defensive fallback - see
+    // RECORDING_FORMAT_CANDIDATES in recorder.js), downmixes to mono, and
+    // resamples to the 16kHz mono f32 PCM whisper.cpp expects.
     pub fn decode_audio_to_pcm16k(video_path: &str) -> Result<Vec<f32>, String> {
         let file = std::fs::File::open(video_path).map_err(|e| e.to_string())?;
         let mss = MediaSourceStream::new(Box::new(file), Default::default());
@@ -173,7 +172,6 @@ mod backend {
     }
 }
 
-#[cfg(not(target_os = "windows"))]
 #[tauri::command]
 pub async fn download_whisper_model(app: AppHandle) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || backend::ensure_model_downloaded(&app))
@@ -182,7 +180,6 @@ pub async fn download_whisper_model(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-#[cfg(not(target_os = "windows"))]
 #[tauri::command]
 pub async fn transcribe_recording(app: AppHandle, video_path: String) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || {
@@ -192,16 +189,4 @@ pub async fn transcribe_recording(app: AppHandle, video_path: String) -> Result<
     })
     .await
     .map_err(|e| e.to_string())?
-}
-
-#[cfg(target_os = "windows")]
-#[tauri::command]
-pub async fn download_whisper_model(_app: AppHandle) -> Result<(), String> {
-    Err("Speech transcription is not available in this build.".into())
-}
-
-#[cfg(target_os = "windows")]
-#[tauri::command]
-pub async fn transcribe_recording(_app: AppHandle, _video_path: String) -> Result<String, String> {
-    Err("Speech transcription is not available in this build.".into())
 }

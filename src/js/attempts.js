@@ -89,6 +89,11 @@ export async function saveAttempt({
     speakingRatio: speakingRatio ?? null,
     wpm: wpm ?? null,
     transcript: transcript ?? null,
+    // Transcription runs after the file is written, so there's a window of a
+    // few seconds where the attempt exists with no transcript yet. Without
+    // this flag review can't tell that apart from "WPM was switched off",
+    // and tells you to turn on a setting that's already on.
+    transcribing: Boolean(needsWhisperTranscription),
   };
 
   attempts.unshift(attempt);
@@ -117,7 +122,7 @@ export async function updateAttemptNotes(id, notes) {
 }
 
 export async function updateAttemptTranscript(id, { wpm, transcript }) {
-  await updateAttempt(id, { wpm, transcript });
+  await updateAttempt(id, { wpm, transcript, transcribing: false });
 }
 
 async function transcribeAttemptInBackground(attempt) {

@@ -30,10 +30,9 @@ jobs:
         with:
           components: rustfmt, clippy
 
-      # cmake/build-essential/libclang-dev are for whisper-rs (macOS/Linux-only
-      # local speech-to-text) - its build script compiles whisper.cpp and
-      # needs bindgen, which needs libclang. Not needed on Windows, so not
-      # added there.
+      # cmake/build-essential/libclang-dev are for whisper-rs (local
+      # speech-to-text, every platform now) - its build script compiles
+      # whisper.cpp and needs bindgen, which needs libclang.
       - name: install system dependencies
         run: |
           sudo apt-get update

@@ -95,9 +95,9 @@ jobs:
         with:
           targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
-      # cmake/build-essential/libclang-dev are for whisper-rs (macOS/Linux-only
-      # local speech-to-text) - its build script compiles whisper.cpp and
-      # needs bindgen, which needs libclang.
+      # cmake/build-essential/libclang-dev are for whisper-rs (local
+      # speech-to-text, every platform now) - its build script compiles
+      # whisper.cpp and needs bindgen, which needs libclang.
       - name: install dependencies (ubuntu only)
         if: matrix.platform == 'ubuntu-22.04'
         run: |
@@ -109,6 +109,18 @@ jobs:
       - name: install dependencies (macos only)
         if: startsWith(matrix.platform, 'macos')
         run: brew install cmake
+
+      # Windows runners ship LLVM and CMake, but bindgen doesn't find libclang
+      # on its own here - a long-standing runner-image quirk - so point it at
+      # the install explicitly rather than hoping. Pinned to a known LLVM
+      # rather than "whatever's on PATH": the image's version drifts between
+      # runs, and a clang older than the MSVC headers it's parsing fails.
+      - name: set up libclang for bindgen (windows only)
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: |
+          choco install llvm --version=18.1.8 -y --allow-downgrade --no-progress
+          echo "LIBCLANG_PATH=C:\Program Files\LLVM\bin" >> $env:GITHUB_ENV
 
       - uses: Swatinem/rust-cache@v2
         with:

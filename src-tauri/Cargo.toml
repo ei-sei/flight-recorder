@@ -29,10 +29,12 @@ tauri-plugin-single-instance = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
-# Local speech-to-text for the WPM feature on platforms without a browser
-# SpeechRecognition API (Windows/WebView2 already has one built in). Kept off
-# Windows entirely so its installer/build is untouched by this.
-[target.'cfg(not(target_os = "windows"))'.dependencies]
+# Local speech-to-text for the WPM feature, on every platform. Windows used
+# to be excluded here and use the browser's SpeechRecognition API instead,
+# which meant it was the one place the app sent audio off-device. Running
+# whisper everywhere costs Windows a C++ build and a few MB of binary, and
+# buys back an unconditional "nothing leaves this machine", one code path
+# instead of two, and WPM numbers that mean the same thing on every OS.
 whisper-rs = "0.14"
 symphonia = { version = "0.5", features = ["isomp4", "aac"] }
 rubato = "0.15"
