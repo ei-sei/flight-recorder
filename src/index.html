@@ -5,15 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Flight recorder</title>
     <link rel="stylesheet" href="./style.css" />
-    <script>
-      try {
-        if (localStorage.getItem("theme") !== "dark") {
-          document.documentElement.setAttribute("data-theme", "light");
-        }
-      } catch (err) {
-        // localStorage unavailable; theme will still apply once the store loads
-      }
-    </script>
+    <!-- Not deferred and not a module: this has to set the theme before the
+         first paint, or the window flashes the wrong one. -->
+    <script src="./js/theme-boot.js"></script>
   </head>
   <body>
     <div class="resize-handle resize-n" data-resize-dir="North"></div>
