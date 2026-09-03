@@ -686,13 +686,20 @@ function initWindowControls() {
 async function init() {
   // The webview's native context menu reads as a website, not a desktop app
   // (Back, Save image as, Translate, "send tab to your devices", ...), so
-  // it's suppressed everywhere and replaced with just the two entries that
-  // do make sense here. Areas with their own menu (questions, attempts)
-  // preventDefault in their own listener, which runs first - checking
-  // defaultPrevented is what stops this one clobbering theirs.
+  // it's suppressed everywhere. Areas with their own menu (questions,
+  // attempts) preventDefault in their own listener, which runs first -
+  // checking defaultPrevented is what stops this one clobbering theirs.
   document.addEventListener("contextmenu", (event) => {
     if (event.defaultPrevented) return;
     event.preventDefault();
+
+    // Refresh/Inspect are app-chrome actions, not something that belongs
+    // over the video, transcript, or anywhere content lives - scoped to the
+    // topbar and the activity rail (the icon strip that toggles the side
+    // panels) only. Everywhere else just gets the native menu suppressed,
+    // same as before this feature existed.
+    if (!event.target.closest(".topbar, .activity-rail")) return;
+
     showContextMenu(event.clientX, event.clientY, [
       { label: "Refresh", onClick: () => window.location.reload() },
       { label: "Inspect", onClick: () => window.__TAURI__.core.invoke("open_devtools") },
