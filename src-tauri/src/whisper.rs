@@ -38,7 +38,7 @@ mod backend {
     use std::io::{Read, Write};
     use std::path::{Path, PathBuf};
     use std::time::Instant;
-    use symphonia::core::audio::SampleBuffer;
+    use symphonia::core::audio::{SampleBuffer, SignalSpec};
     use symphonia::core::codecs::{DecoderOptions, CODEC_TYPE_NULL};
     use symphonia::core::errors::Error as SymphoniaError;
     use symphonia::core::formats::FormatOptions;
@@ -135,8 +135,15 @@ mod backend {
             .make(&track.codec_params, &DecoderOptions::default())
             .map_err(|e| e.to_string())?;
 
-        let mut mono_samples: Vec<f32> = Vec::new();
+        // Pre-sized where the container reports a frame count, which avoids
+        // roughly twenty-five grow-and-copy cycles on a ten minute recording.
+        let mut mono_samples: Vec<f32> =
+            Vec::with_capacity(track.codec_params.n_frames.unwrap_or(0) as usize);
         let mut native_rate: Option<u32> = None;
+        // Reused across packets rather than reallocated per packet. See the
+        // comment at the allocation below.
+        let mut sample_buf: Option<SampleBuffer<f32>> = None;
+        let mut sample_buf_shape: Option<(u64, SignalSpec)> = None;
 
         loop {
             let packet = match format.next_packet() {
@@ -165,9 +172,25 @@ mod backend {
             native_rate.get_or_insert(spec.rate);
             let channel_count = spec.channels.count().max(1);
 
-            let mut sample_buf = SampleBuffer::<f32>::new(decoded.capacity() as u64, spec);
-            sample_buf.copy_interleaved_ref(decoded);
-            for frame in sample_buf.samples().chunks(channel_count) {
+            // This used to allocate a fresh buffer on every packet, which is
+            // around 28,000 allocations for a ten minute AAC recording. The
+            // buffer is reused instead, and only replaced if a later packet
+            // needs more room or changes format - copy_interleaved_ref panics
+            // on a buffer that is too small, so this can't just assume the
+            // first packet's shape holds for the rest of the stream.
+            let capacity = decoded.capacity() as u64;
+            let outgrown = match sample_buf_shape {
+                Some((frames, buf_spec)) => capacity > frames || buf_spec != spec,
+                None => true,
+            };
+            if outgrown {
+                sample_buf = Some(SampleBuffer::<f32>::new(capacity, spec));
+                sample_buf_shape = Some((capacity, spec));
+            }
+
+            let buf = sample_buf.as_mut().expect("allocated above");
+            buf.copy_interleaved_ref(decoded);
+            for frame in buf.samples().chunks(channel_count) {
                 let sum: f32 = frame.iter().sum();
                 mono_samples.push(sum / channel_count as f32);
             }
@@ -184,11 +207,16 @@ mod backend {
     }
 
     fn resample_to_16k(samples: Vec<f32>, native_rate: u32) -> Result<Vec<f32>, String> {
+        // Tuned for the consumer, which is a 16kHz speech model, not a
+        // mastering chain. sinc_len is the per-output-sample cost, so the
+        // original 256 spent roughly 2.5 billion multiply-adds on a ten
+        // minute recording buying precision whisper cannot act on. 64 with
+        // 32x oversampling is still well past transparent at this rate.
         let params = SincInterpolationParameters {
-            sinc_len: 256,
+            sinc_len: 64,
             f_cutoff: 0.95,
             interpolation: SincInterpolationType::Linear,
-            oversampling_factor: 256,
+            oversampling_factor: 32,
             window: WindowFunction::BlackmanHarris2,
         };
         let mut resampler = SincFixedIn::<f32>::new(
@@ -218,6 +246,16 @@ mod backend {
         let mut state = ctx.create_state().map_err(|e| e.to_string())?;
 
         let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
+        // whisper.cpp defaults to 4 threads regardless of the machine, which
+        // leaves most of an 8-core laptop idle on the slowest operation in the
+        // app and oversubscribes a 2-core one. Capped at 8 because ggml sees
+        // little past that, and this runs in the background while the user is
+        // still using the app.
+        params.set_n_threads(
+            std::thread::available_parallelism()
+                .map(|n| n.get().min(8) as i32)
+                .unwrap_or(4),
+        );
         params.set_language(Some("en"));
         params.set_print_progress(false);
         params.set_print_realtime(false);

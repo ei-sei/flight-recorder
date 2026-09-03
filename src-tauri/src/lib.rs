@@ -43,7 +43,11 @@ fn directory_size(dir: &std::path::Path) -> u64 {
         .sum()
 }
 
-#[tauri::command]
+// Deliberately `command(async)`. Tauri runs a plain sync command on the main
+// thread, so walking a library folder with a few hundred recordings in it
+// there froze the window for as long as the walk took - which is exactly the
+// case this command exists to measure.
+#[tauri::command(async)]
 fn get_library_size(app: tauri::AppHandle) -> Result<u64, String> {
     let video_dir = app
         .path()
