@@ -23,6 +23,7 @@ let selectedQuestion = null;
 let reviewingId = null;
 let onPlay = () => {};
 let onExitReview = () => {};
+let onReviewingAttemptUpdated = () => {};
 const listEl = document.getElementById("attempt-list");
 const subtitleEl = document.getElementById("log-subtitle");
 const filterTabsEl = document.getElementById("log-filter-tabs");
@@ -132,6 +133,14 @@ async function updateAttempt(id, patch) {
   Object.assign(attempt, patch);
   await saveAttempts(attempts);
   render();
+
+  // render() only rebuilds this list. If the attempt being changed is the one
+  // open in the review pane, that pane is now showing stale data - which
+  // matters most for transcription, since it lands seconds after the attempt
+  // is saved and the pane would otherwise sit on "Transcribing…" forever.
+  // Re-entering review isn't an option: it reloads the video element and
+  // restarts playback.
+  if (id === reviewingId) onReviewingAttemptUpdated(attempt);
 }
 
 export async function updateAttemptNotes(id, notes) {
@@ -396,6 +405,7 @@ export function clearReviewing() {
 export async function initAttempts(options = {}) {
   onPlay = options.onPlay ?? (() => {});
   onExitReview = options.onExitReview ?? (() => {});
+  onReviewingAttemptUpdated = options.onReviewingAttemptUpdated ?? (() => {});
   attempts = await getAttempts();
 
   filterTabsEl.addEventListener("click", (event) => {

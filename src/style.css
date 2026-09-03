@@ -1541,6 +1541,47 @@ textarea {
   font-size: 11px;
 }
 
+/* Lets the message absorb the slack so the button still sits hard right,
+   now that the pulse dot occupies the start of the row. */
+#review-transcript-empty-text {
+  flex: 1;
+}
+
+/* Transcription reports no progress - it either has a transcript or it
+   doesn't - so a static line reads as stalled. This is the only thing
+   saying the work is still going. */
+.transcript-pulse {
+  display: none;
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: var(--accent);
+  animation: transcript-pulse 1.5s ease-in-out infinite;
+}
+
+.transcript-empty.transcribing .transcript-pulse {
+  display: block;
+}
+
+@keyframes transcript-pulse {
+  0%,
+  100% {
+    opacity: 0.3;
+    box-shadow: 0 0 0 0 var(--accent-dim);
+  }
+  50% {
+    opacity: 1;
+    box-shadow: 0 0 0 4px transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .transcript-pulse {
+    animation: none;
+    opacity: 1;
+  }
+}
 
 .notes-input:focus {
   outline: none;

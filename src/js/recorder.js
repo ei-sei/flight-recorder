@@ -946,6 +946,26 @@ export async function enterReviewMode(attempt, attemptNumber) {
   renderReviewStars(attempt.id, attempt.score);
   viewfinderMetaEl.hidden = false;
 
+  renderReviewDetails(attempt);
+
+  reviewNotesRow.hidden = false;
+  reviewNotesInput.value = attempt.notes;
+  autosizeTextarea(reviewNotesInput);
+  reviewNotesInput.onblur = () => onNotesChange(attempt.id, reviewNotesInput.value);
+  reviewNotesInput.oninput = () => autosizeTextarea(reviewNotesInput);
+
+  updateRecordButtonState();
+  updateCameraToggleUI();
+  updateViewfinderSize();
+}
+
+// Everything in the review pane that comes from the attempt record rather
+// than the video file. Split out from enterReviewMode so transcription
+// landing can refresh it in place - re-entering review would reload the
+// video element and yank playback back to the start.
+export function renderReviewDetails(attempt) {
+  if (!isReviewing) return;
+
   // Delay keeps its own slot next to the button. It's the one figure here
   // that isn't about how you spoke - it measures the gap before you started.
   const delayText = formatResponseDelay(attempt.responseDelayMs);
@@ -998,7 +1018,7 @@ export async function enterReviewMode(attempt, attemptNumber) {
     // (turn it on) - telling someone to enable a setting that's already on,
     // or that's mid-download, is the wrong advice twice over.
     if (attempt.transcribing) {
-      reviewTranscriptEmptyText.textContent = "Transcribing this recording… it'll appear here in a moment.";
+      reviewTranscriptEmptyText.textContent = "Transcribing on this device…";
       reviewTranscriptSettingsBtn.hidden = true;
     } else if (attempt.transcript === "") {
       reviewTranscriptEmptyText.textContent = "No speech detected in this recording.";
@@ -1008,16 +1028,15 @@ export async function enterReviewMode(attempt, attemptNumber) {
         "No transcript for this attempt. Turn on Speech pace (WPM) to capture one for your next recording.";
       reviewTranscriptSettingsBtn.hidden = false;
     }
+    // Static text on a job with no progress to report reads as stalled. The
+    // pulsing dot is the only thing telling you it's still working.
+    reviewTranscriptEmpty.classList.toggle("transcribing", Boolean(attempt.transcribing));
   }
 
-  reviewNotesRow.hidden = false;
-  reviewNotesInput.value = attempt.notes;
-  autosizeTextarea(reviewNotesInput);
-  reviewNotesInput.onblur = () => onNotesChange(attempt.id, reviewNotesInput.value);
-  reviewNotesInput.oninput = () => autosizeTextarea(reviewNotesInput);
-
-  updateRecordButtonState();
-  updateCameraToggleUI();
+  // The stats block grows when transcription lands (the Speech row picks up
+  // wpm, pace and fillers), and that block is part of the player's height
+  // budget - without this the video would keep its old size and the panel
+  // would start scrolling.
   updateViewfinderSize();
 }
 

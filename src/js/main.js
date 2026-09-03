@@ -4,6 +4,7 @@ import {
   setActiveQuestion,
   enterReviewMode,
   exitReviewMode,
+  renderReviewDetails,
   listDevices,
   applyRecordingSettings,
 } from "./recorder.js";
@@ -703,6 +704,9 @@ async function init() {
       enterReviewMode(attempt, attemptNumber);
     },
     onExitReview: exitReviewMode,
+    // Refreshes the stats and transcript in place, without touching the
+    // video element - transcription finishing shouldn't restart playback.
+    onReviewingAttemptUpdated: renderReviewDetails,
   });
   await initQuestions({ onSelectionChange: handleQuestionSelectionChange });
   await initRecorder({
