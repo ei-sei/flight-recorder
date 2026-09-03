@@ -138,12 +138,17 @@ let currentAutoGainControl = true;
 let cameraEnabled = false;
 let cameraWasEnabledBeforeReview = false;
 
-// Bitrates are tuned for a low-motion talking head in H.264, which needs
-// roughly 25% more bits than VP9 for the same picture - the 24fps capture
-// rate (see WATERMARK_FPS) pays most of that back.
+// These numbers were originally tuned for VP9. When recording switched to
+// H.264 everywhere (see RECORDING_FORMAT_CANDIDATES), both presets kept
+// their VP9-era bitrate - H.264 needs roughly 25% more bits than VP9 for
+// the same picture, so both were quietly under-delivering quality relative
+// to before, not just 480p's separate resolution/fps retuning. Confirmed by
+// real testing: recordings looked visibly worse than the old defaults.
+// Bumped ~+25% at both tiers to actually match. 24fps (see WATERMARK_FPS)
+// still claws some of that back.
 const QUALITY_PRESETS = {
-  480: { width: 854, height: 480, bitrate: 1_300_000 },
-  720: { width: 1280, height: 720, bitrate: 2_500_000 },
+  480: { width: 854, height: 480, bitrate: 1_600_000 },
+  720: { width: 1280, height: 720, bitrate: 3_200_000 },
 };
 
 // Every preset is 16:9, and the recording is held to it - a camera that only
