@@ -141,6 +141,54 @@ export function formatFillers(count) {
   return `${count} ${count === 1 ? "filler" : "fillers"}`;
 }
 
+export function formatLongestStretch(ms) {
+  if (!ms) return null;
+  return `longest run ${Math.round(ms / 1000)}s`;
+}
+
+export function formatPaceRange(minWpm, maxWpm) {
+  if (minWpm === null || minWpm === undefined) return null;
+  if (maxWpm === null || maxWpm === undefined) return null;
+  // A single usable segment gives min === max, which isn't a range and
+  // shouldn't be dressed up as one - the plain average already says it.
+  if (Math.round(minWpm) === Math.round(maxWpm)) return null;
+  return `pace ${Math.round(minWpm)}-${Math.round(maxWpm)} wpm`;
+}
+
+// Whisper will happily invent fluent-sounding sentences over silence - a
+// well-known failure mode, and one that lands straight in the word count and
+// drags WPM with it. Its own no-speech probability isn't exposed by the Rust
+// bindings, so cross-check against when the mic actually registered speech
+// instead: an independent physical signal, and a better one. A segment is
+// kept if it overlaps measured speech at all, which is deliberately generous
+// - dropping words somebody really said would be far worse than keeping an
+// occasional invented one.
+export function rejectHallucinatedSegments(segments, speechIntervals) {
+  if (!Array.isArray(speechIntervals) || speechIntervals.length === 0) return segments;
+  return segments.filter((segment) =>
+    speechIntervals.some(([start, end]) => segment.startMs < end && segment.endMs > start)
+  );
+}
+
+// Per-segment speaking rate, for the spread rather than the average - the
+// average is already the headline WPM. Short segments are skipped: a
+// two-word one second segment computes to a wild rate that says nothing
+// about how someone was actually speaking.
+const MIN_PACE_SEGMENT_MS = 2000;
+
+export function computePaceRange(segments) {
+  const rates = [];
+  for (const segment of segments) {
+    const durationMs = segment.endMs - segment.startMs;
+    if (durationMs < MIN_PACE_SEGMENT_MS) continue;
+    const words = countWords(segment.text);
+    if (words === 0) continue;
+    rates.push(words / (durationMs / 60000));
+  }
+  if (rates.length < 2) return { minWpm: null, maxWpm: null };
+  return { minWpm: Math.min(...rates), maxWpm: Math.max(...rates) };
+}
+
 export function autosizeTextarea(el) {
   el.style.height = "auto";
   el.style.height = `${el.scrollHeight}px`;

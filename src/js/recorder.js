@@ -7,6 +7,8 @@ import {
   formatWpm,
   formatPauses,
   formatLongestPause,
+  formatLongestStretch,
+  formatPaceRange,
   formatSpeakingRatio,
   formatFillers,
   countFillers,
@@ -110,6 +112,13 @@ let belowThresholdSinceTs = null;
 let speakingMs = 0;
 let pauseCount = 0;
 let longestPauseMs = 0;
+let longestStretchMs = 0;
+let stretchStartTs = null;
+// Speech runs as [startMs, endMs] offsets from recordStartTs. Handed to
+// transcription so whisper's segments can be checked against times the mic
+// actually registered speech, then thrown away - useful for a few seconds,
+// far too bulky to keep on every attempt forever.
+let speechIntervals = [];
 let waveformStrokeStyle = "#4c7cf6";
 
 let wpmEnabled = false;
@@ -458,10 +467,14 @@ function trackPauses(speaking, now) {
         if (gap >= PAUSE_MIN_MS) {
           pauseCount++;
           longestPauseMs = Math.max(longestPauseMs, gap);
+          // A real pause ends the current unbroken run. Shorter gaps don't -
+          // that's the difference between drawing breath and stopping.
+          closeCurrentStretch(lastSpeechEndTs);
         }
       }
       isSpeaking = true;
       speechStartTs = now;
+      if (stretchStartTs === null) stretchStartTs = now;
     }
     return;
   }
@@ -475,8 +488,15 @@ function trackPauses(speaking, now) {
 
   isSpeaking = false;
   speakingMs += belowThresholdSinceTs - speechStartTs;
+  speechIntervals.push([speechStartTs - recordStartTs, belowThresholdSinceTs - recordStartTs]);
   lastSpeechEndTs = belowThresholdSinceTs;
   belowThresholdSinceTs = null;
+}
+
+function closeCurrentStretch(endTs) {
+  if (stretchStartTs === null) return;
+  longestStretchMs = Math.max(longestStretchMs, endTs - stretchStartTs);
+  stretchStartTs = null;
 }
 
 function resetSpeechAnalysis() {
@@ -487,15 +507,21 @@ function resetSpeechAnalysis() {
   speakingMs = 0;
   pauseCount = 0;
   longestPauseMs = 0;
+  longestStretchMs = 0;
+  stretchStartTs = null;
+  speechIntervals = [];
 }
 
 // Closes off a run of speech still open when the recording stopped, so the
 // last sentence counts towards speaking time like every other one.
 function finaliseSpeechAnalysis() {
+  const now = Date.now();
   if (isSpeaking && speechStartTs !== null) {
-    speakingMs += Date.now() - speechStartTs;
+    speakingMs += now - speechStartTs;
+    speechIntervals.push([speechStartTs - recordStartTs, now - recordStartTs]);
     isSpeaking = false;
   }
+  closeCurrentStretch(now);
 }
 
 // Tied to the camera/mic being on, not to active recording - the waveform
@@ -787,9 +813,13 @@ async function handleStop() {
       responseDelayMs,
       pauseCount,
       longestPauseMs,
+      longestStretchMs,
       // Voiced time over total time. Measured from mic level, so it works on
       // every platform - unlike anything derived from a transcript.
       speakingRatio: durationMs > 0 ? Math.min(1, speakingMs / durationMs) : null,
+      // Not stored on the attempt - only used to sanity-check transcription
+      // against times the mic actually heard something.
+      speechIntervals,
       // Always null at this point - transcription happens after the file is
       // written, not during the recording. saveAttempt() kicks it off in the
       // background and patches the attempt when it lands.
@@ -893,8 +923,10 @@ export async function enterReviewMode(attempt, attemptNumber) {
   const statsLine = [
     formatResponseDelay(attempt.responseDelayMs),
     formatWpm(attempt.wpm),
+    formatPaceRange(attempt.paceMinWpm, attempt.paceMaxWpm),
     formatPauses(attempt.pauseCount),
     formatLongestPause(attempt.longestPauseMs),
+    formatLongestStretch(attempt.longestStretchMs),
     formatSpeakingRatio(attempt.speakingRatio),
     // Only worth showing when there's a transcript to have counted it from -
     // "0 fillers" against no transcript reads as a result rather than an

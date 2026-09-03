@@ -1,12 +1,23 @@
 use tauri::AppHandle;
 
+// One chunk of transcribed speech with the times it covers. Note these are
+// whisper's own decoding chunks, not sentences - it splits on its decoding
+// windows, so don't read sentence structure into the boundaries. Times are
+// milliseconds from the start of the recording.
+#[derive(serde::Serialize)]
+pub struct TranscriptSegment {
+    pub text: String,
+    pub start_ms: i64,
+    pub end_ms: i64,
+}
+
 const MODEL_FILENAME: &str = "ggml-base.en-q5_1.bin";
 const MODEL_URL: &str =
     "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en-q5_1.bin";
 const WHISPER_SAMPLE_RATE: u32 = 16_000;
 
 mod backend {
-    use super::{MODEL_FILENAME, MODEL_URL, WHISPER_SAMPLE_RATE};
+    use super::{TranscriptSegment, MODEL_FILENAME, MODEL_URL, WHISPER_SAMPLE_RATE};
     use rubato::{
         Resampler, SincFixedIn, SincInterpolationParameters, SincInterpolationType, WindowFunction,
     };
@@ -146,7 +157,10 @@ mod backend {
         Ok(output.into_iter().next().unwrap_or_default())
     }
 
-    pub fn run_transcription(model_path: &Path, pcm: Vec<f32>) -> Result<String, String> {
+    pub fn run_transcription(
+        model_path: &Path,
+        pcm: Vec<f32>,
+    ) -> Result<Vec<TranscriptSegment>, String> {
         use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
 
         let model_path = model_path.to_str().ok_or("invalid model path")?;
@@ -160,15 +174,30 @@ mod backend {
         params.set_print_realtime(false);
         params.set_print_special(false);
         params.set_print_timestamps(false);
+        // Keeps whisper from emitting "[BLANK_AUDIO]", music glyphs and the
+        // like as if they were spoken words - they'd be counted towards the
+        // word total and drag WPM around. Doesn't stop it inventing real-
+        // looking sentences over silence; the caller cross-checks segment
+        // times against measured mic activity for that.
+        params.set_suppress_nst(true);
 
         state.full(params, &pcm).map_err(|e| e.to_string())?;
 
         let num_segments = state.full_n_segments().map_err(|e| e.to_string())?;
-        let mut transcript = String::new();
+        let mut segments = Vec::with_capacity(num_segments as usize);
         for i in 0..num_segments {
-            transcript.push_str(&state.full_get_segment_text(i).map_err(|e| e.to_string())?);
+            let text = state.full_get_segment_text(i).map_err(|e| e.to_string())?;
+            if text.trim().is_empty() {
+                continue;
+            }
+            // whisper reports these in centiseconds.
+            segments.push(TranscriptSegment {
+                text,
+                start_ms: state.full_get_segment_t0(i).map_err(|e| e.to_string())? * 10,
+                end_ms: state.full_get_segment_t1(i).map_err(|e| e.to_string())? * 10,
+            });
         }
-        Ok(transcript.trim().to_string())
+        Ok(segments)
     }
 }
 
@@ -181,7 +210,10 @@ pub async fn download_whisper_model(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn transcribe_recording(app: AppHandle, video_path: String) -> Result<String, String> {
+pub async fn transcribe_recording(
+    app: AppHandle,
+    video_path: String,
+) -> Result<Vec<TranscriptSegment>, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let model = backend::ensure_model_downloaded(&app)?;
         let pcm = backend::decode_audio_to_pcm16k(&video_path)?;

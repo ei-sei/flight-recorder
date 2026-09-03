@@ -4,7 +4,16 @@ const { revealItemInDir } = window.__TAURI__.opener;
 const { invoke } = window.__TAURI__.core;
 
 import { getAttempts, saveAttempts } from "./store.js";
-import { slugify, shortDateStamp, abbreviateQuestion, formatDuration, renderStars, countWords } from "./util.js";
+import {
+  slugify,
+  shortDateStamp,
+  abbreviateQuestion,
+  formatDuration,
+  renderStars,
+  countWords,
+  rejectHallucinatedSegments,
+  computePaceRange,
+} from "./util.js";
 import { showConfirm } from "./modal.js";
 import { showContextMenu } from "./contextmenu.js";
 
@@ -63,7 +72,9 @@ export async function saveAttempt({
   responseDelayMs,
   pauseCount,
   longestPauseMs,
+  longestStretchMs,
   speakingRatio,
+  speechIntervals,
   wpm,
   transcript,
   needsWhisperTranscription,
@@ -86,8 +97,14 @@ export async function saveAttempt({
     responseDelayMs: responseDelayMs ?? null,
     pauseCount: pauseCount ?? null,
     longestPauseMs: longestPauseMs ?? null,
+    longestStretchMs: longestStretchMs ?? null,
     speakingRatio: speakingRatio ?? null,
     wpm: wpm ?? null,
+    // Filled in by transcription, which runs after this returns. Note
+    // speechIntervals is deliberately NOT stored - it's hundreds of entries
+    // per attempt, and library.json is read and rewritten whole.
+    paceMinWpm: null,
+    paceMaxWpm: null,
     transcript: transcript ?? null,
     // Transcription runs after the file is written, so there's a window of a
     // few seconds where the attempt exists with no transcript yet. Without
@@ -103,7 +120,7 @@ export async function saveAttempt({
   if (needsWhisperTranscription) {
     // Not awaited - the attempt is already saved and visible; wpm/transcript
     // fill in a few seconds later once local transcription finishes.
-    transcribeAttemptInBackground(attempt);
+    transcribeAttemptInBackground(attempt, speechIntervals);
   }
 
   return attempt;
@@ -121,17 +138,31 @@ export async function updateAttemptNotes(id, notes) {
   await updateAttempt(id, { notes });
 }
 
-export async function updateAttemptTranscript(id, { wpm, transcript }) {
-  await updateAttempt(id, { wpm, transcript, transcribing: false });
+export async function updateAttemptTranscript(id, patch) {
+  await updateAttempt(id, { ...patch, transcribing: false });
 }
 
-async function transcribeAttemptInBackground(attempt) {
+async function transcribeAttemptInBackground(attempt, speechIntervals) {
   try {
     const videoPath = await resolveVideoPath(attempt.videoRelativePath);
-    const transcript = await invoke("transcribe_recording", { videoPath });
+    // Rust hands back segments (text + start/end in ms), not a flat string -
+    // the timings are what the pace spread is computed from, and what makes
+    // the hallucination check possible at all.
+    const raw = await invoke("transcribe_recording", { videoPath });
+    const segments = rejectHallucinatedSegments(
+      raw.map((s) => ({ text: s.text, startMs: s.start_ms, endMs: s.end_ms })),
+      speechIntervals
+    );
+
+    const transcript = segments
+      .map((s) => s.text)
+      .join("")
+      .trim();
     const elapsedMinutes = attempt.durationMs / 60000;
     const wpm = transcript && elapsedMinutes > 0 ? countWords(transcript) / elapsedMinutes : null;
-    await updateAttemptTranscript(attempt.id, { wpm, transcript });
+    const { minWpm, maxWpm } = computePaceRange(segments);
+
+    await updateAttemptTranscript(attempt.id, { wpm, transcript, paceMinWpm: minWpm, paceMaxWpm: maxWpm });
   } catch (err) {
     console.error("Background transcription failed", err);
     // "" (not null) is what renders as "No speech detected" on review rather
