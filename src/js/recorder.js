@@ -1011,6 +1011,26 @@ function computeAvailableHeightForVideoAndNotes() {
   return recorderPanelEl.clientHeight - verticalPadding - chromeHeight - gapsCount * gap;
 }
 
+// The drawer's fixed parts (resize handle + "Prep notes" bar), excluding the
+// resizable body. Subtracting the body's live height cancels out whatever the
+// collapse transition happens to be animating it to at this instant, so this
+// stays correct mid-animation.
+function prepNotesChromeHeight() {
+  return prepNotesRow.offsetHeight - prepNotesBodyEl.offsetHeight;
+}
+
+// How tall the drawer is *going* to be, not how tall it is right now.
+// .prep-notes-body transitions its height, and applyPrepNotesCollapsed()
+// recalculates the layout the moment it changes it - so reading offsetHeight
+// off the DOM there measures the value being animated away from. Collapsing
+// read the drawer as still open and left dead space under the video;
+// re-expanding read it as still collapsed, oversized the video, and pushed
+// the question and record button clean out of the panel.
+function prepNotesDrawerHeight() {
+  if (prepNotesRow.hidden) return 0;
+  return prepNotesChromeHeight() + (prepNotesCollapsed ? 0 : prepNotesHeight);
+}
+
 function updateViewfinderSize() {
   viewfinderEl.style.flex = "0 0 auto";
 
@@ -1024,7 +1044,7 @@ function updateViewfinderSize() {
   let availableHeight = computeAvailableHeightForVideoAndNotes();
   if (!prepNotesRow.hidden) {
     // One more gap between the player/controls and the drawer itself.
-    availableHeight -= prepNotesRow.offsetHeight + gap;
+    availableHeight -= prepNotesDrawerHeight() + gap;
   }
 
   if (availableWidth <= 0 || availableHeight <= 0) return;
@@ -1094,10 +1114,7 @@ async function initPrepNotesToggle() {
 function computeMaxPrepNotesHeight() {
   const available = computeAvailableHeightForVideoAndNotes();
   const gap = parseFloat(getComputedStyle(recorderPanelEl).rowGap) || 0;
-  // The drawer's own chrome (resize handle + "Prep notes" toggle bar) that
-  // isn't part of the resizable body itself.
-  const drawerChromeHeight = prepNotesRow.offsetHeight - prepNotesBodyEl.offsetHeight;
-  const maxForBody = available - MIN_VIDEO_HEIGHT - gap - drawerChromeHeight;
+  const maxForBody = available - MIN_VIDEO_HEIGHT - gap - prepNotesChromeHeight();
   return Math.max(PREP_NOTES_MIN_HEIGHT, maxForBody);
 }
 
