@@ -95,11 +95,20 @@ jobs:
         with:
           targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
+      # cmake/build-essential/libclang-dev are for whisper-rs (macOS/Linux-only
+      # local speech-to-text) - its build script compiles whisper.cpp and
+      # needs bindgen, which needs libclang.
       - name: install dependencies (ubuntu only)
         if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf cmake build-essential libclang-dev
+
+      # whisper-rs needs CMake to build whisper.cpp - Xcode's command line
+      # tools (already on macos-latest runners) cover the C++ compiler/linker.
+      - name: install dependencies (macos only)
+        if: startsWith(matrix.platform, 'macos')
+        run: brew install cmake
 
       - uses: Swatinem/rust-cache@v2
         with:

@@ -1,6 +1,6 @@
 # Flight Recorder
 
-A local desktop app for practising job interviews on webcam. Built with Tauri. Runs fully on the user's machine. No cloud storage of video or data, except for live speech-to-text (see below).
+A local desktop app for practising job interviews on webcam. Built with Tauri. Runs fully on the user's machine. No cloud storage of video or data, except for speech-to-text on Windows (see below) - macOS/Linux transcribe locally instead.
 
 ## Stack
 - Tauri (Rust backend, native OS webview frontend).
@@ -18,12 +18,12 @@ A local desktop app for practising job interviews on webcam. Built with Tauri. R
 - User adds a star score and notes after reviewing.
 - Filter tabs over the attempt log (All / Behavioural / Technical / Case).
 - Response delay: measures time from record start to first speech. Uses mic volume. Fully local. Works in any browser/webview.
-- Speech pace (WPM): live word-per-minute estimate using the browser's built-in speech recognition. Only works in Chrome/Edge-based webviews. Sends audio to Google's servers for this feature only. Everything else stays local. Also saves the resulting transcript, shown read-only during review when present.
+- Speech pace (WPM): word-per-minute estimate plus a transcript, shown read-only during review when present. Two backends depending on platform: Windows uses the browser's built-in speech recognition, live during recording - this is the one thing that sends audio off-device (to Google's servers), disclosed in Settings and the footer. macOS/Linux instead run a local Whisper model (`whisper-rs`/whisper.cpp, see `src-tauri/src/whisper.rs`) after the recording stops - fully on-device, at the cost of not updating live. The model (~60MB) downloads once, on first use, to the OS app-data directory (not the portable `Videos/flight-recorder` folder - it's app infrastructure, not user data), gated behind an explicit confirmation dialog before it fetches anything.
 
 ## Data rules
 - Video files write straight to disk, in a folder structure like `videos/{category}/{date}_{question-slug}.webm`. Actual extension is whatever the webview's `MediaRecorder` can support — `.webm` (VP8/VP9+Opus) on Chromium/WebKitGTK, falling back to `.mp4` (H.264) on engines that don't support WebM recording (historically Safari/WKWebView). Never assume `.webm` when reading a video path back.
 - Metadata (questions, scores, notes, delay, WPM, transcript) saves via `tauri-plugin-store` to `library.json`, deliberately placed *inside* `Videos/flight-recorder/` (next to the video files it describes) rather than the OS-hidden app-data directory. The whole `flight-recorder` folder is meant to be one portable, self-contained unit — copy it to a different machine (even a different OS) and it just works, no export/import step. This only holds if `attempt.videoRelativePath` stays relative to that folder (never store an absolute path there) - `resolveVideoPath()` in `attempts.js` is the only place that turns it back into a real path, resolved against wherever the *current* machine's Videos folder is.
-- Be upfront about the one feature that isn't fully local: WPM. Never silently expand what talks to the internet without flagging it first.
+- Be upfront about the one feature that isn't fully local: WPM. On Windows that's an ongoing per-recording exception (audio to Google); on macOS/Linux it's a one-time model download, gated behind an explicit confirmation dialog before it fetches anything. Never silently expand what talks to the internet without flagging it first.
 
 ## Design language
 (Revised again — supersedes the card-based direction below.)
@@ -50,6 +50,7 @@ Aviation instrumentation. Dark cockpit palette. Amber for recording/active state
 - macOS requires privacy usage descriptions or `getUserMedia` is blocked outright in a packaged app (not just prompt-less — actually fails). `src-tauri/Info.plist` declares `NSCameraUsageDescription` and `NSMicrophoneUsageDescription`, which Tauri merges into the bundle automatically. This hasn't been verified end-to-end on real macOS hardware yet — do that before shipping a Mac build.
 - Windows: WebView2 triggers the OS-level camera/mic privacy prompt automatically, no extra manifest entries needed.
 - Linux: access depends on the user being in the right device group (e.g. `video`) and the distro's desktop environment; no extra packaging step needed on our side.
+- macOS/Linux builds only (see `src-tauri/Cargo.toml`'s `cfg(not(target_os = "windows"))` dependencies) need CMake, a C++ toolchain, and libclang installed to build `whisper-rs` (local speech-to-text) - already wired into `ci.yml`/`release.yml`. Windows never compiles this dependency at all, so its build/install size is untouched.
 
 ## How to work in this project
 - Extend the existing code. Don't rewrite from scratch unless asked.

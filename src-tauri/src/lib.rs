@@ -1,5 +1,8 @@
 use tauri::Manager;
 
+mod whisper;
+use whisper::{download_whisper_model, transcribe_recording};
+
 #[tauri::command]
 fn get_commit_sha() -> &'static str {
     env!("GIT_COMMIT_SHA")
@@ -25,7 +28,11 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
-        .invoke_handler(tauri::generate_handler![get_commit_sha])
+        .invoke_handler(tauri::generate_handler![
+            get_commit_sha,
+            download_whisper_model,
+            transcribe_recording
+        ])
         .setup(|app| {
             // GTK on Linux doesn't pick up the bundle icon at runtime (that's
             // packaging-only), so the taskbar/window icon needs setting explicitly.

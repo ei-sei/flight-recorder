@@ -1,9 +1,10 @@
 const { videoDir, join } = window.__TAURI__.path;
 const { mkdir, writeFile, exists, remove } = window.__TAURI__.fs;
 const { revealItemInDir } = window.__TAURI__.opener;
+const { invoke } = window.__TAURI__.core;
 
 import { getAttempts, saveAttempts } from "./store.js";
-import { slugify, shortDateStamp, abbreviateQuestion, formatDuration, renderStars } from "./util.js";
+import { slugify, shortDateStamp, abbreviateQuestion, formatDuration, renderStars, countWords } from "./util.js";
 import { showConfirm } from "./modal.js";
 import { showContextMenu } from "./contextmenu.js";
 
@@ -54,7 +55,16 @@ async function computeVideoRelativePath(question, date, extension) {
   return join(categorySlug, filename);
 }
 
-export async function saveAttempt({ blob, extension, durationMs, question, responseDelayMs, wpm, transcript }) {
+export async function saveAttempt({
+  blob,
+  extension,
+  durationMs,
+  question,
+  responseDelayMs,
+  wpm,
+  transcript,
+  needsWhisperTranscription,
+}) {
   const date = new Date();
   const videoRelativePath = await computeVideoRelativePath(question, date, extension || "webm");
   const bytes = new Uint8Array(await blob.arrayBuffer());
@@ -78,6 +88,13 @@ export async function saveAttempt({ blob, extension, durationMs, question, respo
   attempts.unshift(attempt);
   await saveAttempts(attempts);
   render();
+
+  if (needsWhisperTranscription) {
+    // Not awaited - the attempt is already saved and visible; wpm/transcript
+    // fill in a few seconds later once local transcription finishes.
+    transcribeAttemptInBackground(attempt);
+  }
+
   return attempt;
 }
 
@@ -91,6 +108,26 @@ async function updateAttempt(id, patch) {
 
 export async function updateAttemptNotes(id, notes) {
   await updateAttempt(id, { notes });
+}
+
+export async function updateAttemptTranscript(id, { wpm, transcript }) {
+  await updateAttempt(id, { wpm, transcript });
+}
+
+async function transcribeAttemptInBackground(attempt) {
+  try {
+    const videoPath = await resolveVideoPath(attempt.videoRelativePath);
+    const transcript = await invoke("transcribe_recording", { videoPath });
+    const elapsedMinutes = attempt.durationMs / 60000;
+    const wpm = transcript && elapsedMinutes > 0 ? countWords(transcript) / elapsedMinutes : null;
+    await updateAttemptTranscript(attempt.id, { wpm, transcript });
+  } catch (err) {
+    console.error("Background transcription failed", err);
+    // "" (not null) is what renders as "No speech detected" on review rather
+    // than "turn on Speech pace (WPM)" - which would be wrong here, since it
+    // already was on.
+    await updateAttemptTranscript(attempt.id, { wpm: null, transcript: "" });
+  }
 }
 
 export async function updateAttemptScore(id, score) {
@@ -186,6 +223,10 @@ function renderAttemptItem(attempt, attemptNumber) {
   item.className = "attempt-item" + (attempt.id === reviewingId ? " reviewing" : "");
   item.addEventListener("click", (event) => {
     if (event.target.closest("button")) return;
+    // Already reviewing this exact attempt - onPlay() reloads and restarts
+    // the video unconditionally, so skip it rather than yank playback back
+    // to the start every time this row gets clicked again.
+    if (attempt.id === reviewingId) return;
     reviewingId = attempt.id;
     render();
     onPlay(attempt, attemptNumber);

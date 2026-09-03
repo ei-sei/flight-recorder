@@ -857,21 +857,23 @@ textarea {
 
 .voice-waveform {
   display: block;
-  /* Absolutely positioned and centered independently of the toggle button's
-     flex flow, so it sits centered on the player at a fixed proportion of
-     its width regardless of the toggle's own size/position. */
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  width: 75%;
+  /* A normal flex sibling of the toggle button (not absolutely positioned
+     over it) - that's what guarantees it can never overlap the button, even
+     when the row gets narrow. max-width + auto margins keeps it reading as
+     a short, roughly-centered line rather than stretching edge to edge. */
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 65%;
   height: 18px;
+  margin: 0 auto;
   /* Bare line on the panel's own background - no chip/box styling. Always
      present (not tied to recording state), so it reads as a permanent
      fixture rather than a popup. */
 }
 
 .review-stats {
+  padding-left: 12px;
+  border-left: 1px solid var(--border);
   font-size: 12px;
   color: var(--text-secondary);
 }
@@ -998,7 +1000,6 @@ textarea {
   align-items: center;
   justify-content: flex-start;
   gap: 12px;
-  position: relative;
 }
 
 .camera-toggle-btn {
@@ -1028,10 +1029,26 @@ textarea {
 }
 
 .record-controls {
-  display: flex;
+  /* A 3-column grid (spacer / button / stats), not a centered flex row -
+     with a flex row, the button+stats were centered as one group, so the
+     button itself drifted off-center whenever stats appeared next to it.
+     Two equal 1fr side columns keep the middle (button) column truly
+     centered regardless of what's in the stats column. */
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: center;
   gap: 12px;
+}
+
+#record-btn,
+#back-to-live-btn {
+  grid-column: 2;
+}
+
+#live-readouts,
+#review-stats-row {
+  grid-column: 3;
+  justify-self: start;
 }
 
 #back-to-live-btn {
@@ -1044,10 +1061,6 @@ textarea {
   align-items: flex-start;
   gap: 10px;
   width: 100%;
-}
-
-.toggle-row.unavailable {
-  opacity: 0.5;
 }
 
 .switch {

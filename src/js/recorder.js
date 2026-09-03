@@ -7,6 +7,7 @@ import {
   formatWpm,
   watermarkDateStamp,
   enableTabIndent,
+  countWords,
 } from "./util.js";
 import {
   getWpmEnabled,
@@ -17,8 +18,11 @@ import {
   setPrepNotesCollapsed,
   getPrepNotesHeight,
   setPrepNotesHeight,
+  getWhisperModelDownloaded,
+  setWhisperModelDownloaded,
 } from "./store.js";
 import { resolveVideoPath } from "./attempts.js";
+import { showConfirm, showAlert } from "./modal.js";
 
 const previewEl = document.getElementById("preview");
 const viewfinderMetaEl = document.getElementById("viewfinder-meta");
@@ -57,11 +61,10 @@ const waveformCanvasEl = document.getElementById("voice-waveform");
 const waveformCtx = waveformCanvasEl.getContext("2d");
 const readoutDelayEl = document.getElementById("readout-delay");
 const readoutWpmEl = document.getElementById("readout-wpm");
-const wpmToggleRow = document.getElementById("wpm-toggle-row");
 const wpmToggleInput = document.getElementById("wpm-toggle-input");
 const wpmToggleHint = document.getElementById("wpm-toggle-hint");
 
-const { convertFileSrc } = window.__TAURI__.core;
+const { convertFileSrc, invoke } = window.__TAURI__.core;
 
 const SPEECH_RMS_THRESHOLD = 0.02;
 const SPEECH_SUSTAIN_MS = 150;
@@ -141,10 +144,11 @@ async function acquireStream(cameraId, micId, quality) {
   }
 }
 
-// Camera starts off rather than requesting getUserMedia the instant the app
-// launches - a permission prompt firing with zero context on first open is a
-// bad first impression, and it also means the toggle button below is the one
-// and only path that ever requests camera/mic access.
+// The camera never turns on out of nowhere on its own - the only paths in
+// here are the toggle button, and initRecorder() restoring a state the user
+// already chose (and already granted permission for) in a previous session.
+// A first-time user, with no prior state to restore, still only ever sees
+// the permission prompt after clicking the toggle themselves.
 async function enableCamera() {
   // Flip the switch and swap the empty-state copy immediately, before
   // awaiting anything - getUserMedia's own hardware negotiation already
@@ -174,6 +178,7 @@ async function enableCamera() {
     previewEl.srcObject = stream;
     viewfinderEmptyEl.hidden = true;
     cameraEnabled = true;
+    saveRecordingSettings({ cameraEnabled: true });
     startWaveformMonitoring();
   } catch (err) {
     viewfinderEmptyEl.textContent = "Camera access denied or unavailable.";
@@ -192,6 +197,7 @@ function disableCamera() {
   }
   previewEl.srcObject = null;
   cameraEnabled = false;
+  saveRecordingSettings({ cameraEnabled: false });
   viewfinderEmptyEl.textContent = "Camera is off.";
   viewfinderEmptyEl.hidden = false;
   updateCameraToggleUI();
@@ -409,11 +415,6 @@ function resetResponseDelayTracking() {
   readoutDelayEl.textContent = "delay —";
 }
 
-function countWords(text) {
-  const trimmed = text.trim();
-  return trimmed ? trimmed.split(/\s+/).length : 0;
-}
-
 function startSpeechPaceTracking() {
   transcript = "";
   wpm = null;
@@ -445,14 +446,38 @@ function startSpeechPaceTracking() {
   speechRecognizer.start();
 }
 
+// Calling .stop() doesn't end things instantly - the engine typically still
+// fires one more "result" a moment later, finalizing whatever was just
+// said. Returning a promise that resolves on "end" (rather than nulling
+// onresult and reading the transcript immediately) gives that last result
+// a chance to land instead of silently dropping the last few words.
 function stopSpeechPaceTracking() {
-  if (speechRecognizer) {
-    speechRecognizer.onresult = null;
-    speechRecognizer.onerror = null;
-    speechRecognizer.stop();
-    speechRecognizer = null;
-  }
   readoutWpmEl.hidden = true;
+  if (!speechRecognizer) return Promise.resolve();
+
+  const recognizer = speechRecognizer;
+  speechRecognizer = null;
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      recognizer.onresult = null;
+      recognizer.onerror = null;
+      recognizer.onend = null;
+      resolve();
+    };
+    recognizer.onend = finish;
+    recognizer.onerror = (event) => {
+      console.error("Speech recognition error", event.error);
+      finish();
+    };
+    // onend should follow stop() quickly - this just guards against a
+    // recording getting stuck waiting to save if it never fires.
+    setTimeout(finish, 1500);
+    recognizer.stop();
+  });
 }
 
 // Safari/WKWebView's MediaRecorder has historically only supported
@@ -591,7 +616,7 @@ async function handleStop() {
   clearInterval(timerInterval);
   stopWatermarkCompositing();
   if (wpmEnabled && SpeechRecognitionImpl) {
-    stopSpeechPaceTracking();
+    await stopSpeechPaceTracking();
   }
   recDotEl.hidden = true;
   recLabelEl.hidden = true;
@@ -617,6 +642,10 @@ async function handleStop() {
       responseDelayMs,
       wpm: wpmEnabled ? wpm : null,
       transcript: wpmEnabled ? transcript : null,
+      // On platforms without a browser SpeechRecognition engine, wpm/
+      // transcript above are always null - this tells saveAttempt() to kick
+      // off local (Whisper) transcription in the background instead.
+      needsWhisperTranscription: wpmEnabled && !SpeechRecognitionImpl,
     });
   }
 }
@@ -825,6 +854,8 @@ function updateViewfinderSize() {
   const gap = parseFloat(panelStyle.rowGap) || 0;
   const availableWidth = recorderPanelEl.clientWidth - horizontalPadding;
 
+  reconcilePrepNotesHeight();
+
   let availableHeight = computeAvailableHeightForVideoAndNotes();
   if (!prepNotesRow.hidden) {
     // One more gap between the player/controls and the drawer itself.
@@ -905,6 +936,22 @@ function computeMaxPrepNotesHeight() {
   return Math.max(PREP_NOTES_MIN_HEIGHT, maxForBody);
 }
 
+// The saved/dragged height is only ever checked against available space
+// while actively dragging - reshrinking the window afterwards (or loading a
+// height saved on a bigger window) left it stale, overflowing the panel and
+// pushing the record button out of view instead of shrinking to fit. Called
+// on every size recalculation so it can never go stale again. Doesn't
+// persist the clamp - that would overwrite the user's real preference just
+// because the window happened to be small at the time.
+function reconcilePrepNotesHeight() {
+  if (prepNotesRow.hidden || prepNotesCollapsed) return;
+  const max = computeMaxPrepNotesHeight();
+  if (prepNotesHeight > max) {
+    prepNotesHeight = max;
+    syncPrepNotesBodyHeight();
+  }
+}
+
 async function initPrepNotesResize() {
   // initPrepNotesToggle runs right after this and applies it (collapsed or
   // not), so there's no need to touch the DOM with it here too.
@@ -938,18 +985,62 @@ async function initPrepNotesResize() {
   });
 }
 
+const WHISPER_WPM_HINT =
+  "Off by default. When on, your recording is transcribed on this device after you stop it, to measure words per minute and save a transcript you can review afterward.";
+
 async function initWpmToggle() {
-  if (!SpeechRecognitionImpl) {
-    wpmToggleInput.disabled = true;
-    wpmToggleRow.classList.add("unavailable");
-    wpmToggleHint.textContent = "Not available on this platform's webview.";
+  if (SpeechRecognitionImpl) {
+    wpmEnabled = await getWpmEnabled();
+    wpmToggleInput.checked = wpmEnabled;
+
+    wpmToggleInput.addEventListener("change", () => {
+      wpmEnabled = wpmToggleInput.checked;
+      setWpmEnabled(wpmEnabled);
+    });
     return;
   }
 
+  // No browser speech engine on this platform (Mac/Linux) - local Whisper
+  // transcription takes over instead of just disabling the feature.
+  wpmToggleHint.textContent = WHISPER_WPM_HINT;
   wpmEnabled = await getWpmEnabled();
   wpmToggleInput.checked = wpmEnabled;
 
-  wpmToggleInput.addEventListener("change", () => {
+  wpmToggleInput.addEventListener("change", async () => {
+    const turningOn = wpmToggleInput.checked;
+    if (turningOn && !(await getWhisperModelDownloaded())) {
+      // Settings and the confirm dialog share the same overlay styling/
+      // z-index, so with Settings still open the confirm dialog would be
+      // fully covered by it (and unclickable) - close Settings out of the
+      // way first, then bring the confirm prompt forward on its own.
+      document.getElementById("settings-overlay").hidden = true;
+      const confirmed = await showConfirm({
+        title: "Download speech model?",
+        message:
+          "Speech pace (WPM) needs a one-time ~60MB download (a local speech-to-text model). After that, it runs fully on this device - nothing is uploaded per recording.",
+        confirmLabel: "Download",
+      });
+      if (!confirmed) {
+        wpmToggleInput.checked = false;
+        return;
+      }
+
+      wpmToggleInput.disabled = true;
+      wpmToggleHint.textContent = "Downloading speech model…";
+      try {
+        await invoke("download_whisper_model");
+        await setWhisperModelDownloaded(true);
+      } catch (err) {
+        console.error("Failed to download speech model", err);
+        await showAlert({ title: "Download failed", message: String(err?.message ?? err) });
+        wpmToggleInput.checked = false;
+        wpmToggleInput.disabled = false;
+        wpmToggleHint.textContent = WHISPER_WPM_HINT;
+        return;
+      }
+      wpmToggleInput.disabled = false;
+      wpmToggleHint.textContent = WHISPER_WPM_HINT;
+    }
     wpmEnabled = wpmToggleInput.checked;
     setWpmEnabled(wpmEnabled);
   });
@@ -988,4 +1079,13 @@ export async function initRecorder(options = {}) {
   await initWpmToggle();
   await initPrepNotesResize();
   await initPrepNotesToggle();
+
+  // Restore last session's camera state - but only ever from here, once, at
+  // startup. Every other path to the camera turning on is still the toggle
+  // button itself, so this can only ever resume a state the user themselves
+  // already chose (and already granted permission for), never surprise a
+  // first-time user with a cold permission prompt.
+  if (options.cameraEnabled) {
+    enableCamera();
+  }
 }

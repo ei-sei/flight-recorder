@@ -61,12 +61,20 @@ export function formatWpm(wpm) {
   return `${Math.round(wpm)} wpm`;
 }
 
+export function countWords(text) {
+  const trimmed = text.trim();
+  return trimmed ? trimmed.split(/\s+/).length : 0;
+}
+
 export function autosizeTextarea(el) {
   el.style.height = "auto";
   el.style.height = `${el.scrollHeight}px`;
 }
 
-const TAB_INDENT = "  ";
+// A real tab character, not spaces - tabs snap to a fixed column position
+// regardless of what precedes them, so lines with differently-sized labels
+// still line up. Plain spaces can't do that.
+const TAB_INDENT = "\t";
 
 // Tab normally jumps focus to the next control - for a notes field, typing
 // an indent is more useful. Shift+Tab is left alone (normal focus-back).

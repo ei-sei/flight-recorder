@@ -113,7 +113,14 @@ async function migrateFromOldStoreLocation(newStore) {
 
   await newStore.set("questions", oldQuestions);
   await newStore.set("attempts", migratedAttempts);
-  for (const key of ["wpmEnabled", "recordingSettings", "theme", "prepNotesCollapsed", "prepNotesHeight"]) {
+  for (const key of [
+    "wpmEnabled",
+    "recordingSettings",
+    "theme",
+    "prepNotesCollapsed",
+    "prepNotesHeight",
+    "whisperModelDownloaded",
+  ]) {
     const value = await oldStore.get(key);
     if (value !== undefined) await newStore.set(key, value);
   }
@@ -196,10 +203,26 @@ export async function setWpmEnabled(enabled) {
   await store.save();
 }
 
+// Mac/Linux only - whether the local Whisper speech model has already been
+// downloaded. Purely a UX shortcut to skip re-prompting; the Rust side
+// re-downloads transparently if the cached file is ever missing, so nothing
+// depends on this staying accurate.
+export async function getWhisperModelDownloaded() {
+  const store = await getStore();
+  const value = await store.get("whisperModelDownloaded");
+  return value ?? false;
+}
+
+export async function setWhisperModelDownloaded(downloaded) {
+  const store = await getStore();
+  await store.set("whisperModelDownloaded", downloaded);
+  await store.save();
+}
+
 export async function getRecordingSettings() {
   const store = await getStore();
   const value = await store.get("recordingSettings");
-  return { cameraId: null, micId: null, quality: "720", alwaysOnTop: false, ...value };
+  return { cameraId: null, micId: null, quality: "720", alwaysOnTop: false, cameraEnabled: false, ...value };
 }
 
 export async function saveRecordingSettings(settings) {
