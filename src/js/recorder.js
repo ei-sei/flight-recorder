@@ -148,6 +148,11 @@ let onOpenSettings = () => {};
 let currentQuality = "720";
 let cameraEnabled = false;
 let cameraWasEnabledBeforeReview = false;
+// Bumped by every path that acquires a stream. getUserMedia takes a real
+// moment to negotiate, and two overlapping acquisitions both used to assign
+// `stream`, leaving the loser's tracks running - camera light on, device
+// busy, nothing holding a reference to stop it.
+let streamGeneration = 0;
 
 // These numbers were originally tuned for VP9. When recording switched to
 // H.264 everywhere (see RECORDING_FORMAT_CANDIDATES), both presets kept
@@ -223,6 +228,7 @@ async function enableCamera() {
   viewfinderEmptyEl.textContent = "Turning on camera…";
   viewfinderEmptyEl.hidden = false;
 
+  const generation = ++streamGeneration;
   const settings = await getRecordingSettings();
   currentQuality = settings.quality;
 
@@ -233,7 +239,9 @@ async function enableCamera() {
     // still negotiating (e.g. rapidly switching between attempts), the
     // review video is already showing again by the time we get here -
     // release this stream instead of clobbering previewEl.srcObject.
-    if (isReviewing) {
+    // The generation check covers the same shape of race against another
+    // acquisition rather than against review mode.
+    if (isReviewing || generation !== streamGeneration) {
       for (const track of acquiredStream.getTracks()) track.stop();
       return;
     }
@@ -253,6 +261,10 @@ async function enableCamera() {
 }
 
 function disableCamera() {
+  // Invalidates any acquisition still negotiating, so a stream that arrives
+  // after the user has turned the camera off releases itself rather than
+  // switching the camera back on behind them.
+  streamGeneration++;
   stopWaveformMonitoring();
   if (stream) {
     for (const track of stream.getTracks()) track.stop();
@@ -307,9 +319,21 @@ export async function applyRecordingSettings({ cameraId, micId, quality }) {
   stopWaveformMonitoring();
   if (stream) {
     for (const track of stream.getTracks()) track.stop();
+    stream = null;
   }
 
-  stream = await acquireStream(cameraId, micId, quality);
+  // All three Settings selects call this on change, so changing camera and
+  // then quality in quick succession runs two acquisitions at once. Only the
+  // newest one is allowed to install itself; an overtaken one releases its
+  // own hardware instead of leaking it.
+  const generation = ++streamGeneration;
+  const acquired = await acquireStream(cameraId, micId, quality);
+  if (generation !== streamGeneration) {
+    for (const track of acquired.getTracks()) track.stop();
+    return;
+  }
+
+  stream = acquired;
   previewEl.srcObject = stream;
   viewfinderEmptyEl.hidden = true;
   startWaveformMonitoring();
@@ -999,6 +1023,9 @@ export async function enterReviewMode(attempt, attemptNumber) {
   if (!wasAlreadyReviewing) {
     cameraWasEnabledBeforeReview = cameraEnabled;
   }
+  // Same reason as disableCamera: an acquisition still in flight must not
+  // install itself over the review video.
+  streamGeneration++;
   stopWaveformMonitoring();
   if (stream) {
     for (const track of stream.getTracks()) track.stop();
@@ -1255,9 +1282,14 @@ function updateViewfinderSize() {
   const gap = parseFloat(panelStyle.rowGap) || 0;
   const availableWidth = recorderPanelEl.clientWidth - horizontalPadding;
 
-  reconcilePrepNotesHeight();
+  // Measured once and passed down. reconcilePrepNotesHeight computes this
+  // exact value via computeMaxPrepNotesHeight, and it cannot change between
+  // the two calls - so doing it twice just doubled the forced layout passes
+  // this function costs, on the code path a prep-notes drag runs per frame.
+  const available = computeAvailableHeightForVideoAndNotes();
+  reconcilePrepNotesHeight(available);
 
-  let availableHeight = computeAvailableHeightForVideoAndNotes();
+  let availableHeight = available;
   if (!prepNotesRow.hidden) {
     // One more gap between the player/controls and the drawer itself.
     availableHeight -= prepNotesDrawerHeight() + gap;
@@ -1335,8 +1367,9 @@ async function initPrepNotesToggle() {
 // after the always-visible chrome, minus enough to keep the player at a
 // sane minimum size - resizing notes shouldn't be able to squeeze the video
 // down to nothing.
-function computeMaxPrepNotesHeight() {
-  const available = computeAvailableHeightForVideoAndNotes();
+// `available` is passed in by callers that have already measured it, since
+// each measurement is a forced layout pass over five elements.
+function computeMaxPrepNotesHeight(available = computeAvailableHeightForVideoAndNotes()) {
   const gap = parseFloat(getComputedStyle(recorderPanelEl).rowGap) || 0;
   const maxForBody = available - MIN_VIDEO_HEIGHT - gap - prepNotesChromeHeight();
   return Math.max(PREP_NOTES_MIN_HEIGHT, maxForBody);
@@ -1349,9 +1382,9 @@ function computeMaxPrepNotesHeight() {
 // on every size recalculation so it can never go stale again. Doesn't
 // persist the clamp - that would overwrite the user's real preference just
 // because the window happened to be small at the time.
-function reconcilePrepNotesHeight() {
+function reconcilePrepNotesHeight(available) {
   if (prepNotesRow.hidden || prepNotesCollapsed) return;
-  const max = computeMaxPrepNotesHeight();
+  const max = computeMaxPrepNotesHeight(available);
   if (prepNotesHeight > max) {
     prepNotesHeight = max;
     syncPrepNotesBodyHeight();
@@ -1370,17 +1403,33 @@ async function initPrepNotesResize() {
     prepNotesResizeHandleEl.classList.add("dragging");
     prepNotesBodyEl.classList.add("resizing");
 
+    // mousemove fires faster than the display refreshes, and each
+    // updateViewfinderSize is a run of forced layout passes. One resize per
+    // frame is all that can be seen anyway.
+    let pendingFrame = null;
+
     function onMove(moveEvent) {
       const deltaY = startY - moveEvent.clientY; // dragging up grows the drawer
       const max = computeMaxPrepNotesHeight();
       prepNotesHeight = Math.min(max, Math.max(PREP_NOTES_MIN_HEIGHT, startHeight + deltaY));
       syncPrepNotesBodyHeight();
-      updateViewfinderSize();
+      if (pendingFrame === null) {
+        pendingFrame = requestAnimationFrame(() => {
+          pendingFrame = null;
+          updateViewfinderSize();
+        });
+      }
     }
 
     function onUp() {
       document.removeEventListener("mousemove", onMove);
       document.removeEventListener("mouseup", onUp);
+      // The drag can end between frames, leaving the last move unapplied.
+      if (pendingFrame !== null) {
+        cancelAnimationFrame(pendingFrame);
+        pendingFrame = null;
+        updateViewfinderSize();
+      }
       prepNotesResizeHandleEl.classList.remove("dragging");
       prepNotesBodyEl.classList.remove("resizing");
       setPrepNotesHeight(prepNotesHeight);
@@ -1499,8 +1548,10 @@ export async function initRecorder(options = {}) {
     sizeWaveformCanvas();
     if (!mediaRecorder || mediaRecorder.state !== "recording") drawIdleWaveform();
   }).observe(waveformCanvasEl);
-  await initWpmToggle();
-  await initPrepNotesResize();
+  // Independent store reads, so they overlap. initPrepNotesToggle stays
+  // sequential after the resize init: it applies the drawer height that
+  // initPrepNotesResize loads, so it has to see the loaded value.
+  await Promise.all([initWpmToggle(), initPrepNotesResize()]);
   await initPrepNotesToggle();
 
   // Restore last session's camera state - but only ever from here, once, at
