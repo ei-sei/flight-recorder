@@ -681,4 +681,9 @@ async function init() {
   });
 }
 
-init();
+// If setup fails (e.g. can't create Videos/flight-recorder/), show it
+// instead of leaving a broken, silent app with no explanation.
+init().catch(async (err) => {
+  console.error("App failed to start", err);
+  await showAlert({ title: "Failed to start", message: String(err?.message ?? err) });
+});
