@@ -135,8 +135,6 @@ let onScoreChange = () => {};
 let onOpenSettings = () => {};
 
 let currentQuality = "720";
-let currentNoiseSuppression = true;
-let currentAutoGainControl = true;
 let cameraEnabled = false;
 let cameraWasEnabledBeforeReview = false;
 
@@ -172,20 +170,16 @@ async function acquireStream(cameraId, micId, quality) {
     },
     audio: {
       deviceId: micId ? { exact: micId } : undefined,
+      // Not exposed as settings. Both were tried as user-facing toggles;
+      // autoGainControl:false was actively harmful (real testing showed some
+      // mics went quiet enough that Whisper transcribed nothing at all), and
+      // noiseSuppression:false is a niche trade-off that doesn't suit this
+      // app's actual use case - someone rehearsing alone, in a room they've
+      // already chosen to be quiet. Hardcoded on for both. Don't reintroduce
+      // either as a toggle without a real, demonstrated need.
       echoCancellation: true,
-      // User's call - suppression cleans up a noisy room and helps
-      // transcription, but it also trims breaths and quiet trailing words,
-      // which are exactly the hesitation markers you'd want to hear back.
-      noiseSuppression: currentNoiseSuppression,
-      // On by default. Off was tried as the default here - the idea being
-      // that AGC flattens the dynamic range of your delivery, which is part
-      // of what you're reviewing - but real testing showed the downside is
-      // bigger than that: some mics are quiet enough without it that
-      // Whisper got nothing back at all ("no speech detected" on a real
-      // recording with real speech in it). A silently broken transcript is
-      // worse than slightly flattened dynamics, so this defaults on and
-      // dynamics are a setting for anyone who explicitly wants them.
-      autoGainControl: currentAutoGainControl,
+      noiseSuppression: true,
+      autoGainControl: true,
     },
   };
 
@@ -287,11 +281,9 @@ export async function listDevices() {
   };
 }
 
-export async function applyRecordingSettings({ cameraId, micId, quality, noiseSuppression, autoGainControl }) {
+export async function applyRecordingSettings({ cameraId, micId, quality }) {
   currentQuality = quality;
-  currentNoiseSuppression = noiseSuppression;
-  currentAutoGainControl = autoGainControl;
-  await saveRecordingSettings({ cameraId, micId, quality, noiseSuppression, autoGainControl });
+  await saveRecordingSettings({ cameraId, micId, quality });
 
   if (mediaRecorder && mediaRecorder.state === "recording") {
     return; // don't disrupt an in-progress recording; takes effect on the next one
@@ -1377,8 +1369,6 @@ export async function initRecorder(options = {}) {
   onScoreChange = options.onScoreChange ?? (() => {});
   onOpenSettings = options.onOpenSettings ?? (() => {});
   onPrepNotesChange = options.onPrepNotesChange ?? (() => {});
-  currentNoiseSuppression = options.noiseSuppression ?? true;
-  currentAutoGainControl = options.autoGainControl ?? true;
 
   recordBtn.addEventListener("click", toggleRecording);
   backToLiveBtn.addEventListener("click", exitReviewMode);

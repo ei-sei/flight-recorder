@@ -228,8 +228,6 @@ export async function getRecordingSettings() {
     quality: "480",
     alwaysOnTop: false,
     cameraEnabled: false,
-    noiseSuppression: true,
-    autoGainControl: true,
     ...value,
   };
 }

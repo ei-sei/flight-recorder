@@ -23,10 +23,9 @@ Once installed, updates are handled in-app: Help → Check for updates, or the b
 - **Prep notes** per question, in a collapsible drawer you can resize, kept visible while you record.
 - **Attempt log** - every recording is captured automatically with question, category, date, duration, and a per-question attempt number. Review any past attempt's video, rate it (1-5 stars), and add notes.
 - **Filter tabs** over the attempt log (All / Behavioural / Technical / Case), and a per-question view when you select a question in the bank.
-- **Response delay** - time from record start to your first word, from local mic-level analysis. The threshold adapts to your room's noise floor rather than assuming a fixed level, because auto gain control is deliberately switched off (see below).
+- **Response delay** - time from record start to your first word, from local mic-level analysis. The threshold adapts to your room's noise floor rather than assuming one fixed level, since raw mic sensitivity varies a lot between devices.
 - **Delivery metrics** - pause count, longest pause, longest unbroken run, and talking ratio, all measured from mic level. No transcription needed, so they work on every platform with nothing enabled.
 - **Speech pace (WPM)** - words-per-minute plus a transcript, transcribed on your machine by a local Whisper model after you stop recording. Off by default; the model is a one-time ~60MB download, behind a confirmation dialog. Shows a **pace spread** (per-segment rate) alongside the average, which is what catches rushing the end of an answer, and a **filler-word count** from the transcript.
-- **Audio tuned for review, not for calls** - auto gain control is off, so you hear your own dynamics rather than a flattened, normalised version of them. Noise suppression is a setting: it helps in a noisy room but trims breaths and quiet trailing words.
 - **Light/dark theme**, a custom frameless window with its own titlebar and resize handles, and a File/View/Help menu bar.
 - **Check for updates** (Help menu) checks the project's GitHub Releases for a newer version and can download, install, and restart into it.
 
