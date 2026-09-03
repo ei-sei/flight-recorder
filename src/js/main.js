@@ -510,34 +510,23 @@ function initUpdateBell() {
 // Read off disk rather than from the store's whisperModelDownloaded flag -
 // that flag only exists to skip re-prompting and is allowed to drift, which
 // is fine for a prompt and not fine for a panel claiming to state facts.
-function describeSpeechModel(status) {
-  if (!status) return "Unavailable";
-  // "ggml-base.en-q5_1.bin" -> "base.en-q5_1"
-  const name = status.name.replace(/^ggml-/, "").replace(/\.bin$/, "");
-  if (!status.installed) return `${name} (not downloaded)`;
-  return `${name} (${formatBytes(status.size_bytes)})`;
-}
-
 async function getAboutFields() {
   const { getVersion, getTauriVersion } = window.__TAURI__.app;
   const { invoke } = window.__TAURI__.core;
-  const [version, tauriVersion, commitSha, modelStatus] = await Promise.all([
+  const [version, tauriVersion, commitSha, rustVersion] = await Promise.all([
     getVersion(),
     getTauriVersion(),
     invoke("get_commit_sha"),
-    // Not fatal - About should still open if this fails for any reason.
-    invoke("get_whisper_model_status").catch((err) => {
-      console.error("Couldn't read the speech model status", err);
-      return null;
-    }),
+    invoke("get_rust_version"),
   ]);
   return {
     Version: version,
     Commit: commitSha,
     Tauri: tauriVersion,
-    // The one component that's downloaded rather than shipped, and the first
-    // thing to check when a transcript comes out wrong.
-    "Speech model": describeSpeechModel(modelStatus),
+    // The compiler that actually built this binary - embedded at compile
+    // time from Cargo's own RUSTC env var (see build.rs), not assumed from
+    // whatever "rustc" resolves to on whoever's reading this machine.
+    Rust: rustVersion,
     Platform: navigator.platform || "Unknown",
   };
 }

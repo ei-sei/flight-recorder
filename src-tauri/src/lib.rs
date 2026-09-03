@@ -1,11 +1,16 @@
 use tauri::Manager;
 
 mod whisper;
-use whisper::{download_whisper_model, get_whisper_model_status, transcribe_recording};
+use whisper::{download_whisper_model, transcribe_recording};
 
 #[tauri::command]
 fn get_commit_sha() -> &'static str {
     env!("GIT_COMMIT_SHA")
+}
+
+#[tauri::command]
+fn get_rust_version() -> &'static str {
+    env!("RUSTC_VERSION")
 }
 
 // The webview's own "Inspect element" comes with a native menu full of
@@ -69,9 +74,9 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .invoke_handler(tauri::generate_handler![
             get_commit_sha,
+            get_rust_version,
             open_devtools,
             get_library_size,
-            get_whisper_model_status,
             download_whisper_model,
             transcribe_recording
         ])
