@@ -131,8 +131,14 @@ export async function saveAttempt({
 
   if (needsWhisperTranscription) {
     // Not awaited - the attempt is already saved and visible; wpm/transcript
-    // fill in a few seconds later once local transcription finishes.
-    transcribeAttemptInBackground(attempt, speechIntervals);
+    // fill in a few seconds later once local transcription finishes. Queued
+    // rather than simply launched, because each run loads its own copy of the
+    // model and saturates the CPU: recording twice in quick succession used
+    // to run both at once, which is slower overall than running them in order
+    // and competes with the live camera preview while it does it.
+    transcriptionQueue = transcriptionQueue.then(() =>
+      transcribeAttemptInBackground(attempt, speechIntervals)
+    );
   }
 
   return attempt;
@@ -161,6 +167,10 @@ export async function updateAttemptNotes(id, notes) {
 export async function updateAttemptTranscript(id, patch) {
   await updateAttempt(id, { ...patch, transcribing: false });
 }
+
+// Serialises transcription jobs. transcribeAttemptInBackground never rejects
+// (it handles its own failures), so this chain can't be poisoned.
+let transcriptionQueue = Promise.resolve();
 
 async function transcribeAttemptInBackground(attempt, speechIntervals) {
   try {
@@ -246,12 +256,15 @@ export async function deleteAttemptsForQuestion(questionId) {
     reviewingId = null;
   }
 
-  for (const attempt of toDelete) {
-    try {
-      await remove(await resolveVideoPath(attempt.videoRelativePath));
-    } catch (err) {
-      console.error("Failed to remove video file", err);
-    }
+  // Independent deletes across an IPC boundary. Serialising them made this one
+  // round trip per attempt, which is slow for a well-practised question.
+  // allSettled keeps the existing behaviour of pressing on past a file that
+  // has already gone.
+  const removals = await Promise.allSettled(
+    toDelete.map(async (attempt) => remove(await resolveVideoPath(attempt.videoRelativePath)))
+  );
+  for (const removal of removals) {
+    if (removal.status === "rejected") console.error("Failed to remove video file", removal.reason);
   }
 
   attempts = attempts.filter((a) => a.questionId !== questionId);
@@ -293,17 +306,28 @@ function computeAttemptNumbers() {
   return numbers;
 }
 
+// The reviewing marker is one class on one row. Rebuilding the entire list to
+// move it (which is what calling render() here did) tears down and recreates
+// every row, and each row is a dozen-odd nodes including a textarea and five
+// star buttons - the same shape of waste computeAttemptNumbers already fixed.
+function setReviewingHighlight(id) {
+  reviewingId = id;
+  for (const el of listEl.querySelectorAll(".attempt-item")) {
+    el.classList.toggle("reviewing", el.dataset.attemptId === id);
+  }
+}
+
 function renderAttemptItem(attempt, attemptNumber) {
   const item = document.createElement("li");
   item.className = "attempt-item" + (attempt.id === reviewingId ? " reviewing" : "");
+  item.dataset.attemptId = attempt.id;
   item.addEventListener("click", (event) => {
     if (event.target.closest("button")) return;
     // Already reviewing this exact attempt - onPlay() reloads and restarts
     // the video unconditionally, so skip it rather than yank playback back
     // to the start every time this row gets clicked again.
     if (attempt.id === reviewingId) return;
-    reviewingId = attempt.id;
-    render();
+    setReviewingHighlight(attempt.id);
     onPlay(attempt, attemptNumber);
   });
   item.addEventListener("contextmenu", (event) => {
@@ -422,8 +446,7 @@ export function getAttemptCountForQuestion(questionId) {
 }
 
 export function clearReviewing() {
-  reviewingId = null;
-  render();
+  setReviewingHighlight(null);
 }
 
 export async function initAttempts(options = {}) {
