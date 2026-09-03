@@ -174,10 +174,15 @@ mod backend {
         Ok(downloaded)
     }
 
-    // Demuxes/decodes the audio track of a recorded video file (MP4/AAC is
-    // the real case everywhere now; WebM/Opus is a defensive fallback - see
-    // RECORDING_FORMAT_CANDIDATES in recorder.js), downmixes to mono, and
-    // resamples to the 16kHz mono f32 PCM whisper.cpp expects.
+    // Demuxes/decodes the audio track of a recorded video file, downmixes to
+    // mono, and resamples to the 16kHz mono f32 PCM whisper.cpp expects.
+    //
+    // MP4/AAC only, which is what RECORDING_FORMAT_CANDIDATES in recorder.js
+    // produces everywhere it can. This used to claim WebM/Opus worked as a
+    // fallback; it does not, and never did - symphonia 0.5 has no Opus
+    // decoder at all, so a WebM recording reached here only to fail. The
+    // frontend now recognises that format and declines to start rather than
+    // handing it over (see isTranscribableFormat).
     pub fn decode_audio_to_pcm16k(video_path: &Path) -> Result<Vec<f32>, String> {
         let file = std::fs::File::open(video_path).map_err(|e| e.to_string())?;
         let mss = MediaSourceStream::new(Box::new(file), Default::default());

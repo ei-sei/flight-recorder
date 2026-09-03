@@ -79,6 +79,7 @@ export async function saveAttempt({
   measurementInterrupted,
   wpm,
   transcript,
+  transcriptError,
   needsWhisperTranscription,
 }) {
   const date = new Date();
@@ -113,9 +114,10 @@ export async function saveAttempt({
     paceMinWpm: null,
     paceMaxWpm: null,
     transcript: transcript ?? null,
-    // Set only when transcription actually failed, so review can tell that
-    // apart from a recording with no speech in it.
-    transcriptError: null,
+    // Set when transcription failed, or when it was never going to be
+    // possible for this recording's format, so review can tell either apart
+    // from a recording with no speech in it.
+    transcriptError: transcriptError ?? null,
     // Transcription runs after the file is written, so there's a window of a
     // few seconds where the attempt exists with no transcript yet. Without
     // this flag review can't tell that apart from "WPM was switched off",
