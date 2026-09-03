@@ -50,6 +50,9 @@ jobs:
 
   npm-audit:
     runs-on: ubuntu-22.04
+    # npm's own retries can sit on an unreachable registry for five minutes
+    # before giving up, which is most of this job's runtime when it happens.
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
 
@@ -57,5 +60,26 @@ jobs:
         with:
           node-version: lts/*
 
+      # npm audit exits 1 both for a real finding and for a registry that is
+      # down, so the exit code alone cannot tell "you have a vulnerability"
+      # apart from "npmjs.org returned a 503". Without this a third-party
+      # outage fails the build and reads exactly like a security finding.
+      # A real finding still fails on the first attempt; only an endpoint
+      # error is retried.
       - name: npm audit
-        run: npm audit --audit-level=high
+        run: |
+          for attempt in 1 2 3; do
+            if output=$(npm audit --audit-level=high 2>&1); then
+              echo "$output"
+              exit 0
+            fi
+            echo "$output"
+            if ! grep -q "audit endpoint returned an error" <<<"$output"; then
+              echo "::error::npm audit reported a vulnerability at or above the high threshold."
+              exit 1
+            fi
+            echo "Registry error on attempt $attempt of 3; retrying in 20s."
+            sleep 20
+          done
+          echo "::error::npm registry was unreachable after 3 attempts; audit did not run."
+          exit 1
