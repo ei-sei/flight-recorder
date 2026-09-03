@@ -650,7 +650,10 @@ function resetResponseDelayTracking() {
 // Opus in an MP4 and Safari won't play it back.
 //
 // WebM stays on the end as a genuine fallback for an engine with no H.264
-// encoder at all.
+// encoder at all. Note it costs the WPM feature: the backend has no Opus
+// decoder, so a recording that lands here can't be transcribed. Playback
+// matters more than WPM does, so the fallback stays and isTranscribableFormat
+// below is what keeps that trade-off honest to the user.
 const RECORDING_FORMAT_CANDIDATES = [
   // Hex digits uppercase - that's the convention in the spec's own examples,
   // and not every engine's parser is case-insensitive about it.
@@ -698,6 +701,20 @@ function extensionForMimeType(mimeType, fallback) {
 }
 
 let currentRecordingFormat = null;
+
+// The backend demuxes MP4 and decodes AAC (see symphonia's features in
+// Cargo.toml). symphonia 0.5 has no Opus decoder at all, and Opus is what
+// every WebM candidate above produces - so a recording that fell all the way
+// down to WebM can never be transcribed, however willing the backend is to
+// try. Worth detecting here rather than running it and reporting a failure
+// the user can do nothing about.
+function isTranscribableFormat(format) {
+  const type = (format?.mimeType || `video/${format?.extension ?? ""}`).toLowerCase();
+  return type.startsWith("video/mp4");
+}
+
+const UNTRANSCRIBABLE_NOTE =
+  "this recording fell back to WebM, which the on-device speech model can't read";
 
 // Burns the date/timer into the saved video, camcorder-style - the on-screen
 // badge is a UI overlay only and was never part of the recorded pixels.
@@ -870,6 +887,7 @@ async function handleStop() {
   finaliseSpeechAnalysis();
   const format = currentRecordingFormat ?? BLIND_FALLBACK_FORMAT;
   const blob = new Blob(chunks, { type: format.mimeType || `video/${format.extension}` });
+  const transcribable = isTranscribableFormat(format);
   const question = getSelectedQuestion();
   if (question) {
     await onRecordingComplete({
@@ -887,7 +905,11 @@ async function handleStop() {
       // background and patches the attempt when it lands.
       wpm: null,
       transcript: null,
-      needsWhisperTranscription: wpmEnabled,
+      needsWhisperTranscription: wpmEnabled && transcribable,
+      // Says why up front rather than starting a transcription that can only
+      // ever fail, which review would otherwise render as advice to turn on a
+      // setting that is already on.
+      transcriptError: wpmEnabled && !transcribable ? UNTRANSCRIBABLE_NOTE : null,
     });
   }
 
