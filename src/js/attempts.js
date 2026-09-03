@@ -1,5 +1,5 @@
 const { join } = window.__TAURI__.path;
-const { mkdir, writeFile, exists, remove } = window.__TAURI__.fs;
+const { mkdir, writeFile, readFile, exists, remove } = window.__TAURI__.fs;
 const { revealItemInDir } = window.__TAURI__.opener;
 const { invoke } = window.__TAURI__.core;
 
@@ -170,13 +170,68 @@ export async function updateAttemptTranscript(id, patch) {
 // (it handles its own failures), so this chain can't be poisoned.
 let transcriptionQueue = Promise.resolve();
 
+// What whisper.cpp wants. The value is duplicated in whisper.rs, which reads
+// the file this produces; neither side can discover it from the other.
+const WHISPER_SAMPLE_RATE = 16000;
+
+// Decodes the recording's audio and writes it as raw 16kHz mono f32 PCM for
+// the Rust side to pick up.
+//
+// The decode happens here, in the webview, rather than in Rust, because the
+// webview can always decode a file it just produced. Rust could not: the
+// backend used symphonia, and Chromium's MP4 muxer omits the esds
+// SLConfigDescriptor that symphonia's isomp4 reader requires, so every
+// recording made in WebView2 failed with "isomp4: missing sl config
+// descriptor". WebM recordings failed separately, since symphonia has no
+// Opus decoder. Decoding here removes the whole class of problem instead of
+// chasing one container at a time.
+//
+// decodeAudioData resamples to the context's own rate, so asking for a
+// 16kHz context does the rate conversion with the engine's own resampler and
+// no third-party one is needed.
+async function extractPcmForTranscription(videoPath) {
+  const videoBytes = await readFile(videoPath);
+  // OfflineAudioContext, not AudioContext: this needs no output device, and
+  // opening a real one here would light up the speakers' in-use indicator
+  // during what is meant to be invisible background work.
+  const ctx = new OfflineAudioContext(1, 1, WHISPER_SAMPLE_RATE);
+  // decodeAudioData wants an ArrayBuffer it can detach, and readFile may hand
+  // back a view into a larger buffer, so slice to exactly this file's bytes.
+  const decoded = await ctx.decodeAudioData(
+    videoBytes.buffer.slice(videoBytes.byteOffset, videoBytes.byteOffset + videoBytes.byteLength)
+  );
+
+  const channels = decoded.numberOfChannels;
+  let mono;
+  if (channels === 1) {
+    mono = decoded.getChannelData(0);
+  } else {
+    // Averaged rather than taking channel 0, so a speaker recorded mostly on
+    // one side of a stereo mic doesn't come through at half level.
+    mono = new Float32Array(decoded.length);
+    for (let channel = 0; channel < channels; channel++) {
+      const data = decoded.getChannelData(channel);
+      for (let i = 0; i < data.length; i++) mono[i] += data[i] / channels;
+    }
+  }
+
+  // Written next to the video so it stays inside the library folder, which is
+  // the only place the fs scope and the Rust command will accept a path from.
+  // Rust deletes it the moment it has read it.
+  const pcmRelativePath = `${videoPath}.pcm`;
+  await writeFile(pcmRelativePath, new Uint8Array(mono.buffer, mono.byteOffset, mono.byteLength));
+  return pcmRelativePath;
+}
+
 async function transcribeAttemptInBackground(attempt, speechIntervals) {
+  let pcmPath = null;
   try {
     const videoPath = await resolveVideoPath(attempt.videoRelativePath);
+    pcmPath = await extractPcmForTranscription(videoPath);
     // Rust hands back segments (text + start/end in ms), not a flat string -
     // the timings are what the pace spread is computed from, and what makes
     // the hallucination check possible at all.
-    const raw = await invoke("transcribe_recording", { videoPath });
+    const raw = await invoke("transcribe_recording", { pcmPath });
     const segments = rejectHallucinatedSegments(
       raw.map((s) => ({ text: s.text, startMs: s.start_ms, endMs: s.end_ms })),
       speechIntervals
@@ -210,6 +265,16 @@ async function transcribeAttemptInBackground(attempt, speechIntervals) {
       transcript: null,
       transcriptError: String(err?.message ?? err),
     });
+    // Rust removes the scratch file as soon as it reads it, but a failure
+    // before that point (no model, rejected path) leaves it behind. It is
+    // ~19MB for ten minutes, in the user's own Videos folder.
+    if (pcmPath) {
+      try {
+        await remove(pcmPath);
+      } catch (removeErr) {
+        console.error("Couldn't remove the temporary PCM file", removeErr);
+      }
+    }
   }
 }
 

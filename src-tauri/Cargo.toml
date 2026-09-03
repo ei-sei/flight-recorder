@@ -39,7 +39,12 @@ serde_json = "1"
 # buys back an unconditional "nothing leaves this machine", one code path
 # instead of two, and WPM numbers that mean the same thing on every OS.
 whisper-rs = "0.14"
-symphonia = { version = "0.5", features = ["isomp4", "aac"] }
-rubato = "0.15"
+# symphonia and rubato used to live here, to demux and resample the recording
+# on this side. They are gone because that could never work: Chromium's MP4
+# muxer omits the esds SLConfigDescriptor that symphonia's isomp4 reader
+# treats as mandatory, so every WebView2 recording failed to demux, and
+# symphonia has no Opus decoder so the WebM fallback failed too. The webview
+# can always decode the file it just wrote, so the decode happens there and
+# whisper.rs reads plain 16kHz f32 PCM.
 ureq = { version = "2", features = ["tls"] }
 

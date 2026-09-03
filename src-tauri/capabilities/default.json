@@ -20,6 +20,7 @@
     "fs:allow-write-file",
     "fs:allow-exists",
     "fs:allow-remove",
+    "fs:allow-read-file",
     "updater:default",
     "process:allow-restart",
     {
