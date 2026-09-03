@@ -57,6 +57,7 @@ const prepNotesResizeHandleEl = document.getElementById("prep-notes-resize-handl
 const reviewNotesRow = document.getElementById("review-notes-row");
 const reviewNotesInput = document.getElementById("review-notes-input");
 const reviewStatsRow = document.getElementById("review-stats-row");
+const reviewDelayEl = document.getElementById("review-delay");
 const reviewTranscriptRow = document.getElementById("review-transcript-row");
 const reviewTranscriptText = document.getElementById("review-transcript-text");
 const reviewTranscriptEmpty = document.getElementById("review-transcript-empty");
@@ -865,6 +866,31 @@ function renderReviewStars(attemptId, score) {
   });
 }
 
+// Renders label/values pairs straight into the grid, no wrapper elements -
+// the two columns are what keep the labels aligned across rows. A group with
+// nothing measured is skipped entirely rather than showing a bare label.
+function renderReviewStats(groups) {
+  reviewStatsRow.innerHTML = "";
+  let rendered = 0;
+
+  for (const group of groups) {
+    const values = group.values.filter(Boolean);
+    if (values.length === 0) continue;
+
+    const label = document.createElement("span");
+    label.className = "review-stat-label";
+    label.textContent = group.label;
+
+    const text = document.createElement("span");
+    text.textContent = values.join(" · ");
+
+    reviewStatsRow.append(label, text);
+    rendered++;
+  }
+
+  reviewStatsRow.hidden = rendered === 0;
+}
+
 export async function enterReviewMode(attempt, attemptNumber) {
   if (mediaRecorder && mediaRecorder.state === "recording") return;
 
@@ -920,23 +946,42 @@ export async function enterReviewMode(attempt, attemptNumber) {
   renderReviewStars(attempt.id, attempt.score);
   viewfinderMetaEl.hidden = false;
 
-  const statsLine = [
-    formatResponseDelay(attempt.responseDelayMs),
-    formatWpm(attempt.wpm),
-    formatPaceRange(attempt.paceMinWpm, attempt.paceMaxWpm),
-    formatPauses(attempt.pauseCount),
-    formatLongestPause(attempt.longestPauseMs),
-    formatLongestStretch(attempt.longestStretchMs),
-    formatSpeakingRatio(attempt.speakingRatio),
-    // Only worth showing when there's a transcript to have counted it from -
-    // "0 fillers" against no transcript reads as a result rather than an
-    // absence of one.
-    attempt.transcript ? formatFillers(countFillers(attempt.transcript)) : null,
-  ]
-    .filter(Boolean)
-    .join(" · ");
-  reviewStatsRow.textContent = statsLine;
-  reviewStatsRow.hidden = !statsLine;
+  // Delay keeps its own slot next to the button. It's the one figure here
+  // that isn't about how you spoke - it measures the gap before you started.
+  const delayText = formatResponseDelay(attempt.responseDelayMs);
+  reviewDelayEl.textContent = delayText ?? "";
+  reviewDelayEl.hidden = !delayText;
+
+  renderReviewStats([
+    // Ordered by what actually changes how you'd practise. Speaking too fast
+    // is the classic interview problem, a pace that drifts catches rushing
+    // the ending, and fillers are the single most common piece of feedback
+    // anyone gets.
+    {
+      label: "Speech",
+      values: [
+        formatWpm(attempt.wpm),
+        formatPaceRange(attempt.paceMinWpm, attempt.paceMaxWpm),
+        // Only worth showing when there's a transcript to have counted it
+        // from - "0 fillers" against no transcript reads as a result rather
+        // than an absence of one.
+        attempt.transcript ? formatFillers(countFillers(attempt.transcript)) : null,
+      ],
+    },
+    // Diagnostic rather than directly actionable: a long unbroken run points
+    // at rambling and the pause figures at hesitation, but they're read
+    // alongside the video rather than acted on by themselves. Talking ratio
+    // is the weakest of the lot and sits last for that reason.
+    {
+      label: "Rhythm",
+      values: [
+        formatLongestStretch(attempt.longestStretchMs),
+        formatPauses(attempt.pauseCount),
+        formatLongestPause(attempt.longestPauseMs),
+        formatSpeakingRatio(attempt.speakingRatio),
+      ],
+    },
+  ]);
 
   reviewTranscriptRow.hidden = false;
   if (attempt.transcript) {
@@ -995,6 +1040,7 @@ export function exitReviewMode() {
   updatePrepNotesVisibility();
 
   reviewStatsRow.hidden = true;
+  reviewDelayEl.hidden = true;
   reviewTranscriptRow.hidden = true;
   reviewNotesRow.hidden = true;
   reviewNotesInput.onblur = null;
@@ -1032,13 +1078,27 @@ function computeAvailableHeightForVideoAndNotes() {
   const verticalPadding = parseFloat(panelStyle.paddingTop) + parseFloat(panelStyle.paddingBottom);
   const gap = parseFloat(panelStyle.rowGap) || 0;
 
-  // liveReadoutsEl isn't listed separately - it now renders inline inside
+  // liveReadoutsEl isn't listed separately - it renders inline inside
   // recordControlsEl (next to the record button) rather than as its own
   // stacked row, so its height is already covered by recordControlsEl's.
-  const alwaysVisible = [viewfinderMetaEl, cameraToggleRowEl, currentQuestionEl, recordControlsEl].filter(
-    (el) => !el.hidden
-  );
-  const chromeHeight = alwaysVisible.reduce((sum, el) => sum + el.offsetHeight, 0);
+  // reviewStatsRow *is* its own row, and a wrapping one, so it has to be
+  // measured - it's only present in review mode, which the hidden filter
+  // below handles.
+  const alwaysVisible = [
+    viewfinderMetaEl,
+    cameraToggleRowEl,
+    currentQuestionEl,
+    recordControlsEl,
+    reviewStatsRow,
+  ].filter((el) => !el.hidden);
+  // offsetHeight covers padding and border but not margin, so a margin on
+  // any of these would go unbudgeted and quietly oversize the player - the
+  // same mistake that let the notes drawer push the record button off-panel.
+  // Measured explicitly rather than relying on nobody ever adding one.
+  const chromeHeight = alwaysVisible.reduce((sum, el) => {
+    const style = getComputedStyle(el);
+    return sum + el.offsetHeight + parseFloat(style.marginTop) + parseFloat(style.marginBottom);
+  }, 0);
   const gapsCount = alwaysVisible.length; // one gap between each always-visible element and the player
   return recorderPanelEl.clientHeight - verticalPadding - chromeHeight - gapsCount * gap;
 }

@@ -871,11 +871,42 @@ textarea {
      fixture rather than a popup. */
 }
 
+/* Its own row under the controls, not tucked beside the button. It started
+   as two figures (delay, wpm) where sitting inline was fine; it's eight now,
+   which would either squash the row or push the button off-centre. Wraps
+   rather than overflowing, since the count varies per attempt - an old one
+   with no transcript shows two, a full one shows the lot. */
+/* Its own block under the controls, not tucked beside the button - this
+   started as two figures and is seven now, which squashed the row and
+   pushed the button back off-centre.
+   Grouped into labelled rows rather than one long chain, because seven bare
+   numbers separated by dots is a wall. A 2-column grid (label / values)
+   with justify-content: center keeps the labels aligned with each other
+   while the block as a whole stays centred - independently centred rows
+   would leave the labels ragged. */
 .review-stats {
-  padding-left: 12px;
-  border-left: 1px solid var(--border);
+  display: grid;
+  grid-template-columns: auto 1fr;
+  justify-content: center;
+  gap: 2px 10px;
+  width: 100%;
+  /* Hairline under the block, closing it off against the transcript and
+     notes below - these are measurements of the attempt, those are the
+     content of it. Rides on the element itself, so it disappears along with
+     the block when there's nothing measured to show.
+     Tight above the line and looser below, so the rule reads as belonging to
+     the metrics rather than floating between two sections. */
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 12px;
   font-size: 12px;
+  line-height: 1.6;
   color: var(--text-secondary);
+}
+
+.review-stat-label {
+  color: var(--text-dim);
+  text-align: right;
 }
 
 .review-notes {
@@ -1045,8 +1076,12 @@ textarea {
   grid-column: 2;
 }
 
+/* Delay stays inline beside the button in both modes - one short figure,
+   and it's the odd one out conceptually: it measures the moment before you
+   start talking, not how you talked. Everything else moved to its own
+   block; see .review-stats. */
 #live-readouts,
-#review-stats-row {
+#review-delay {
   grid-column: 3;
   justify-self: start;
 }
@@ -1505,6 +1540,7 @@ textarea {
   padding: 6px 12px;
   font-size: 11px;
 }
+
 
 .notes-input:focus {
   outline: none;
