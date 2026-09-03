@@ -1088,6 +1088,10 @@ const MIN_VIDEO_HEIGHT = 160;
 const PREP_NOTES_DEFAULT_HEIGHT = 90;
 const PREP_NOTES_MIN_HEIGHT = 48;
 
+// Shaved off the final computed height in updateViewfinderSize, not here -
+// see the comment there for why an exact-fit computation is worth padding.
+const LAYOUT_SAFETY_MARGIN = 2;
+
 // recorderPanelEl.clientHeight is stable regardless of content - it has
 // overflow-y: auto, so overflowing children scroll instead of growing the
 // box. This is the space left over for the player and the notes drawer
@@ -1160,6 +1164,14 @@ function updateViewfinderSize() {
     // One more gap between the player/controls and the drawer itself.
     availableHeight -= prepNotesDrawerHeight() + gap;
   }
+  // This sizes the video to exactly fill what's left, and .recorder-panel's
+  // overflow-y:auto turns any positive overflow into a real scrollbar - even
+  // a fraction of a pixel. getComputedStyle/offsetHeight can round slightly
+  // differently between rendering engines (WebView2 vs WebKitGTK vs
+  // WKWebView), so an exact-fit computation that holds on one can overflow
+  // by a hair on another. A small deliberate margin costs nothing visible
+  // and removes that whole class of engine-dependent scrollbar.
+  availableHeight -= LAYOUT_SAFETY_MARGIN;
 
   if (availableWidth <= 0 || availableHeight <= 0) return;
 
