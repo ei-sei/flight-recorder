@@ -76,6 +76,7 @@ export async function saveAttempt({
   longestStretchMs,
   speakingRatio,
   speechIntervals,
+  measurementInterrupted,
   wpm,
   transcript,
   needsWhisperTranscription,
@@ -100,6 +101,11 @@ export async function saveAttempt({
     longestPauseMs: longestPauseMs ?? null,
     longestStretchMs: longestStretchMs ?? null,
     speakingRatio: speakingRatio ?? null,
+    // The window was hidden long enough during this recording that the
+    // mic-level sampling loop couldn't keep up, so the figures above were
+    // deliberately not measured. Review says so rather than leaving the gap
+    // unexplained.
+    measurementInterrupted: Boolean(measurementInterrupted),
     wpm: wpm ?? null,
     // Filled in by transcription, which runs after this returns. Note
     // speechIntervals is deliberately NOT stored - it's hundreds of entries
