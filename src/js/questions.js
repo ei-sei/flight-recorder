@@ -1,5 +1,5 @@
 import { getQuestions, saveQuestions } from "./store.js";
-import { getAttemptCountForQuestion, deleteAttemptsForQuestion } from "./attempts.js";
+import { getAttemptCountForQuestion, deleteAttemptsForQuestion, renameQuestionInAttempts } from "./attempts.js";
 import { showConfirm } from "./modal.js";
 import { showContextMenu } from "./contextmenu.js";
 
@@ -7,6 +7,8 @@ let questions = [];
 let activeCategory = "Behavioural";
 let selectedId = null;
 let onSelectionChange = () => {};
+let draggedId = null;
+let editingId = null;
 
 const listEl = document.getElementById("question-list");
 const tabsEl = document.getElementById("question-category-tabs");
@@ -30,6 +32,14 @@ function render() {
     item.className = "question-item" + (q.id === selectedId ? " selected" : "");
     item.dataset.id = q.id;
 
+    if (q.id === editingId) {
+      item.appendChild(renderRenameInput(q));
+      listEl.appendChild(item);
+      continue;
+    }
+
+    item.draggable = true;
+
     const text = document.createElement("span");
     text.className = "question-item-text";
     text.textContent = q.text;
@@ -39,11 +49,123 @@ function render() {
     item.addEventListener("contextmenu", (event) => {
       event.preventDefault();
       showContextMenu(event.clientX, event.clientY, [
+        { label: "Rename question", onClick: () => startRenaming(q.id) },
         { label: "Delete question", danger: true, onClick: () => confirmDeleteQuestion(q) },
       ]);
     });
+    item.addEventListener("dragstart", (event) => {
+      draggedId = q.id;
+      event.dataTransfer.effectAllowed = "move";
+      // WebKitGTK (Linux) needs real drag data set to complete the drag -
+      // unlike Chromium, it won't fire drop otherwise.
+      event.dataTransfer.setData("text/plain", q.id);
+      item.classList.add("dragging");
+    });
+    item.addEventListener("dragend", () => {
+      item.classList.remove("dragging");
+      clearDragOverMarkers();
+      draggedId = null;
+    });
+    item.addEventListener("dragover", (event) => {
+      if (!draggedId || draggedId === q.id) return;
+      event.preventDefault();
+      clearDragOverMarkers();
+      const before = isDropBefore(event, item);
+      item.classList.add(before ? "drag-over-before" : "drag-over-after");
+    });
+    item.addEventListener("drop", (event) => {
+      event.preventDefault();
+      if (!draggedId || draggedId === q.id) return;
+      const before = isDropBefore(event, item);
+      reorderQuestion(draggedId, q.id, before);
+      draggedId = null;
+    });
     listEl.appendChild(item);
   }
+}
+
+function renderRenameInput(question) {
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "question-item-edit-input";
+  input.value = question.text;
+  input.maxLength = 240;
+
+  // Escape cancels without saving - blur normally commits, but Escape also
+  // blurs the input, so this stops that blur from re-committing behind it.
+  let cancelled = false;
+
+  function commit() {
+    if (cancelled) return;
+    const trimmed = input.value.trim();
+    editingId = null;
+    if (trimmed && trimmed !== question.text) {
+      renameQuestion(question.id, trimmed);
+    } else {
+      render();
+    }
+  }
+
+  input.addEventListener("click", (event) => event.stopPropagation());
+  input.addEventListener("blur", commit);
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      input.blur();
+    } else if (event.key === "Escape") {
+      cancelled = true;
+      editingId = null;
+      render();
+    }
+  });
+
+  queueMicrotask(() => {
+    input.focus();
+    input.select();
+  });
+
+  return input;
+}
+
+function startRenaming(id) {
+  editingId = id;
+  render();
+}
+
+async function renameQuestion(id, text) {
+  const question = questions.find((q) => q.id === id);
+  if (!question) return;
+  question.text = text;
+  await saveQuestions(questions);
+  await renameQuestionInAttempts(id, text);
+  if (selectedId === id) {
+    onSelectionChange(getSelectedQuestion());
+  }
+  render();
+}
+
+function isDropBefore(event, item) {
+  const rect = item.getBoundingClientRect();
+  return event.clientY - rect.top < rect.height / 2;
+}
+
+function clearDragOverMarkers() {
+  for (const el of listEl.querySelectorAll(".drag-over-before, .drag-over-after")) {
+    el.classList.remove("drag-over-before", "drag-over-after");
+  }
+}
+
+async function reorderQuestion(draggedQuestionId, targetId, before) {
+  const draggedIndex = questions.findIndex((q) => q.id === draggedQuestionId);
+  if (draggedIndex === -1) return;
+  const [dragged] = questions.splice(draggedIndex, 1);
+
+  const targetIndex = questions.findIndex((q) => q.id === targetId);
+  const insertAt = before ? targetIndex : targetIndex + 1;
+  questions.splice(insertAt, 0, dragged);
+
+  await saveQuestions(questions);
+  render();
 }
 
 async function confirmDeleteQuestion(question) {

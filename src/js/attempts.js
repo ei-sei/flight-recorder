@@ -147,6 +147,22 @@ export async function deleteAttemptsForQuestion(questionId) {
   render();
 }
 
+// Attempts snapshot the question's text so deleting a question later doesn't
+// orphan log entries - a rename should still update everywhere though, not
+// leave old attempts showing stale wording.
+export async function renameQuestionInAttempts(questionId, text) {
+  let changed = false;
+  for (const attempt of attempts) {
+    if (attempt.questionId === questionId && attempt.questionText !== text) {
+      attempt.questionText = text;
+      changed = true;
+    }
+  }
+  if (!changed) return;
+  await saveAttempts(attempts);
+  render();
+}
+
 // Computed once per render instead of re-filtering/re-sorting the whole
 // attempts array per row (which renderAttemptItem needs twice per row) -
 // that pattern was effectively quadratic in the attempt count.
