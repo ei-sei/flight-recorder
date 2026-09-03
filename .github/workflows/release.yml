@@ -128,6 +128,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          # whisper.cpp (via whisper-rs, macOS/Linux-only) uses std::filesystem
+          # APIs that Apple's libc++ gates behind macOS 10.15 - without an
+          # explicit deployment target the compiler treats them as
+          # unavailable and the build fails. No-op on Linux/Windows.
+          MACOSX_DEPLOYMENT_TARGET: "10.15"
         with:
           # All 4 legs upload into this single pre-created release instead
           # of each independently finding-or-creating one by tag name - that
