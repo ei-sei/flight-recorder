@@ -132,7 +132,12 @@ jobs:
           # APIs that Apple's libc++ gates behind macOS 10.15 - without an
           # explicit deployment target the compiler treats them as
           # unavailable and the build fails. No-op on Linux/Windows.
-          MACOSX_DEPLOYMENT_TARGET: "10.15"
+          #
+          # Has to be this exact name, not MACOSX_DEPLOYMENT_TARGET -
+          # whisper-rs-sys's build.rs only forwards env vars prefixed
+          # "CMAKE_" straight through to cmake as -D flags, and the plain
+          # rustc/clang env var isn't one of them, so it was silently ignored.
+          CMAKE_OSX_DEPLOYMENT_TARGET: "10.15"
         with:
           # All 4 legs upload into this single pre-created release instead
           # of each independently finding-or-creating one by tag name - that
