@@ -185,10 +185,15 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          ids=$(gh api "/repos/$GITHUB_REPOSITORY/actions/caches?ref=$GITHUB_REF&per_page=100" \
-            --jq '.actions_caches[].id')
+          # Filtered locally, not with the API's ?ref= parameter - that
+          # silently matches nothing for tags, because the refs it reports
+          # back are mangled ("refs/heads/refs/tags/v1.1.0"), so a query for
+          # "refs/tags/v1.1.0" returns an empty list and the job would
+          # cheerfully report success having deleted nothing.
+          ids=$(gh api "/repos/$GITHUB_REPOSITORY/actions/caches?per_page=100" \
+            --jq ".actions_caches[] | select(.ref | endswith(\"/$GITHUB_REF_NAME\")) | .id")
           if [ -z "$ids" ]; then
-            echo "No caches scoped to $GITHUB_REF."
+            echo "No caches scoped to $GITHUB_REF_NAME."
             exit 0
           fi
           for id in $ids; do
