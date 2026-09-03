@@ -34,9 +34,22 @@ export function showContextMenu(x, y, items, { trigger } = {}) {
     menuEl.appendChild(btn);
   }
 
+  // Positioned at the cursor first, then clamped - the menu has to actually
+  // be in the DOM and visible before its real size can be measured, and
+  // only then is it known whether it would run off the right or bottom
+  // edge. Right-clicking near either edge of the window used to render the
+  // menu partly or fully off-screen with no way to reach the cut-off items.
   menuEl.style.left = `${x}px`;
   menuEl.style.top = `${y}px`;
   menuEl.hidden = false;
+
+  const EDGE_MARGIN = 4;
+  const rect = menuEl.getBoundingClientRect();
+  const left = rect.right > window.innerWidth ? Math.max(EDGE_MARGIN, window.innerWidth - rect.width - EDGE_MARGIN) : x;
+  const top =
+    rect.bottom > window.innerHeight ? Math.max(EDGE_MARGIN, window.innerHeight - rect.height - EDGE_MARGIN) : y;
+  menuEl.style.left = `${left}px`;
+  menuEl.style.top = `${top}px`;
 
   if (outsideClickHandler) {
     document.removeEventListener("click", outsideClickHandler, true);
