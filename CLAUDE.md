@@ -12,7 +12,7 @@ A local desktop app for practising job interviews on webcam. Built with Tauri. R
 - Confirmation prompts (delete question/attempt) are an in-app modal, not the native OS dialog — keeps the UI visually consistent with the rest of the app.
 
 ## Core features
-- Question bank, organised by category (Behavioural, Technical, Case). User can add and remove questions.
+- Question bank, organised by category (Behavioural, Technical, Case). User can add and remove questions. Questions reorder by dragging, which needs `"dragDropEnabled": false` on the window in `tauri.conf.json` — that flag defaults to *true*, which turns on Tauri's own OS-level file-drop interception and **disables DOM drag-and-drop entirely**. With it left at the default, reordering silently does nothing in a packaged Windows build while continuing to work under `dev:wsl` on WebKitGTK, which is exactly how it went unnoticed. Nothing in this app accepts dropped files, so there is nothing to trade away by turning it off. Don't remove the flag.
 - Live webcam viewfinder using `getUserMedia`. Record/stop tied to the selected question.
 - Each recording becomes a logged attempt. Captures question, category, date, and duration automatically.
 - User adds a star score and notes after reviewing.
