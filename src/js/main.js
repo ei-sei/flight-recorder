@@ -622,6 +622,12 @@ function initWindowControls() {
 }
 
 async function init() {
+  // The webview's native context menu (Reload, Inspect Element, ...) reads
+  // as a website, not a desktop app - suppressed everywhere by default.
+  // Specific areas (questions, attempts, video) already show their own
+  // custom menu instead, via their own contextmenu listener + preventDefault.
+  document.addEventListener("contextmenu", (event) => event.preventDefault());
+
   tickClock();
   setInterval(tickClock, 1000);
   initWindowControls();
