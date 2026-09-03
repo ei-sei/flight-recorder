@@ -716,6 +716,17 @@ textarea {
   overflow-y: auto;
 }
 
+/* The prep notes drawer is meant to sit flush against the panel's bottom
+   border, with no padding under it. Dropping the padding while it is present
+   is the direct way to say that; it used to be done by giving the drawer a
+   -24px bottom margin to cancel this padding out, which left the drawer's
+   border box sitting exactly on the padding-box edge and a few pixels of
+   sub-pixel rounding permanently in scrollable overflow. Toggled from
+   updatePrepNotesVisibility() in recorder.js, which also owns [hidden] here. */
+.recorder-panel.has-prep-notes {
+  padding-bottom: 0;
+}
+
 .viewfinder {
   position: relative;
   /* Sized explicitly by updateViewfinderSize() (recorder.js), not flex-grow -
@@ -942,10 +953,14 @@ textarea {
      tall enough to actually scroll. */
   width: 100%;
   margin-top: auto;
-  /* Cancels .recorder-panel's own 24px bottom padding, so the drawer sits
-     flush against the panel's actual bottom border instead of leaving that
-     padding as empty space underneath it. */
-  margin-bottom: -24px;
+  /* This used to be `margin-bottom: -24px`, cancelling .recorder-panel's own
+     bottom padding so the drawer sat flush against the panel border. It works
+     visually but lands the drawer's border box exactly on the padding-box
+     edge, and sub-pixel rounding then tips it a few pixels into scrollable
+     overflow - a permanent 4px scrollbar on any platform whose scrollbars
+     take layout width, which is Windows. The panel drops its bottom padding
+     instead (see .recorder-panel.has-prep-notes), so nothing has to be
+     cancelled out. */
   position: sticky;
   bottom: 0;
   display: flex;

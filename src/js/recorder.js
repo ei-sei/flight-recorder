@@ -958,6 +958,10 @@ function updatePrepNotesVisibility() {
   // reviewing hides it (that has its own separate, after-the-fact notes
   // field instead).
   prepNotesRow.hidden = !currentQuestion || isReviewing;
+  // Drops the panel's bottom padding while the drawer is there, so it sits
+  // flush without the drawer needing a negative margin to cancel that padding
+  // out. Set before updateViewfinderSize, which measures the padding.
+  recorderPanelEl.classList.toggle("has-prep-notes", !prepNotesRow.hidden);
   // The drawer's own visibility changes how much height the player gets.
   updateViewfinderSize();
 }
@@ -1299,19 +1303,27 @@ function updateViewfinderSize() {
 
   if (availableWidth <= 0 || availableHeight <= 0) return;
 
+  // Both dimensions are floored to whole pixels. Left fractional, the
+  // width-bound branch below produced heights like 366.75px, and those
+  // fractional positions accumulate down the panel's flex column until the
+  // drawer at the bottom lands a few tenths past the padding edge - which
+  // the panel reports as real scrollable overflow and Windows draws a
+  // permanent scrollbar for. The height-bound branch never showed it, because
+  // availableHeight is already whole.
   const widthIfHeightBound = availableHeight * VIEWFINDER_ASPECT;
   let finalWidth;
+  let finalHeight;
   if (widthIfHeightBound <= availableWidth) {
     // Panel height is the binding constraint.
-    finalWidth = widthIfHeightBound;
-    viewfinderEl.style.width = `${finalWidth}px`;
-    viewfinderEl.style.height = `${availableHeight}px`;
+    finalWidth = Math.floor(widthIfHeightBound);
+    finalHeight = Math.floor(availableHeight);
   } else {
     // Panel width is the binding constraint.
-    finalWidth = availableWidth;
-    viewfinderEl.style.width = `${finalWidth}px`;
-    viewfinderEl.style.height = `${finalWidth / VIEWFINDER_ASPECT}px`;
+    finalWidth = Math.floor(availableWidth);
+    finalHeight = Math.floor(finalWidth / VIEWFINDER_ASPECT);
   }
+  viewfinderEl.style.width = `${finalWidth}px`;
+  viewfinderEl.style.height = `${finalHeight}px`;
 
   // Keep the review-mode info bar, and the camera toggle/waveform row,
   // the same width as the player itself - otherwise they stretch to the
