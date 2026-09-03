@@ -72,10 +72,10 @@ const wpmToggleHint = document.getElementById("wpm-toggle-hint");
 
 const { convertFileSrc, invoke } = window.__TAURI__.core;
 
-// With auto gain control off, absolute mic levels vary hugely between a
-// close headset and a laptop's built-in array, so a fixed threshold would
-// either miss a quiet speaker entirely or trip on room hum. Track the noise
-// floor instead and require speech to sit well clear of it.
+// Absolute mic levels vary hugely between a close headset and a laptop's
+// built-in array - more so with auto gain control off, but a fixed
+// threshold was never reliable even with it on. Track the noise floor
+// instead and require speech to sit well clear of it.
 const SPEECH_NOISE_MULTIPLIER = 4;
 // Still needs an absolute floor: in a silent room the tracked floor tends to
 // zero, and any multiple of nearly-zero is nearly-zero.
@@ -134,6 +134,7 @@ let onOpenSettings = () => {};
 
 let currentQuality = "720";
 let currentNoiseSuppression = true;
+let currentAutoGainControl = true;
 let cameraEnabled = false;
 let cameraWasEnabledBeforeReview = false;
 
@@ -169,13 +170,15 @@ async function acquireStream(cameraId, micId, quality) {
       // transcription, but it also trims breaths and quiet trailing words,
       // which are exactly the hesitation markers you'd want to hear back.
       noiseSuppression: currentNoiseSuppression,
-      // Off, deliberately. AGC normalises your volume in real time: quiet,
-      // hesitant speech gets boosted to sound confident and projection gets
-      // pulled down. That flattens the dynamic range of your own delivery,
-      // which is part of what you're here to review. Response-delay
-      // detection compensates by tracking the noise floor instead of
-      // comparing against a fixed level (see speechRmsThreshold).
-      autoGainControl: false,
+      // On by default. Off was tried as the default here - the idea being
+      // that AGC flattens the dynamic range of your delivery, which is part
+      // of what you're reviewing - but real testing showed the downside is
+      // bigger than that: some mics are quiet enough without it that
+      // Whisper got nothing back at all ("no speech detected" on a real
+      // recording with real speech in it). A silently broken transcript is
+      // worse than slightly flattened dynamics, so this defaults on and
+      // dynamics are a setting for anyone who explicitly wants them.
+      autoGainControl: currentAutoGainControl,
     },
   };
 
@@ -277,10 +280,11 @@ export async function listDevices() {
   };
 }
 
-export async function applyRecordingSettings({ cameraId, micId, quality, noiseSuppression }) {
+export async function applyRecordingSettings({ cameraId, micId, quality, noiseSuppression, autoGainControl }) {
   currentQuality = quality;
   currentNoiseSuppression = noiseSuppression;
-  await saveRecordingSettings({ cameraId, micId, quality, noiseSuppression });
+  currentAutoGainControl = autoGainControl;
+  await saveRecordingSettings({ cameraId, micId, quality, noiseSuppression, autoGainControl });
 
   if (mediaRecorder && mediaRecorder.state === "recording") {
     return; // don't disrupt an in-progress recording; takes effect on the next one
@@ -1335,6 +1339,7 @@ export async function initRecorder(options = {}) {
   onOpenSettings = options.onOpenSettings ?? (() => {});
   onPrepNotesChange = options.onPrepNotesChange ?? (() => {});
   currentNoiseSuppression = options.noiseSuppression ?? true;
+  currentAutoGainControl = options.autoGainControl ?? true;
 
   recordBtn.addEventListener("click", toggleRecording);
   backToLiveBtn.addEventListener("click", exitReviewMode);

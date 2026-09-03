@@ -313,11 +313,13 @@ async function openSettingsModal() {
   const micSelect = document.getElementById("settings-mic");
   const qualitySelect = document.getElementById("settings-quality");
   const noiseSuppressionInput = document.getElementById("settings-noise-suppression");
+  const autoGainInput = document.getElementById("settings-auto-gain");
 
   const settings = await getRecordingSettings();
   const { cameras, mics } = await listDevices();
 
   noiseSuppressionInput.checked = settings.noiseSuppression !== false;
+  autoGainInput.checked = settings.autoGainControl !== false;
   refreshLibrarySize();
 
   populateDeviceSelect(cameraSelect, cameras, settings.cameraId, "Camera");
@@ -333,6 +335,7 @@ function initSettingsModal() {
   const micSelect = document.getElementById("settings-mic");
   const qualitySelect = document.getElementById("settings-quality");
   const noiseSuppressionInput = document.getElementById("settings-noise-suppression");
+  const autoGainInput = document.getElementById("settings-auto-gain");
   const closeBtn = document.getElementById("settings-close");
 
   async function applyDeviceChange() {
@@ -341,6 +344,7 @@ function initSettingsModal() {
       micId: micSelect.value || null,
       quality: qualitySelect.value,
       noiseSuppression: noiseSuppressionInput.checked,
+      autoGainControl: autoGainInput.checked,
     });
   }
 
@@ -350,6 +354,7 @@ function initSettingsModal() {
   // Same path as a device change - the constraint is baked into the track at
   // getUserMedia time, so the stream has to be reacquired for it to take.
   noiseSuppressionInput.addEventListener("change", applyDeviceChange);
+  autoGainInput.addEventListener("change", applyDeviceChange);
 
   closeBtn.addEventListener("click", () => {
     overlay.hidden = true;
@@ -732,6 +737,7 @@ async function init() {
     getSelectedQuestion,
     cameraEnabled: settings.cameraEnabled,
     noiseSuppression: settings.noiseSuppression,
+    autoGainControl: settings.autoGainControl,
     // Wrapped rather than passing saveAttempt directly: this runs from
     // MediaRecorder's onstop handler, which nothing awaits, so a failure
     // here (disk full, permissions) would otherwise reject into nowhere and

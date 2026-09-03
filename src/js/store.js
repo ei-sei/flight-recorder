@@ -229,6 +229,7 @@ export async function getRecordingSettings() {
     alwaysOnTop: false,
     cameraEnabled: false,
     noiseSuppression: true,
+    autoGainControl: true,
     ...value,
   };
 }
