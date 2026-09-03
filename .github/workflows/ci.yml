@@ -39,6 +39,13 @@ jobs:
             node --check "$f"
           done
 
+      # Node's own runner, no dependencies. Covers the pure functions in
+      # util.js, which are where every number this app presents as fact is
+      # actually computed - a syntax check says nothing about whether the WPM
+      # or the pace spread is right.
+      - name: unit tests
+        run: npm test
+
       - name: install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
