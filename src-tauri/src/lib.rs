@@ -1,7 +1,7 @@
 use tauri::Manager;
 
 mod whisper;
-use whisper::{download_whisper_model, transcribe_recording};
+use whisper::{download_whisper_model, get_whisper_model_status, transcribe_recording};
 
 #[tauri::command]
 fn get_commit_sha() -> &'static str {
@@ -71,6 +71,7 @@ pub fn run() {
             get_commit_sha,
             open_devtools,
             get_library_size,
+            get_whisper_model_status,
             download_whisper_model,
             transcribe_recording
         ])

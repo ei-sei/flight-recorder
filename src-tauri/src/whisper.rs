@@ -37,6 +37,18 @@ mod backend {
         Ok(dir.join(MODEL_FILENAME))
     }
 
+    // Reports what's actually on disk rather than the store's
+    // whisperModelDownloaded flag - that flag exists only to skip
+    // re-prompting, and is explicitly allowed to drift. About should say
+    // what's true.
+    pub fn model_status(app: &AppHandle) -> Result<(bool, u64), String> {
+        let path = model_path(app)?;
+        match std::fs::metadata(&path) {
+            Ok(meta) => Ok((true, meta.len())),
+            Err(_) => Ok((false, 0)),
+        }
+    }
+
     pub fn ensure_model_downloaded(app: &AppHandle) -> Result<PathBuf, String> {
         let path = model_path(app)?;
         if path.exists() {
@@ -199,6 +211,23 @@ mod backend {
         }
         Ok(segments)
     }
+}
+
+#[derive(serde::Serialize)]
+pub struct WhisperModelStatus {
+    pub name: &'static str,
+    pub installed: bool,
+    pub size_bytes: u64,
+}
+
+#[tauri::command]
+pub fn get_whisper_model_status(app: AppHandle) -> Result<WhisperModelStatus, String> {
+    let (installed, size_bytes) = backend::model_status(&app)?;
+    Ok(WhisperModelStatus {
+        name: MODEL_FILENAME,
+        installed,
+        size_bytes,
+    })
 }
 
 #[tauri::command]
