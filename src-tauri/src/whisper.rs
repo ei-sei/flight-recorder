@@ -27,17 +27,31 @@ const MODEL_URL: &str =
     "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en-q5_1.bin";
 const WHISPER_SAMPLE_RATE: u32 = 16_000;
 
+// ureq applies no timeouts of its own, so these are the only thing standing
+// between a stalled connection and a download that hangs forever behind a
+// progress dialog with no cancel button. The read timeout is per-read, not
+// for the whole transfer, so it can stay generous without capping how long a
+// slow connection is allowed to take overall.
+const MODEL_CONNECT_TIMEOUT_SECS: u64 = 15;
+const MODEL_READ_TIMEOUT_SECS: u64 = 60;
+const DOWNLOAD_CHUNK_BYTES: usize = 64 * 1024;
+// Emitting on every chunk would be hundreds of IPC messages a second on a
+// fast connection, for a bar that only needs to visibly move a few times a
+// second.
+const PROGRESS_EMIT_INTERVAL_MS: u128 = 100;
+
 mod backend {
     use super::{
-        DownloadProgress, TranscriptSegment, DOWNLOAD_PROGRESS_EVENT, MODEL_FILENAME, MODEL_URL,
-        WHISPER_SAMPLE_RATE,
+        DownloadProgress, TranscriptSegment, DOWNLOAD_CHUNK_BYTES, DOWNLOAD_PROGRESS_EVENT,
+        MODEL_CONNECT_TIMEOUT_SECS, MODEL_FILENAME, MODEL_READ_TIMEOUT_SECS, MODEL_URL,
+        PROGRESS_EMIT_INTERVAL_MS, WHISPER_SAMPLE_RATE,
     };
     use rubato::{
         Resampler, SincFixedIn, SincInterpolationParameters, SincInterpolationType, WindowFunction,
     };
     use std::io::{Read, Write};
     use std::path::{Path, PathBuf};
-    use std::time::Instant;
+    use std::time::{Duration, Instant};
     use symphonia::core::audio::{SampleBuffer, SignalSpec};
     use symphonia::core::codecs::{DecoderOptions, CODEC_TYPE_NULL};
     use symphonia::core::errors::Error as SymphoniaError;
@@ -46,6 +60,27 @@ mod backend {
     use symphonia::core::meta::MetadataOptions;
     use symphonia::core::probe::Hint;
     use tauri::{AppHandle, Emitter, Manager};
+
+    // fs:scope in capabilities/default.json bounds the fs plugin, but it has
+    // no say over a custom command, which opens whatever path the frontend
+    // hands it. The same bound is applied here rather than assumed, so the
+    // relative-path discipline that keeps the library folder portable is also
+    // what keeps this command from reading outside it.
+    pub fn resolve_recording_path(app: &AppHandle, video_path: &str) -> Result<PathBuf, String> {
+        let library = app
+            .path()
+            .video_dir()
+            .map_err(|e| e.to_string())?
+            .join("flight-recorder");
+        // Canonicalised on both sides, so a path containing ".." is compared
+        // by where it actually lands rather than by how it is spelled.
+        let library = std::fs::canonicalize(&library).map_err(|e| e.to_string())?;
+        let requested = std::fs::canonicalize(video_path).map_err(|e| e.to_string())?;
+        if !requested.starts_with(&library) {
+            return Err("recording is outside the library folder".into());
+        }
+        Ok(requested)
+    }
 
     fn model_path(app: &AppHandle) -> Result<PathBuf, String> {
         let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
@@ -59,7 +94,11 @@ mod backend {
             return Ok(path);
         }
 
-        let response = ureq::get(MODEL_URL).call().map_err(|e| e.to_string())?;
+        let agent = ureq::AgentBuilder::new()
+            .timeout_connect(Duration::from_secs(MODEL_CONNECT_TIMEOUT_SECS))
+            .timeout_read(Duration::from_secs(MODEL_READ_TIMEOUT_SECS))
+            .build();
+        let response = agent.get(MODEL_URL).call().map_err(|e| e.to_string())?;
         // Absent on a server that doesn't send it - the frontend falls back
         // to an indeterminate bar rather than a fabricated percentage.
         let total: Option<u64> = response
@@ -67,51 +106,84 @@ mod backend {
             .and_then(|v| v.parse().ok());
 
         let tmp_path = path.with_extension("bin.part");
-        {
-            let mut reader = response.into_reader();
-            let mut file = std::fs::File::create(&tmp_path).map_err(|e| e.to_string())?;
-            let mut buf = [0u8; 64 * 1024];
-            let mut downloaded: u64 = 0;
-            // Throttled - emitting on every 64KB chunk would be hundreds of
-            // IPC messages a second on a fast connection, for a bar that
-            // only needs to visibly move a few times a second.
-            let mut last_emit = Instant::now();
-            loop {
-                let n = reader.read(&mut buf).map_err(|e| e.to_string())?;
-                if n == 0 {
-                    break;
-                }
-                file.write_all(&buf[..n]).map_err(|e| e.to_string())?;
-                downloaded += n as u64;
-                if last_emit.elapsed().as_millis() >= 100 {
-                    let _ = app.emit(
-                        DOWNLOAD_PROGRESS_EVENT,
-                        DownloadProgress { downloaded, total },
-                    );
-                    last_emit = Instant::now();
-                }
+        let downloaded = match stream_to_file(app, response, &tmp_path, total) {
+            Ok(downloaded) => downloaded,
+            Err(err) => {
+                // Otherwise a failed download leaves ~60MB of app-data behind
+                // that nothing will ever read, since the retry starts over.
+                let _ = std::fs::remove_file(&tmp_path);
+                return Err(err);
             }
-            // One last emit so the bar actually reaches its true final value
-            // even if the last chunk landed inside the throttle window.
-            let _ = app.emit(
-                DOWNLOAD_PROGRESS_EVENT,
-                DownloadProgress { downloaded, total },
-            );
+        };
+
+        // Checked before the rename, because the rename is what makes the file
+        // real. A truncated body promoted to the final name becomes a
+        // permanently broken model: path.exists() treats it as valid from then
+        // on, every transcription fails with an opaque whisper error, and
+        // nothing in the UI can recover from it.
+        if let Some(expected) = total {
+            if downloaded != expected {
+                let _ = std::fs::remove_file(&tmp_path);
+                return Err(format!(
+                    "speech model download was incomplete: got {downloaded} bytes, expected {expected}"
+                ));
+            }
         }
+
         std::fs::rename(&tmp_path, &path).map_err(|e| e.to_string())?;
         Ok(path)
+    }
+
+    // Split out of ensure_model_downloaded so every failure inside it lands on
+    // one cleanup path rather than leaving a half-written .part behind.
+    fn stream_to_file(
+        app: &AppHandle,
+        response: ureq::Response,
+        tmp_path: &Path,
+        total: Option<u64>,
+    ) -> Result<u64, String> {
+        let mut reader = response.into_reader();
+        let mut file = std::fs::File::create(tmp_path).map_err(|e| e.to_string())?;
+        let mut buf = [0u8; DOWNLOAD_CHUNK_BYTES];
+        let mut downloaded: u64 = 0;
+        let mut last_emit = Instant::now();
+        loop {
+            let n = reader.read(&mut buf).map_err(|e| e.to_string())?;
+            if n == 0 {
+                break;
+            }
+            file.write_all(&buf[..n]).map_err(|e| e.to_string())?;
+            downloaded += n as u64;
+            if last_emit.elapsed().as_millis() >= PROGRESS_EMIT_INTERVAL_MS {
+                let _ = app.emit(
+                    DOWNLOAD_PROGRESS_EVENT,
+                    DownloadProgress { downloaded, total },
+                );
+                last_emit = Instant::now();
+            }
+        }
+        // Flushed explicitly so a write error surfaces here, on the path that
+        // cleans up, rather than silently at drop after the size check passed.
+        file.flush().map_err(|e| e.to_string())?;
+        // One last emit so the bar actually reaches its true final value
+        // even if the last chunk landed inside the throttle window.
+        let _ = app.emit(
+            DOWNLOAD_PROGRESS_EVENT,
+            DownloadProgress { downloaded, total },
+        );
+        Ok(downloaded)
     }
 
     // Demuxes/decodes the audio track of a recorded video file (MP4/AAC is
     // the real case everywhere now; WebM/Opus is a defensive fallback - see
     // RECORDING_FORMAT_CANDIDATES in recorder.js), downmixes to mono, and
     // resamples to the 16kHz mono f32 PCM whisper.cpp expects.
-    pub fn decode_audio_to_pcm16k(video_path: &str) -> Result<Vec<f32>, String> {
+    pub fn decode_audio_to_pcm16k(video_path: &Path) -> Result<Vec<f32>, String> {
         let file = std::fs::File::open(video_path).map_err(|e| e.to_string())?;
         let mss = MediaSourceStream::new(Box::new(file), Default::default());
 
         let mut hint = Hint::new();
-        if let Some(ext) = Path::new(video_path).extension().and_then(|e| e.to_str()) {
+        if let Some(ext) = video_path.extension().and_then(|e| e.to_str()) {
             hint.with_extension(ext);
         }
 
@@ -302,8 +374,9 @@ pub async fn transcribe_recording(
     video_path: String,
 ) -> Result<Vec<TranscriptSegment>, String> {
     tauri::async_runtime::spawn_blocking(move || {
+        let recording = backend::resolve_recording_path(&app, &video_path)?;
         let model = backend::ensure_model_downloaded(&app)?;
-        let pcm = backend::decode_audio_to_pcm16k(&video_path)?;
+        let pcm = backend::decode_audio_to_pcm16k(&recording)?;
         backend::run_transcription(&model, pcm)
     })
     .await
