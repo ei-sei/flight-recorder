@@ -10,6 +10,12 @@ on:
 # quick succession used to leave the first run grinding through a full
 # Windows whisper.cpp build (~7 minutes) whose result nobody would look at.
 # Grouped by ref so branches and PRs never cancel each other.
+# Neither job writes anything back to the repository. Without this block they
+# inherit the repository default, which on an older repo is read/write on
+# contents - release.yml already scopes its own token per job.
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true

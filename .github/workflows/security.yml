@@ -14,6 +14,12 @@ on:
 # The weekly scheduled run shares main's group (a schedule uses the default
 # branch's ref), so a push can cancel it. That's fine: the push runs its own
 # audit against newer code, which is strictly the more useful answer.
+# Neither job writes anything back to the repository. Without this block they
+# inherit the repository default, which on an older repo is read/write on
+# contents - release.yml already scopes its own token per job.
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -32,8 +38,12 @@ jobs:
         with:
           workspaces: src-tauri
 
+      # A prebuilt binary, not `cargo install cargo-audit --locked`. That
+      # compiled cargo-audit and its whole dependency tree from source on every
+      # run, and rust-cache is scoped to src-tauri so the result was never
+      # reused - several minutes wasted on every push and every weekly run.
       - name: install cargo-audit
-        run: cargo install cargo-audit --locked
+        uses: taiki-e/install-action@cargo-audit
 
       - name: cargo audit
         run: cargo audit --file src-tauri/Cargo.lock
