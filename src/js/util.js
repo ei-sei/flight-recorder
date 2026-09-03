@@ -175,11 +175,24 @@ export function formatPaceRange(minWpm, maxWpm) {
 // kept if it overlaps measured speech at all, which is deliberately generous
 // - dropping words somebody really said would be far worse than keeping an
 // occasional invented one.
+//
+// Below this share of segments surviving, the filter itself is treated as the
+// unreliable party and skipped entirely - see the comment in the body.
+const MIN_SEGMENT_KEEP_RATIO = 0.25;
+
 export function rejectHallucinatedSegments(segments, speechIntervals) {
   if (!Array.isArray(speechIntervals) || speechIntervals.length === 0) return segments;
-  return segments.filter((segment) =>
+  const kept = segments.filter((segment) =>
     speechIntervals.some(([start, end]) => segment.startMs < end && segment.endMs > start)
   );
+  // If the filter wants to drop nearly everything, the mic-level record is
+  // what's wrong, not whisper - the sampling loop is clamped hard while the
+  // window is hidden, so a recording made in the background leaves sparse
+  // intervals that match almost nothing. Keeping the unfiltered segments
+  // returns a real transcript instead of a blank one, which is the same
+  // trade-off the "any overlap keeps the segment" rule already makes.
+  if (segments.length > 0 && kept.length / segments.length < MIN_SEGMENT_KEEP_RATIO) return segments;
+  return kept;
 }
 
 // Per-segment speaking rate, for the spread rather than the average - the

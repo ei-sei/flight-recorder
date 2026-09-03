@@ -89,6 +89,13 @@ const PAUSE_MIN_MS = 1200;
 // How long the level has to stay down before a run of speech is considered
 // over. Covers the dips between syllables and words.
 const SILENCE_HOLD_MS = 400;
+// Minimising the window (or fully covering it) suspends requestAnimationFrame
+// outright and clamps timers to roughly 1Hz in every target webview. Neither
+// loop below can hold its cadence through that, so every figure derived from
+// the mic level is measured against wall-clock time that partly wasn't
+// sampled. Past this much hidden time those figures are withheld rather than
+// reported as if nothing had happened - see finaliseSpeechAnalysis.
+const HIDDEN_TOLERANCE_MS = 1000;
 
 let stream = null;
 let mediaRecorder = null;
@@ -104,7 +111,7 @@ let getSelectedQuestion = () => null;
 let audioCtx = null;
 let analyser = null;
 let volumeData = null;
-let volumeRafId = null;
+let volumeTimerId = null;
 let speechAboveThresholdSinceTs = null;
 let responseDelayMs = null;
 let noiseFloorRms = null;
@@ -122,6 +129,10 @@ let stretchStartTs = null;
 // actually registered speech, then thrown away - useful for a few seconds,
 // far too bulky to keep on every attempt forever.
 let speechIntervals = [];
+// How much of the current recording elapsed with the window hidden, and when
+// the open hidden span started. Only the mic-derived figures care.
+let hiddenDuringRecordingMs = 0;
+let hiddenSinceTs = null;
 let waveformStrokeStyle = "#4c7cf6";
 
 let wpmEnabled = false;
@@ -324,7 +335,6 @@ const WAVEFORM_GAIN = 5;
 // wave rather than a jagged oscilloscope trace of the literal signal.
 const WAVEFORM_POINTS = 28;
 const WAVEFORM_FPS = 30;
-let waveformLastDrawTs = 0;
 
 function sizeWaveformCanvas() {
   // Backing size is set explicitly (rather than relying on CSS size) so the
@@ -389,18 +399,18 @@ function isRecordingActive() {
   return Boolean(mediaRecorder && mediaRecorder.state === "recording");
 }
 
-function pollVolume(timestamp) {
-  volumeRafId = requestAnimationFrame(pollVolume);
-
-  // Throttled below the display refresh rate. This loop runs the whole time
-  // the camera is on (not just while recording), so redrawing every frame
-  // burns CPU indefinitely for a visual that reads identically at 30fps -
-  // same reasoning as the watermark compositor's own throttle.
-  if (timestamp - waveformLastDrawTs < 1000 / WAVEFORM_FPS) return;
-  waveformLastDrawTs = timestamp;
-
+// Driven by an interval, not requestAnimationFrame. rAF stops completely
+// while the window is minimised or occluded, which used to take the response
+// delay, the pause figures and speechIntervals down with it - silently, and
+// worst of all for speechIntervals, whose gaps then made the hallucination
+// filter discard a perfectly good transcript. A timer is clamped in that
+// state rather than stopped, so the measurements degrade instead of ending.
+// 30Hz is the same rate the rAF throttle allowed anyway.
+function sampleVolume() {
   analyser.getFloatTimeDomainData(volumeData);
-  drawWaveform();
+  // Drawing is the only part of this worth skipping while nobody can see it.
+  // Everything below is a measurement, so it stays outside the check.
+  if (!document.hidden) drawWaveform();
 
   const rms = computeRms();
   // Tracked whenever the mic is live, not only while recording, so the floor
@@ -514,6 +524,23 @@ function resetSpeechAnalysis() {
   longestStretchMs = 0;
   stretchStartTs = null;
   speechIntervals = [];
+  hiddenDuringRecordingMs = 0;
+  hiddenSinceTs = document.hidden ? Date.now() : null;
+}
+
+// The sampling loop can't keep its cadence while the window is hidden, so the
+// time spent that way is accumulated and used to decide whether the figures
+// built from it are worth reporting at all.
+function handleVisibilityChange() {
+  if (!isRecordingActive()) return;
+  if (document.hidden) {
+    hiddenSinceTs = Date.now();
+    return;
+  }
+  if (hiddenSinceTs !== null) {
+    hiddenDuringRecordingMs += Date.now() - hiddenSinceTs;
+    hiddenSinceTs = null;
+  }
 }
 
 // Closes off a run of speech still open when the recording stopped, so the
@@ -526,6 +553,46 @@ function finaliseSpeechAnalysis() {
     isSpeaking = false;
   }
   closeCurrentStretch(now);
+  // Stopping while still hidden never fires visibilitychange, so the open
+  // span is closed here instead.
+  if (hiddenSinceTs !== null) {
+    hiddenDuringRecordingMs += now - hiddenSinceTs;
+    hiddenSinceTs = null;
+  }
+}
+
+// Everything derived from the mic level, or nulls if the window spent long
+// enough hidden that the sampling loop can't be trusted to have kept up.
+// Showing a "12% talking" built from a loop that ran at 1Hz for half the
+// recording would be inventing a metric, which is exactly what this app is
+// meant not to do.
+function collectSpeechMetrics(durationMs) {
+  if (hiddenDuringRecordingMs > HIDDEN_TOLERANCE_MS) {
+    return {
+      responseDelayMs: null,
+      pauseCount: null,
+      longestPauseMs: null,
+      longestStretchMs: null,
+      speakingRatio: null,
+      // Passed to transcription, where a sparse set would make the
+      // hallucination filter throw away real words. Empty means "no measured
+      // speech to check against", which that filter already handles by
+      // keeping every segment.
+      speechIntervals: [],
+      measurementInterrupted: true,
+    };
+  }
+  return {
+    responseDelayMs,
+    pauseCount,
+    longestPauseMs,
+    longestStretchMs,
+    // Voiced time over total time. Measured from mic level, so it works on
+    // every platform - unlike anything derived from a transcript.
+    speakingRatio: durationMs > 0 ? Math.min(1, speakingMs / durationMs) : null,
+    speechIntervals,
+    measurementInterrupted: false,
+  };
 }
 
 // Tied to the camera/mic being on, not to active recording - the waveform
@@ -549,16 +616,13 @@ function startWaveformMonitoring() {
   volumeData = new Float32Array(analyser.fftSize);
   source.connect(analyser);
 
-  // Scheduled rather than called directly so the first invocation gets a
-  // real rAF timestamp to throttle against.
-  waveformLastDrawTs = 0;
-  volumeRafId = requestAnimationFrame(pollVolume);
+  volumeTimerId = setInterval(sampleVolume, 1000 / WAVEFORM_FPS);
 }
 
 function stopWaveformMonitoring() {
-  if (volumeRafId !== null) {
-    cancelAnimationFrame(volumeRafId);
-    volumeRafId = null;
+  if (volumeTimerId !== null) {
+    clearInterval(volumeTimerId);
+    volumeTimerId = null;
   }
   if (audioCtx) {
     audioCtx.close();
@@ -649,8 +713,7 @@ const WATERMARK_FONT = 'ui-monospace, "Cascadia Code", "SF Mono", Consolas, "Lib
 const watermarkCanvas = document.createElement("canvas");
 const watermarkCtx = watermarkCanvas.getContext("2d");
 let watermarkStream = null;
-let watermarkRafId = null;
-let watermarkLastDrawTs = 0;
+let watermarkTimerId = null;
 
 // Centre-crops the source frame to the canvas's shape instead of stretching
 // it, matching the preview's object-fit: cover. Only bites when the camera's
@@ -670,14 +733,12 @@ function drawCoverFrame(ctx, source, width, height) {
   ctx.drawImage(source, (srcW - sw) / 2, (srcH - sh) / 2, sw, sh, 0, 0, width, height);
 }
 
-function drawWatermarkFrame(timestamp) {
-  watermarkRafId = requestAnimationFrame(drawWatermarkFrame);
-  // Throttled below the display refresh rate - captureStream re-sends the
-  // last drawn frame on its own schedule, so redrawing less often than that
-  // saves CPU without dropping frames from the actual recording.
-  if (timestamp - watermarkLastDrawTs < 1000 / WATERMARK_FPS) return;
-  watermarkLastDrawTs = timestamp;
-
+// Also on an interval rather than rAF, and for a worse reason than the volume
+// loop: captureStream keeps re-sending whatever was last drawn here, so when
+// rAF stopped on a hidden window the recording carried on writing that one
+// still frame for as long as the window stayed hidden. A clamped timer gives
+// a low frame rate instead of a frozen picture.
+function compositeWatermarkFrame() {
   const { width, height } = watermarkCanvas;
   drawCoverFrame(watermarkCtx, previewEl, width, height);
 
@@ -722,17 +783,19 @@ function startWatermarkCompositing() {
   const size = computeRecordingSize(getQualityPreset());
   watermarkCanvas.width = size.width;
   watermarkCanvas.height = size.height;
-  watermarkLastDrawTs = 0;
-  watermarkRafId = requestAnimationFrame(drawWatermarkFrame);
+  // Drawn once up front so the very first captured frame is a real one rather
+  // than the blank canvas, since the interval below only fires a tick later.
+  compositeWatermarkFrame();
+  watermarkTimerId = setInterval(compositeWatermarkFrame, 1000 / WATERMARK_FPS);
 
   watermarkStream = watermarkCanvas.captureStream(WATERMARK_FPS);
   return new MediaStream([...watermarkStream.getVideoTracks(), ...stream.getAudioTracks()]);
 }
 
 function stopWatermarkCompositing() {
-  if (watermarkRafId !== null) {
-    cancelAnimationFrame(watermarkRafId);
-    watermarkRafId = null;
+  if (watermarkTimerId !== null) {
+    clearInterval(watermarkTimerId);
+    watermarkTimerId = null;
   }
   if (watermarkStream) {
     for (const track of watermarkStream.getTracks()) track.stop();
@@ -814,16 +877,11 @@ async function handleStop() {
       extension: format.extension,
       durationMs,
       question,
-      responseDelayMs,
-      pauseCount,
-      longestPauseMs,
-      longestStretchMs,
-      // Voiced time over total time. Measured from mic level, so it works on
-      // every platform - unlike anything derived from a transcript.
-      speakingRatio: durationMs > 0 ? Math.min(1, speakingMs / durationMs) : null,
-      // Not stored on the attempt - only used to sanity-check transcription
-      // against times the mic actually heard something.
-      speechIntervals,
+      // responseDelayMs, the pause figures, speakingRatio, speechIntervals and
+      // measurementInterrupted. speechIntervals is not stored on the attempt -
+      // it only sanity-checks transcription against times the mic actually
+      // heard something.
+      ...collectSpeechMetrics(durationMs),
       // Always null at this point - transcription happens after the file is
       // written, not during the recording. saveAttempt() kicks it off in the
       // background and patches the attempt when it lands.
@@ -832,6 +890,11 @@ async function handleStop() {
       needsWhisperTranscription: wpmEnabled,
     });
   }
+
+  // The blob is on disk now. Without this, chunks pins the whole recording
+  // (~120MB for ten minutes at 480p) in memory until the next one starts,
+  // which may be never.
+  chunks = [];
 }
 
 function toggleRecording() {
@@ -1003,6 +1066,14 @@ export function renderReviewDetails(attempt) {
         formatLongestPause(attempt.longestPauseMs),
         formatSpeakingRatio(attempt.speakingRatio),
       ],
+    },
+    // The Rhythm row above is empty for these attempts, and an unexplained
+    // gap reads as "nothing was said". Saying why is better than either
+    // showing figures the sampling loop couldn't actually measure, or
+    // leaving the absence unaccounted for.
+    {
+      label: "Timing",
+      values: [attempt.measurementInterrupted ? "not measured, window was hidden while recording" : null],
     },
   ]);
 
@@ -1383,6 +1454,7 @@ export async function initRecorder(options = {}) {
   onPrepNotesChange = options.onPrepNotesChange ?? (() => {});
 
   recordBtn.addEventListener("click", toggleRecording);
+  document.addEventListener("visibilitychange", handleVisibilityChange);
   backToLiveBtn.addEventListener("click", exitReviewMode);
   reviewTranscriptSettingsBtn.addEventListener("click", onOpenSettings);
   cameraToggleBtn.addEventListener("click", toggleCamera);
