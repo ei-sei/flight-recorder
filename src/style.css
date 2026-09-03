@@ -1306,6 +1306,48 @@ textarea {
   box-shadow: 0 0 0 3px var(--record-dim);
 }
 
+.modal-progress {
+  margin: -8px 0 20px;
+}
+
+.modal-progress-track {
+  height: 6px;
+  border-radius: 3px;
+  background-color: var(--bg-raised);
+  overflow: hidden;
+}
+
+.modal-progress-fill {
+  height: 100%;
+  border-radius: 3px;
+  background-color: var(--accent);
+  transition: width var(--ease);
+}
+
+/* No Content-Length from the server, so there's no real percentage to
+   animate toward - a sweeping segment stands in for a fixed-width fill,
+   reading as "still working" without claiming a number that isn't real. */
+.modal-progress-fill.indeterminate {
+  width: 40% !important;
+  animation: modal-progress-sweep 1.2s ease-in-out infinite;
+}
+
+@keyframes modal-progress-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(250%);
+  }
+}
+
+.modal-progress-detail {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
 .modal-actions {
   display: flex;
   justify-content: flex-end;

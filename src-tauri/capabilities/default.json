@@ -13,6 +13,7 @@
     "core:window:allow-set-always-on-top",
     "core:window:allow-set-size",
     "core:app:allow-version",
+    "core:event:default",
     "opener:default",
     "store:default",
     "fs:allow-mkdir",

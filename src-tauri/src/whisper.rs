@@ -1,5 +1,16 @@
 use tauri::AppHandle;
 
+// Emitted repeatedly while the model downloads. `total` is None when the
+// server doesn't send Content-Length - the frontend shows an indeterminate
+// bar rather than inventing a percentage it can't back up.
+#[derive(Clone, serde::Serialize)]
+struct DownloadProgress {
+    downloaded: u64,
+    total: Option<u64>,
+}
+
+const DOWNLOAD_PROGRESS_EVENT: &str = "whisper-download-progress";
+
 // One chunk of transcribed speech with the times it covers. Note these are
 // whisper's own decoding chunks, not sentences - it splits on its decoding
 // windows, so don't read sentence structure into the boundaries. Times are
@@ -17,11 +28,16 @@ const MODEL_URL: &str =
 const WHISPER_SAMPLE_RATE: u32 = 16_000;
 
 mod backend {
-    use super::{TranscriptSegment, MODEL_FILENAME, MODEL_URL, WHISPER_SAMPLE_RATE};
+    use super::{
+        DownloadProgress, TranscriptSegment, DOWNLOAD_PROGRESS_EVENT, MODEL_FILENAME, MODEL_URL,
+        WHISPER_SAMPLE_RATE,
+    };
     use rubato::{
         Resampler, SincFixedIn, SincInterpolationParameters, SincInterpolationType, WindowFunction,
     };
+    use std::io::{Read, Write};
     use std::path::{Path, PathBuf};
+    use std::time::Instant;
     use symphonia::core::audio::SampleBuffer;
     use symphonia::core::codecs::{DecoderOptions, CODEC_TYPE_NULL};
     use symphonia::core::errors::Error as SymphoniaError;
@@ -29,7 +45,7 @@ mod backend {
     use symphonia::core::io::MediaSourceStream;
     use symphonia::core::meta::MetadataOptions;
     use symphonia::core::probe::Hint;
-    use tauri::{AppHandle, Manager};
+    use tauri::{AppHandle, Emitter, Manager};
 
     fn model_path(app: &AppHandle) -> Result<PathBuf, String> {
         let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
@@ -44,10 +60,43 @@ mod backend {
         }
 
         let response = ureq::get(MODEL_URL).call().map_err(|e| e.to_string())?;
+        // Absent on a server that doesn't send it - the frontend falls back
+        // to an indeterminate bar rather than a fabricated percentage.
+        let total: Option<u64> = response
+            .header("Content-Length")
+            .and_then(|v| v.parse().ok());
+
         let tmp_path = path.with_extension("bin.part");
         {
+            let mut reader = response.into_reader();
             let mut file = std::fs::File::create(&tmp_path).map_err(|e| e.to_string())?;
-            std::io::copy(&mut response.into_reader(), &mut file).map_err(|e| e.to_string())?;
+            let mut buf = [0u8; 64 * 1024];
+            let mut downloaded: u64 = 0;
+            // Throttled - emitting on every 64KB chunk would be hundreds of
+            // IPC messages a second on a fast connection, for a bar that
+            // only needs to visibly move a few times a second.
+            let mut last_emit = Instant::now();
+            loop {
+                let n = reader.read(&mut buf).map_err(|e| e.to_string())?;
+                if n == 0 {
+                    break;
+                }
+                file.write_all(&buf[..n]).map_err(|e| e.to_string())?;
+                downloaded += n as u64;
+                if last_emit.elapsed().as_millis() >= 100 {
+                    let _ = app.emit(
+                        DOWNLOAD_PROGRESS_EVENT,
+                        DownloadProgress { downloaded, total },
+                    );
+                    last_emit = Instant::now();
+                }
+            }
+            // One last emit so the bar actually reaches its true final value
+            // even if the last chunk landed inside the throttle window.
+            let _ = app.emit(
+                DOWNLOAD_PROGRESS_EVENT,
+                DownloadProgress { downloaded, total },
+            );
         }
         std::fs::rename(&tmp_path, &path).map_err(|e| e.to_string())?;
         Ok(path)

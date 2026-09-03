@@ -14,6 +14,7 @@ import {
   countFillers,
   watermarkDateStamp,
   enableTabIndent,
+  formatBytes,
 } from "./util.js";
 import {
   getWpmEnabled,
@@ -28,7 +29,7 @@ import {
   setWhisperModelDownloaded,
 } from "./store.js";
 import { resolveVideoPath } from "./attempts.js";
-import { showConfirm, showAlert } from "./modal.js";
+import { showConfirm, showAlert, setModalProgress, finishModal } from "./modal.js";
 
 const previewEl = document.getElementById("preview");
 const viewfinderMetaEl = document.getElementById("viewfinder-meta");
@@ -71,6 +72,7 @@ const wpmToggleInput = document.getElementById("wpm-toggle-input");
 const wpmToggleHint = document.getElementById("wpm-toggle-hint");
 
 const { convertFileSrc, invoke } = window.__TAURI__.core;
+const { listen } = window.__TAURI__.event;
 
 // Absolute mic levels vary hugely between a close headset and a laptop's
 // built-in array - more so with auto gain control off, but a fixed
@@ -1303,11 +1305,16 @@ async function initWpmToggle() {
       // fully covered by it (and unclickable) - close Settings out of the
       // way first, then bring the confirm prompt forward on its own.
       document.getElementById("settings-overlay").hidden = true;
+      // keepOpenOnConfirm: true - clicking Download carries this same
+      // dialog through into the progress state below, rather than closing
+      // it and leaving the only feedback a hint line in Settings (which is
+      // exactly where the user isn't looking, since Settings just closed).
       const confirmed = await showConfirm({
         title: "Download speech model?",
         message:
           "Speech pace (WPM) needs a one-time ~60MB download (a local speech-to-text model). After that, it runs fully on this device - nothing is uploaded per recording.",
         confirmLabel: "Download",
+        keepOpenOnConfirm: true,
       });
       if (!confirmed) {
         wpmToggleInput.checked = false;
@@ -1316,17 +1323,44 @@ async function initWpmToggle() {
 
       wpmToggleInput.disabled = true;
       wpmToggleHint.textContent = "Downloading speech model…";
+      setModalProgress({
+        title: "Downloading speech model…",
+        message: "This happens once. It'll run fully on this device from now on.",
+        percent: 0,
+      });
+
+      const unlisten = await listen("whisper-download-progress", (event) => {
+        const { downloaded, total } = event.payload;
+        const percent = total ? Math.round((downloaded / total) * 100) : null;
+        setModalProgress({
+          percent,
+          detail: total ? `${formatBytes(downloaded)} / ${formatBytes(total)}` : formatBytes(downloaded),
+        });
+      });
+
       try {
         await invoke("download_whisper_model");
         await setWhisperModelDownloaded(true);
+        // Waited on, not fire-and-forget - the user asked to be told
+        // explicitly that the download finished, not have the dialog just
+        // vanish and leave them to notice the toggle is now enabled.
+        await finishModal({
+          title: "Speech model downloaded",
+          message: "Speech pace (WPM) is ready to use.",
+        });
       } catch (err) {
         console.error("Failed to download speech model", err);
+        // showAlert() reconfigures the same still-open dialog (title,
+        // message, buttons, hides the progress bar) rather than needing a
+        // separate close step first.
         await showAlert({ title: "Download failed", message: String(err?.message ?? err) });
         wpmToggleInput.checked = false;
         wpmToggleInput.disabled = false;
         wpmToggleHint.textContent = WHISPER_WPM_HINT;
+        unlisten();
         return;
       }
+      unlisten();
       wpmToggleInput.disabled = false;
       wpmToggleHint.textContent = WHISPER_WPM_HINT;
     }

@@ -17,6 +17,7 @@ import {
   updateAttemptScore,
 } from "./attempts.js";
 import { getRecordingSettings, saveRecordingSettings, clearAllData, getTheme, setTheme } from "./store.js";
+import { formatBytes } from "./util.js";
 import { showAlert, showConfirm } from "./modal.js";
 import { showContextMenu, hideContextMenu, isContextMenuVisible } from "./contextmenu.js";
 
@@ -279,18 +280,6 @@ async function resetAllData() {
   location.reload();
 }
 
-function formatBytes(bytes) {
-  if (bytes < 1024) return `${bytes} B`;
-  const units = ["KB", "MB", "GB", "TB"];
-  let value = bytes / 1024;
-  let unit = 0;
-  while (value >= 1024 && unit < units.length - 1) {
-    value /= 1024;
-    unit++;
-  }
-  return `${value < 10 ? value.toFixed(1) : Math.round(value)} ${units[unit]}`;
-}
-
 // Deliberately not awaited by the caller - walking the folder takes a moment
 // once there are a few hundred recordings in it, and the rest of the dialog
 // shouldn't wait on a number that's only informational.
@@ -507,9 +496,6 @@ function initUpdateBell() {
   checkForUpdateBadge();
 }
 
-// Read off disk rather than from the store's whisperModelDownloaded flag -
-// that flag only exists to skip re-prompting and is allowed to drift, which
-// is fine for a prompt and not fine for a panel claiming to state facts.
 async function getAboutFields() {
   const { getVersion, getTauriVersion } = window.__TAURI__.app;
   const { invoke } = window.__TAURI__.core;
