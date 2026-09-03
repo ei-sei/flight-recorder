@@ -1,0 +1,127 @@
+// Node's built-in test runner, no dependencies. Run with `node --test src/js/`.
+//
+// Everything covered here is a pure function that produces a number the app
+// shows the user as fact. Each has already been through at least one round of
+// subtle correction - the two-second pace floor, the min/max equality guard,
+// the back-to-back filler sweep - with nothing to stop the next change quietly
+// undoing one of them.
+import { test } from "node:test";
+import assert from "node:assert/strict";
+
+import {
+  abbreviateQuestion,
+  computePaceRange,
+  countFillers,
+  countWords,
+  formatBytes,
+  formatPaceRange,
+  formatTimer,
+  rejectHallucinatedSegments,
+  slugify,
+} from "./util.js";
+
+test("rejectHallucinatedSegments keeps a segment overlapping measured speech", () => {
+  const segments = [{ text: "hello", startMs: 1000, endMs: 2000 }];
+  assert.equal(rejectHallucinatedSegments(segments, [[1500, 3000]]).length, 1);
+});
+
+test("rejectHallucinatedSegments keeps everything when nothing was measured", () => {
+  const segments = [{ text: "hello", startMs: 0, endMs: 1000 }];
+  assert.equal(rejectHallucinatedSegments(segments, []).length, 1);
+  assert.equal(rejectHallucinatedSegments(segments, undefined).length, 1);
+});
+
+test("rejectHallucinatedSegments drops a segment invented over silence", () => {
+  const segments = [
+    { text: "a", startMs: 0, endMs: 1000 },
+    { text: "b", startMs: 1000, endMs: 2000 },
+    { text: "invented", startMs: 5000, endMs: 6000 },
+    { text: "c", startMs: 7000, endMs: 8000 },
+  ];
+  const kept = rejectHallucinatedSegments(segments, [[0, 2000], [7000, 8000]]);
+  assert.deepEqual(
+    kept.map((s) => s.text),
+    ["a", "b", "c"],
+  );
+});
+
+test("rejectHallucinatedSegments gives up rather than blank the transcript", () => {
+  // What a recording made with the window hidden looks like: the sampling loop
+  // is clamped, so the intervals cover almost nothing and the filter would
+  // otherwise throw away real words.
+  const segments = [
+    { text: "a", startMs: 0, endMs: 1000 },
+    { text: "b", startMs: 10000, endMs: 11000 },
+    { text: "c", startMs: 20000, endMs: 21000 },
+    { text: "d", startMs: 30000, endMs: 31000 },
+    { text: "e", startMs: 40000, endMs: 41000 },
+  ];
+  assert.equal(rejectHallucinatedSegments(segments, [[0, 500]]).length, 5);
+});
+
+test("computePaceRange ignores segments too short to be meaningful", () => {
+  const segments = [
+    { text: "two words", startMs: 0, endMs: 1000 },
+    { text: "a longer stretch of speech here", startMs: 2000, endMs: 5000 },
+    { text: "another longer stretch of speech", startMs: 6000, endMs: 12000 },
+  ];
+  const { minWpm, maxWpm } = computePaceRange(segments);
+  // Only the two segments of at least 2s count: 6 words over 3s = 120wpm,
+  // and 5 words over 6s = 50wpm.
+  assert.equal(Math.round(minWpm), 50);
+  assert.equal(Math.round(maxWpm), 120);
+});
+
+test("computePaceRange refuses to call a single segment a range", () => {
+  const segments = [{ text: "one two three four", startMs: 0, endMs: 3000 }];
+  assert.deepEqual(computePaceRange(segments), { minWpm: null, maxWpm: null });
+});
+
+test("formatPaceRange hides a range that rounds to one number", () => {
+  assert.equal(formatPaceRange(120.1, 120.4), null);
+  assert.equal(formatPaceRange(110, 175), "pace 110-175 wpm");
+  assert.equal(formatPaceRange(null, 175), null);
+});
+
+test("countFillers counts back-to-back repeats", () => {
+  assert.equal(countFillers("um um so it was fine"), 2);
+});
+
+test("countFillers counts a multi-word phrase once, not as its parts", () => {
+  assert.equal(countFillers("you know it was fine"), 1);
+});
+
+test("countFillers is zero on text with none", () => {
+  assert.equal(countFillers("I led the migration and it shipped on time"), 0);
+  assert.equal(countFillers(""), 0);
+});
+
+test("countWords ignores surrounding and repeated whitespace", () => {
+  assert.equal(countWords("  one   two \n three "), 3);
+  assert.equal(countWords("   "), 0);
+});
+
+test("formatBytes switches unit and precision at the right points", () => {
+  assert.equal(formatBytes(512), "512 B");
+  assert.equal(formatBytes(1024), "1.0 KB");
+  assert.equal(formatBytes(1024 * 1024 * 10), "10 MB");
+  assert.equal(formatBytes(1024 ** 3 * 39), "39 GB");
+});
+
+test("formatTimer renders tenths, not seconds", () => {
+  assert.equal(formatTimer(0), "00:00.0");
+  assert.equal(formatTimer(65_400), "01:05.4");
+  assert.equal(formatTimer(600_000), "10:00.0");
+});
+
+test("slugify never returns an empty path segment", () => {
+  assert.equal(slugify("Behavioural"), "behavioural");
+  assert.equal(slugify("Tell me about yourself."), "tell-me-about-yourself");
+  // A filename is built from this, so punctuation alone must not produce "".
+  assert.equal(slugify("!!!"), "question");
+});
+
+test("abbreviateQuestion drops single-letter words", () => {
+  assert.equal(abbreviateQuestion("Describe a project you're proud of and why."), "dpypoaw");
+  assert.equal(abbreviateQuestion("!!!"), "q");
+});
