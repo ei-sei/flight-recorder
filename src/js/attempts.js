@@ -1,9 +1,9 @@
-const { videoDir, join } = window.__TAURI__.path;
+const { join } = window.__TAURI__.path;
 const { mkdir, writeFile, exists, remove } = window.__TAURI__.fs;
 const { revealItemInDir } = window.__TAURI__.opener;
 const { invoke } = window.__TAURI__.core;
 
-import { getAttempts, saveAttempts } from "./store.js";
+import { getAttempts, saveAttempts, libraryDir } from "./store.js";
 import {
   slugify,
   shortDateStamp,
@@ -35,14 +35,12 @@ const filterTabsEl = document.getElementById("log-filter-tabs");
 // reveal-in-folder all resolve correctly against wherever THIS machine's
 // Videos folder actually is, instead of a path baked in on another machine.
 export async function resolveVideoPath(relativePath) {
-  const base = await videoDir();
-  return join(base, "flight-recorder", relativePath);
+  return join(await libraryDir(), relativePath);
 }
 
 async function computeVideoRelativePath(question, date, extension) {
-  const base = await videoDir();
   const categorySlug = slugify(question.category);
-  const dirPath = await join(base, "flight-recorder", categorySlug);
+  const dirPath = await join(await libraryDir(), categorySlug);
   await mkdir(dirPath, { recursive: true });
 
   const stamp = shortDateStamp(date);

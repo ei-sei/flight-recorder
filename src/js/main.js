@@ -16,7 +16,14 @@ import {
   updateAttemptNotes,
   updateAttemptScore,
 } from "./attempts.js";
-import { getRecordingSettings, saveRecordingSettings, clearAllData, getTheme, setTheme } from "./store.js";
+import {
+  getRecordingSettings,
+  saveRecordingSettings,
+  clearAllData,
+  getTheme,
+  setTheme,
+  libraryDir,
+} from "./store.js";
 import { formatBytes } from "./util.js";
 import { showAlert, showConfirm } from "./modal.js";
 import { showContextMenu, hideContextMenu, isContextMenuVisible } from "./contextmenu.js";
@@ -26,34 +33,55 @@ const currentQuestionEl = document.getElementById("current-question");
 
 let appWindow = null;
 
+// localStorage throws rather than returning null in some webview
+// configurations, so every access has to be guarded. Guarded once here
+// instead of in six near-identical try/catch pairs. This holds view state
+// only - window layout and theme - never anything about a recording, which
+// lives in the Tauri store.
+function readLocal(key, fallback) {
+  try {
+    const value = localStorage.getItem(key);
+    return value === null ? fallback : value;
+  } catch (err) {
+    return fallback;
+  }
+}
+
+function writeLocal(key, value) {
+  try {
+    localStorage.setItem(key, String(value));
+  } catch (err) {
+    // Unavailable; this setting just won't persist across launches.
+  }
+}
+
+function removeLocal(key) {
+  try {
+    localStorage.removeItem(key);
+  } catch (err) {
+    // Unavailable; nothing to clear.
+  }
+}
+
 function applyTheme(theme) {
   if (theme === "light") {
     document.documentElement.setAttribute("data-theme", "light");
   } else {
     document.documentElement.removeAttribute("data-theme");
   }
-  try {
-    localStorage.setItem("theme", theme);
-  } catch (err) {
-    // localStorage unavailable; the Tauri store remains the source of truth
-  }
+  // The Tauri store remains the source of truth; this is only so the inline
+  // script in index.html can set the theme before the modules load.
+  writeLocal("theme", theme);
 }
 
 function isSidebarVisible() {
-  try {
-    return localStorage.getItem("sidebarVisible") !== "false";
-  } catch (err) {
-    return true;
-  }
+  return readLocal("sidebarVisible", "true") !== "false";
 }
 
 function setSidebarVisible(visible) {
   document.querySelector(".layout").classList.toggle("sidebar-hidden", !visible);
-  try {
-    localStorage.setItem("sidebarVisible", String(visible));
-  } catch (err) {
-    // localStorage unavailable; state just won't persist across launches
-  }
+  document.getElementById("rail-questions").classList.toggle("active", visible);
+  writeLocal("sidebarVisible", visible);
 }
 
 function initSidebar() {
@@ -65,20 +93,13 @@ function initSidebar() {
 }
 
 function isLogPanelVisible() {
-  try {
-    return localStorage.getItem("logPanelVisible") !== "false";
-  } catch (err) {
-    return true;
-  }
+  return readLocal("logPanelVisible", "true") !== "false";
 }
 
 function setLogPanelVisible(visible) {
   document.querySelector(".layout").classList.toggle("log-hidden", !visible);
-  try {
-    localStorage.setItem("logPanelVisible", String(visible));
-  } catch (err) {
-    // localStorage unavailable; state just won't persist across launches
-  }
+  document.getElementById("rail-log").classList.toggle("active", visible);
+  writeLocal("logPanelVisible", visible);
 }
 
 function initLogPanelToggle() {
@@ -89,22 +110,26 @@ function initLogPanelToggle() {
   });
 }
 
+// Must match the --sidebar-w / --log-w defaults in style.css. These are what
+// "Reset view" restores to, so a mismatch means Reset view moves the panels
+// somewhere the app has never actually started up in.
+const SIDEBAR_DEFAULT = 257;
+const LOG_DEFAULT = 332;
+
+// Assigned by initPanelResize, which closes over the live width state. Declared
+// here rather than below its own assignment, where it used to sit.
+let resetPanelWidths = () => {};
+
 function initPanelResize() {
   const layoutEl = document.querySelector(".layout");
   const SIDEBAR_MIN = 200;
   const SIDEBAR_MAX = 500;
-  const SIDEBAR_DEFAULT = 257;
   const LOG_MIN = 260;
   const LOG_MAX = 600;
-  const LOG_DEFAULT = 299;
 
   function getStoredWidth(key, fallback) {
-    try {
-      const value = parseInt(localStorage.getItem(key), 10);
-      return Number.isFinite(value) ? value : fallback;
-    } catch (err) {
-      return fallback;
-    }
+    const value = parseInt(readLocal(key, ""), 10);
+    return Number.isFinite(value) ? value : fallback;
   }
 
   let sidebarWidth = getStoredWidth("sidebarWidthPx", SIDEBAR_DEFAULT);
@@ -137,12 +162,8 @@ function initPanelResize() {
       document.removeEventListener("mousemove", onMove);
       document.removeEventListener("mouseup", onUp);
       handleEl.classList.remove("dragging");
-      try {
-        localStorage.setItem("sidebarWidthPx", String(sidebarWidth));
-        localStorage.setItem("logWidthPx", String(logWidth));
-      } catch (err) {
-        // localStorage unavailable; sizes just won't persist across launches
-      }
+      writeLocal("sidebarWidthPx", sidebarWidth);
+      writeLocal("logWidthPx", logWidth);
     }
 
     document.addEventListener("mousemove", onMove);
@@ -158,16 +179,10 @@ function initPanelResize() {
     sidebarWidth = SIDEBAR_DEFAULT;
     logWidth = LOG_DEFAULT;
     applyWidths();
-    try {
-      localStorage.removeItem("sidebarWidthPx");
-      localStorage.removeItem("logWidthPx");
-    } catch (err) {
-      // localStorage unavailable; nothing to clear
-    }
+    removeLocal("sidebarWidthPx");
+    removeLocal("logWidthPx");
   };
 }
-
-let resetPanelWidths = () => {};
 
 async function resetView() {
   resetPanelWidths();
@@ -190,20 +205,12 @@ async function resetView() {
 }
 
 function isRailVisible() {
-  try {
-    return localStorage.getItem("railVisible") === "true";
-  } catch (err) {
-    return false;
-  }
+  return readLocal("railVisible", "false") === "true";
 }
 
 function setRailVisible(visible) {
   document.getElementById("activity-rail").hidden = !visible;
-  try {
-    localStorage.setItem("railVisible", String(visible));
-  } catch (err) {
-    // localStorage unavailable; state just won't persist across launches
-  }
+  writeLocal("railVisible", visible);
 }
 
 function initRail() {
@@ -241,12 +248,11 @@ function populateDeviceSelect(select, devices, selectedId, kindLabel) {
 }
 
 async function openRecordingsFolder() {
-  const { videoDir, join } = window.__TAURI__.path;
   const { mkdir } = window.__TAURI__.fs;
   const { openPath } = window.__TAURI__.opener;
 
   try {
-    const dir = await join(await videoDir(), "flight-recorder");
+    const dir = await libraryDir();
     await mkdir(dir, { recursive: true });
     await openPath(dir);
   } catch (err) {
@@ -265,11 +271,10 @@ async function resetAllData() {
   });
   if (!confirmed) return;
 
-  const { videoDir, join } = window.__TAURI__.path;
   const { remove, exists } = window.__TAURI__.fs;
 
   try {
-    const dir = await join(await videoDir(), "flight-recorder");
+    const dir = await libraryDir();
     if (await exists(dir)) {
       await remove(dir, { recursive: true });
     }

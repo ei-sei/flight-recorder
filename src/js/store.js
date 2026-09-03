@@ -61,8 +61,18 @@ function backfillPrepNotes(questions) {
 
 let storePromise = null;
 
+// The one definition of where the library lives. This was rebuilt
+// independently in four places (here, migrateFromOldStoreLocation,
+// resolveVideoPath in attempts.js, and twice in main.js), which is exactly
+// the coupling the portable-folder design depends on not drifting. Lives in
+// store.js rather than util.js because util.js is deliberately free of Tauri
+// globals so it can be unit tested under plain node.
+export async function libraryDir() {
+  return join(await videoDir(), "flight-recorder");
+}
+
 async function resolveStorePath() {
-  const dir = await join(await videoDir(), "flight-recorder");
+  const dir = await libraryDir();
   await mkdir(dir, { recursive: true });
 
   // Pre-create each category's folder so Videos/flight-recorder/ looks
@@ -100,7 +110,7 @@ async function migrateFromOldStoreLocation(newStore) {
   const oldQuestions = await oldStore.get("questions");
   if (!oldQuestions) return;
 
-  const flightRecorderDir = await join(await videoDir(), "flight-recorder");
+  const flightRecorderDir = await libraryDir();
   const oldAttempts = (await oldStore.get("attempts")) ?? [];
   const migratedAttempts = oldAttempts.map((attempt) => {
     const { videoPath, ...rest } = attempt;
@@ -203,10 +213,11 @@ export async function setWpmEnabled(enabled) {
   await store.save();
 }
 
-// Mac/Linux only - whether the local Whisper speech model has already been
-// downloaded. Purely a UX shortcut to skip re-prompting; the Rust side
-// re-downloads transparently if the cached file is ever missing, so nothing
-// depends on this staying accurate.
+// Whether the local Whisper speech model has already been downloaded, on
+// every platform (this used to say Mac/Linux only, from when Windows ran the
+// browser's SpeechRecognition API instead). Purely a UX shortcut to skip
+// re-prompting; the Rust side re-downloads transparently if the cached file
+// is ever missing, so nothing depends on this staying accurate.
 export async function getWhisperModelDownloaded() {
   const store = await getStore();
   const value = await store.get("whisperModelDownloaded");
@@ -232,11 +243,24 @@ export async function getRecordingSettings() {
   };
 }
 
-export async function saveRecordingSettings(settings) {
-  const store = await getStore();
-  const current = await getRecordingSettings();
-  await store.set("recordingSettings", { ...current, ...settings });
-  await store.save();
+// Serialised. This is a read-modify-write, and several callers fire it without
+// awaiting (the camera toggle, for one), so two overlapping calls could each
+// read the same `current` and the second would write back the first's field as
+// it was before the change - silently losing it. Chaining costs nothing here
+// and makes the last writer win on a whole-object basis rather than by luck.
+let recordingSettingsWrite = Promise.resolve();
+
+export function saveRecordingSettings(settings) {
+  const write = recordingSettingsWrite.then(async () => {
+    const store = await getStore();
+    const current = await getRecordingSettings();
+    await store.set("recordingSettings", { ...current, ...settings });
+    await store.save();
+  });
+  // The chain keeps a swallowed copy so one failed write can't reject every
+  // write that queues behind it. The caller still gets the real promise.
+  recordingSettingsWrite = write.catch(() => {});
+  return write;
 }
 
 export async function getPrepNotesCollapsed() {

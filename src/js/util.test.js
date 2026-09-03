@@ -96,6 +96,12 @@ test("countFillers is zero on text with none", () => {
   assert.equal(countFillers(""), 0);
 });
 
+test("countFillers does not count ordinary uses of like", () => {
+  // "like" is a verb and a preposition far more often than it is a filler,
+  // and this count is shown as a bare number with nothing to qualify it.
+  assert.equal(countFillers("I like working in teams on something like that"), 0);
+});
+
 test("countWords ignores surrounding and repeated whitespace", () => {
   assert.equal(countWords("  one   two \n three "), 3);
   assert.equal(countWords("   "), 0);
