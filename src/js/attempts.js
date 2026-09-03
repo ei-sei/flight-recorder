@@ -36,13 +36,18 @@ async function computeVideoRelativePath(question, date, extension) {
 
   const stamp = shortDateStamp(date);
   const abbreviation = abbreviateQuestion(question.text);
+  // First 8 chars of the question's real id. The abbreviation alone is just
+  // initials - two different questions can produce the same one. This makes
+  // the filename->question link exact, so a file can always be matched back
+  // to its real question later (e.g. recovering one with no attempt record).
+  const shortId = question.id.slice(0, 8);
   const attemptNumber = attempts.filter((a) => a.questionId === question.id).length + 1;
 
-  let filename = `${stamp}-a${attemptNumber}-${abbreviation}.${extension}`;
+  let filename = `${stamp}-a${attemptNumber}-${abbreviation}-${shortId}.${extension}`;
   let candidate = await join(dirPath, filename);
   let counter = 2;
   while (await exists(candidate)) {
-    filename = `${stamp}-a${attemptNumber}-${abbreviation}-${counter}.${extension}`;
+    filename = `${stamp}-a${attemptNumber}-${abbreviation}-${shortId}-${counter}.${extension}`;
     candidate = await join(dirPath, filename);
     counter += 1;
   }
