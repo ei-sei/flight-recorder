@@ -45,7 +45,14 @@ jobs:
           if [ -n "$PREV_TAG" ]; then
             {
               echo "## What's Changed"
-              git log "$PREV_TAG..$GITHUB_REF_NAME" --pretty=format:'- %s'
+              # --right-only --cherry-pick over the three-dot range, not a
+              # plain two-dot log. If history is ever rewritten after a tag is
+              # published, that tag points off the current branch and a two-dot
+              # range re-lists every rewritten commit as though it were new -
+              # v1.2.0 is exactly that case. Comparing by patch id instead of
+              # by commit id drops the ones that already shipped.
+              git log --right-only --cherry-pick --no-merges \
+                "$PREV_TAG...$GITHUB_REF_NAME" --pretty=format:'- %s'
               echo ""
               echo ""
               echo "**Full Changelog**: https://github.com/$GITHUB_REPOSITORY/compare/$PREV_TAG...$GITHUB_REF_NAME"
