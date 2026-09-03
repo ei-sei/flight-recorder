@@ -153,15 +153,19 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: lts/*
+          cache: npm
 
+      # npm ci, not npm install - a release build should install exactly what
+      # package-lock.json pins rather than being free to resolve something
+      # newer than what CI tested.
       - name: install frontend dependencies
-        run: npm install
+        run: npm ci
 
       - uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          # whisper.cpp (via whisper-rs, macOS/Linux-only) uses std::filesystem
+          # whisper.cpp (via whisper-rs, every platform now) uses std::filesystem
           # APIs that Apple's libc++ gates behind macOS 10.15 - without an
           # explicit deployment target the compiler treats them as
           # unavailable and the build fails. No-op on Linux/Windows.
