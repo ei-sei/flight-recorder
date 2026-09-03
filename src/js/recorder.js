@@ -1086,13 +1086,18 @@ export function renderReviewDetails(attempt) {
   } else {
     reviewTranscriptText.hidden = true;
     reviewTranscriptEmpty.hidden = false;
-    // Three different reasons there's no transcript, and only one of them is
+    // Four different reasons there's no transcript, and only one of them is
     // fixed by opening Settings. Transcription is still running (wait), it
-    // ran and heard nothing (nothing to do), or WPM was off for this attempt
-    // (turn it on) - telling someone to enable a setting that's already on,
-    // or that's mid-download, is the wrong advice twice over.
+    // failed (show why), it ran and heard nothing (nothing to do), or WPM was
+    // off for this attempt (turn it on) - telling someone to enable a setting
+    // that's already on, or that's mid-download, is the wrong advice twice
+    // over, and telling them nothing was heard when transcription crashed is
+    // worse than either.
     if (attempt.transcribing) {
       reviewTranscriptEmptyText.textContent = "Transcribing on this device…";
+      reviewTranscriptSettingsBtn.hidden = true;
+    } else if (attempt.transcriptError) {
+      reviewTranscriptEmptyText.textContent = `Transcription failed: ${attempt.transcriptError}`;
       reviewTranscriptSettingsBtn.hidden = true;
     } else if (attempt.transcript === "") {
       reviewTranscriptEmptyText.textContent = "No speech detected in this recording.";

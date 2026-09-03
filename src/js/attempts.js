@@ -113,6 +113,9 @@ export async function saveAttempt({
     paceMinWpm: null,
     paceMaxWpm: null,
     transcript: transcript ?? null,
+    // Set only when transcription actually failed, so review can tell that
+    // apart from a recording with no speech in it.
+    transcriptError: null,
     // Transcription runs after the file is written, so there's a window of a
     // few seconds where the attempt exists with no transcript yet. Without
     // this flag review can't tell that apart from "WPM was switched off",
@@ -177,13 +180,26 @@ async function transcribeAttemptInBackground(attempt, speechIntervals) {
     const wpm = transcript && elapsedMinutes > 0 ? countWords(transcript) / elapsedMinutes : null;
     const { minWpm, maxWpm } = computePaceRange(segments);
 
-    await updateAttemptTranscript(attempt.id, { wpm, transcript, paceMinWpm: minWpm, paceMaxWpm: maxWpm });
+    await updateAttemptTranscript(attempt.id, {
+      wpm,
+      transcript,
+      paceMinWpm: minWpm,
+      paceMaxWpm: maxWpm,
+      transcriptError: null,
+    });
   } catch (err) {
     console.error("Background transcription failed", err);
-    // "" (not null) is what renders as "No speech detected" on review rather
-    // than "turn on Speech pace (WPM)" - which would be wrong here, since it
-    // already was on.
-    await updateAttemptTranscript(attempt.id, { wpm: null, transcript: "" });
+    // This used to write "" here, which review renders as "No speech detected
+    // in this recording" - telling the user their answer wasn't heard when in
+    // fact transcription crashed. A missing model, a download failure, an
+    // unsupported codec and a genuinely silent recording are four different
+    // things and only one of them is the user's to act on, so the real error
+    // is carried through and shown.
+    await updateAttemptTranscript(attempt.id, {
+      wpm: null,
+      transcript: null,
+      transcriptError: String(err?.message ?? err),
+    });
   }
 }
 
@@ -413,6 +429,19 @@ export async function initAttempts(options = {}) {
   onExitReview = options.onExitReview ?? (() => {});
   onReviewingAttemptUpdated = options.onReviewingAttemptUpdated ?? (() => {});
   attempts = await getAttempts();
+
+  // Nothing can still be transcribing at startup - the job lives in this
+  // process and dies with it. Any flag still set was orphaned by a close or a
+  // reload mid-transcription, and that attempt would otherwise sit on
+  // "Transcribing on this device…" for good, with nothing able to clear it.
+  const orphaned = attempts.filter((a) => a.transcribing);
+  if (orphaned.length > 0) {
+    for (const attempt of orphaned) {
+      attempt.transcribing = false;
+      attempt.transcriptError = "interrupted before it finished";
+    }
+    await saveAttempts(attempts);
+  }
 
   filterTabsEl.addEventListener("click", (event) => {
     const btn = event.target.closest(".tab");
