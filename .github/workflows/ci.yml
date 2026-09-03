@@ -6,6 +6,14 @@ on:
   pull_request:
     branches: [main]
 
+# Only the newest commit on a branch is worth checking. Pushing twice in
+# quick succession used to leave the first run grinding through a full
+# Windows whisper.cpp build (~7 minutes) whose result nobody would look at.
+# Grouped by ref so branches and PRs never cancel each other.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   lint-and-build:
     runs-on: ubuntu-22.04

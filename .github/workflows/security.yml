@@ -9,6 +9,15 @@ on:
     # Weekly, so newly-disclosed advisories are caught even with no code changes.
     - cron: "0 6 * * 1"
 
+# Cheap to run, but there's no value in auditing a commit that's already been
+# superseded - the run history had two of these fire for the same commit.
+# The weekly scheduled run shares main's group (a schedule uses the default
+# branch's ref), so a push can cancel it. That's fine: the push runs its own
+# audit against newer code, which is strictly the more useful answer.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   cargo-audit:
     runs-on: ubuntu-22.04

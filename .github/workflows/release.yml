@@ -5,6 +5,20 @@ on:
     tags:
       - "v*"
 
+# cancel-in-progress is deliberately FALSE here, unlike CI. Killing a
+# release part-way through leaves a draft holding some platforms' installers
+# and not others - which is the same shape as the v1.0.8 failure noted
+# below, and far worse than wasting a few runner minutes.
+#
+# Grouped by ref rather than by workflow, so it only guards against the same
+# tag building twice at once (re-pushing a moved tag, say) where both runs
+# would upload into the same draft. Two different tags stay independent:
+# they write to separate releases, and queuing them behind each other could
+# silently drop one, since GitHub only holds a single pending run per group.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   create-release:
     runs-on: ubuntu-latest
