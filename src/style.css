@@ -26,7 +26,7 @@
   --item-tint: rgba(255, 255, 255, 0.012);
   --gradient-tint-1: rgba(76, 124, 246, 0.07);
   --gradient-tint-2: rgba(245, 185, 66, 0.03);
-  --shadow-soft: var(--shadow-soft);
+  --shadow-soft: rgba(0, 0, 0, 0.4);
   --shadow-strong: rgba(0, 0, 0, 0.65);
 
   --radius-lg: 14px;
@@ -72,6 +72,22 @@
 
 * {
   box-sizing: border-box;
+}
+
+/* The large surfaces that change on a theme swap, and nothing else. This was
+   on the universal selector, which put a transition on every node in the
+   document - including the thousands of them the attempt list builds - and
+   was overridden anyway on every control with its own transition rule below.
+   Interactive elements (.btn, .tab, .rail-btn, .star, .question-item,
+   .attempt-item, and the rest) already declare their own; they are not
+   repeated here. */
+body,
+.panel,
+.topbar,
+.activity-rail,
+.footer-note,
+.modal-overlay,
+.modal-box {
   transition: background-color 200ms ease, color 200ms ease, border-color 200ms ease;
 }
 
