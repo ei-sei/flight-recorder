@@ -1147,9 +1147,6 @@ export async function initRecorder(options = {}) {
 
   recordBtn.addEventListener("click", toggleRecording);
   backToLiveBtn.addEventListener("click", exitReviewMode);
-  // The browser's native video context menu (loop, save video as, PiP, "send
-  // tab to your devices", ...) doesn't apply to a packaged desktop app.
-  previewEl.addEventListener("contextmenu", (event) => event.preventDefault());
   reviewTranscriptSettingsBtn.addEventListener("click", onOpenSettings);
   cameraToggleBtn.addEventListener("click", toggleCamera);
   prepNotesInput.addEventListener("blur", () => {

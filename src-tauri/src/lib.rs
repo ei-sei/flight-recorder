@@ -8,6 +8,16 @@ fn get_commit_sha() -> &'static str {
     env!("GIT_COMMIT_SHA")
 }
 
+// The webview's own "Inspect element" comes with a native menu full of
+// browser entries that don't apply to a packaged app, so that menu is
+// suppressed and this backs the app's own two-item replacement instead.
+// Works in release builds too - tauri's "devtools" feature is enabled in
+// Cargo.toml, not just inherited from debug_assertions.
+#[tauri::command]
+fn open_devtools(window: tauri::WebviewWindow) {
+    window.open_devtools();
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -30,6 +40,7 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .invoke_handler(tauri::generate_handler![
             get_commit_sha,
+            open_devtools,
             download_whisper_model,
             transcribe_recording
         ])

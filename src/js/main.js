@@ -622,11 +622,20 @@ function initWindowControls() {
 }
 
 async function init() {
-  // The webview's native context menu (Reload, Inspect Element, ...) reads
-  // as a website, not a desktop app - suppressed everywhere by default.
-  // Specific areas (questions, attempts, video) already show their own
-  // custom menu instead, via their own contextmenu listener + preventDefault.
-  document.addEventListener("contextmenu", (event) => event.preventDefault());
+  // The webview's native context menu reads as a website, not a desktop app
+  // (Back, Save image as, Translate, "send tab to your devices", ...), so
+  // it's suppressed everywhere and replaced with just the two entries that
+  // do make sense here. Areas with their own menu (questions, attempts)
+  // preventDefault in their own listener, which runs first - checking
+  // defaultPrevented is what stops this one clobbering theirs.
+  document.addEventListener("contextmenu", (event) => {
+    if (event.defaultPrevented) return;
+    event.preventDefault();
+    showContextMenu(event.clientX, event.clientY, [
+      { label: "Refresh", onClick: () => window.location.reload() },
+      { label: "Inspect", onClick: () => window.__TAURI__.core.invoke("open_devtools") },
+    ]);
+  });
 
   tickClock();
   setInterval(tickClock, 1000);
