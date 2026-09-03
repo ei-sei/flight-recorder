@@ -255,9 +255,15 @@ async function enableCamera() {
     viewfinderEmptyEl.textContent = "Camera access denied or unavailable.";
     viewfinderEmptyEl.hidden = false;
     console.error("Failed to access camera/microphone", err);
+  } finally {
+    // In a finally, not after the try, so the early return above also
+    // re-enables the toggle button this function disabled on entry. Every
+    // path that can overtake this one happens to call these itself today,
+    // but that is a fact about the callers, not something this should rely
+    // on staying true.
+    updateCameraToggleUI();
+    updateRecordButtonState();
   }
-  updateCameraToggleUI();
-  updateRecordButtonState();
 }
 
 function disableCamera() {
