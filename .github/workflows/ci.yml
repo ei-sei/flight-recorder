@@ -51,3 +51,32 @@ jobs:
 
       - name: cargo build
         run: cargo build --manifest-path src-tauri/Cargo.toml
+
+  # Windows gets its own job purely because whisper.cpp's build is the one
+  # part of this repo that breaks differently per platform, and it used to
+  # break only on a release tag - which is a terrible place to find out.
+  # fmt/clippy aren't repeated here; they're platform-independent.
+  windows-build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      # Must match release.yml's setup exactly, or this job stops predicting
+      # what a release will do, which is its whole reason to exist.
+      - name: set up libclang for bindgen
+        shell: pwsh
+        run: |
+          choco install llvm --version=18.1.8 -y --allow-downgrade --no-progress
+          echo "LIBCLANG_PATH=C:\Program Files\LLVM\bin" >> $env:GITHUB_ENV
+
+      - name: cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: windows
+
+      - name: cargo build
+        run: cargo build --manifest-path src-tauri/Cargo.toml
