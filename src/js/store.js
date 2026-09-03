@@ -222,7 +222,7 @@ export async function setWhisperModelDownloaded(downloaded) {
 export async function getRecordingSettings() {
   const store = await getStore();
   const value = await store.get("recordingSettings");
-  return { cameraId: null, micId: null, quality: "720", alwaysOnTop: false, cameraEnabled: false, ...value };
+  return { cameraId: null, micId: null, quality: "480", alwaysOnTop: false, cameraEnabled: false, ...value };
 }
 
 export async function saveRecordingSettings(settings) {

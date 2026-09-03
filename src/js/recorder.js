@@ -106,17 +106,25 @@ let currentQuality = "720";
 let cameraEnabled = false;
 let cameraWasEnabledBeforeReview = false;
 
+// Bitrates are tuned for a low-motion talking head in H.264, which needs
+// roughly 25% more bits than VP9 for the same picture - the 24fps capture
+// rate (see WATERMARK_FPS) pays most of that back.
 const QUALITY_PRESETS = {
+  480: { width: 854, height: 480, bitrate: 1_300_000 },
   720: { width: 1280, height: 720, bitrate: 2_500_000 },
-  1080: { width: 1920, height: 1080, bitrate: 5_000_000 },
 };
 
+// Every preset is 16:9, and the recording is held to it - a camera that only
+// offers 4:3 gets centre-cropped to fit rather than squashed into it. Also
+// drives the viewfinder's box shape, so the preview matches what's saved.
+const VIEWFINDER_ASPECT = 16 / 9;
+
 function getQualityPreset() {
-  return QUALITY_PRESETS[currentQuality] ?? QUALITY_PRESETS["720"];
+  return QUALITY_PRESETS[currentQuality] ?? QUALITY_PRESETS["480"];
 }
 
 async function acquireStream(cameraId, micId, quality) {
-  const preset = QUALITY_PRESETS[quality] ?? QUALITY_PRESETS["720"];
+  const preset = QUALITY_PRESETS[quality] ?? QUALITY_PRESETS["480"];
   const constraints = {
     video: {
       deviceId: cameraId ? { exact: cameraId } : undefined,
@@ -480,21 +488,63 @@ function stopSpeechPaceTracking() {
   });
 }
 
-// Safari/WKWebView's MediaRecorder has historically only supported
-// recording to MP4, not WebM - so the format actually has to be
-// feature-detected per platform rather than assumed.
+// MP4/H.264/AAC first, on every platform. It's the only combination all
+// three target webviews can *play*, and the library folder is meant to be
+// portable - a WebM recorded on Windows won't open after the folder is
+// copied to a Mac, which defeats the point. Chromium gained MP4 recording
+// support, so this is no longer a Safari-only option.
+//
+// Profile order is High -> Main -> Baseline: High is ~10% more efficient and
+// every decoder from the last decade handles it, but not every *encoder*
+// will emit it. Audio must be AAC (mp4a.40.2) - Chromium will happily put
+// Opus in an MP4 and Safari won't play it back.
+//
+// WebM stays on the end as a genuine fallback for an engine with no H.264
+// encoder at all.
 const RECORDING_FORMAT_CANDIDATES = [
+  // Hex digits uppercase - that's the convention in the spec's own examples,
+  // and not every engine's parser is case-insensitive about it.
+  { mimeType: "video/mp4;codecs=avc1.640028,mp4a.40.2", extension: "mp4" },
+  { mimeType: "video/mp4;codecs=avc1.4D401F,mp4a.40.2", extension: "mp4" },
+  { mimeType: "video/mp4;codecs=avc1.42E01F,mp4a.40.2", extension: "mp4" },
+  { mimeType: "video/mp4", extension: "mp4" },
   { mimeType: "video/webm;codecs=vp9,opus", extension: "webm" },
   { mimeType: "video/webm;codecs=vp8,opus", extension: "webm" },
   { mimeType: "video/webm", extension: "webm" },
-  { mimeType: "video/mp4", extension: "mp4" },
 ];
 
-function getSupportedRecordingFormat() {
+const BLIND_FALLBACK_FORMAT = { mimeType: "", extension: "webm" };
+
+// Walks the ladder by *construction*, not by asking isTypeSupported, which
+// is not trustworthy: WebKitGTK answers false for every type there is,
+// including ones it records perfectly well. Whether the constructor accepts
+// the type is the only probe that reflects what the engine will really do.
+function createRecorder(recordingStream, options) {
   for (const candidate of RECORDING_FORMAT_CANDIDATES) {
-    if (MediaRecorder.isTypeSupported(candidate.mimeType)) return candidate;
+    try {
+      return {
+        recorder: new MediaRecorder(recordingStream, { ...options, mimeType: candidate.mimeType }),
+        extension: candidate.extension,
+      };
+    } catch (err) {
+      // NotSupportedError - try the next one down the ladder.
+    }
   }
-  return { mimeType: "", extension: "webm" };
+  // Nothing explicit was accepted. Let the engine pick its own default, and
+  // rely on reading back what it chose once it's actually running.
+  return { recorder: new MediaRecorder(recordingStream, options), extension: BLIND_FALLBACK_FORMAT.extension };
+}
+
+// The extension has to describe what's really in the file, not what we asked
+// for - a .webm that's actually an MP4 breaks playback everywhere and makes
+// the portable library folder worse, not better.
+function extensionForMimeType(mimeType, fallback) {
+  if (!mimeType) return fallback;
+  const type = mimeType.toLowerCase();
+  if (type.startsWith("video/mp4")) return "mp4";
+  if (type.startsWith("video/webm")) return "webm";
+  if (type.startsWith("video/x-matroska")) return "mkv";
+  return fallback;
 }
 
 let currentRecordingFormat = null;
@@ -504,13 +554,35 @@ let currentRecordingFormat = null;
 // Composites the live preview frame onto a hidden canvas each tick and
 // records THAT canvas's stream (recombined with the mic's audio track)
 // instead of the raw camera stream.
-const WATERMARK_FPS = 30;
+// 24, not 30. Gesture and fidgeting are what you're reading back on the
+// video side, and 24 carries those fine while needing ~15% fewer bits.
+// Don't drop it further - below 24 the delivery starts to look stilted,
+// which is the opposite of useful when you're judging your own cadence.
+const WATERMARK_FPS = 24;
 const WATERMARK_FONT = 'ui-monospace, "Cascadia Code", "SF Mono", Consolas, "Liberation Mono", monospace';
 const watermarkCanvas = document.createElement("canvas");
 const watermarkCtx = watermarkCanvas.getContext("2d");
 let watermarkStream = null;
 let watermarkRafId = null;
 let watermarkLastDrawTs = 0;
+
+// Centre-crops the source frame to the canvas's shape instead of stretching
+// it, matching the preview's object-fit: cover. Only bites when the camera's
+// own aspect ratio isn't 16:9 (a 4:3 webcam loses a sliver off each side).
+function drawCoverFrame(ctx, source, width, height) {
+  const srcW = source.videoWidth;
+  const srcH = source.videoHeight;
+  if (!srcW || !srcH) return;
+
+  const dstAspect = width / height;
+  let sw = srcW;
+  let sh = srcW / dstAspect;
+  if (sh > srcH) {
+    sh = srcH;
+    sw = srcH * dstAspect;
+  }
+  ctx.drawImage(source, (srcW - sw) / 2, (srcH - sh) / 2, sw, sh, 0, 0, width, height);
+}
 
 function drawWatermarkFrame(timestamp) {
   watermarkRafId = requestAnimationFrame(drawWatermarkFrame);
@@ -521,7 +593,7 @@ function drawWatermarkFrame(timestamp) {
   watermarkLastDrawTs = timestamp;
 
   const { width, height } = watermarkCanvas;
-  watermarkCtx.drawImage(previewEl, 0, 0, width, height);
+  drawCoverFrame(watermarkCtx, previewEl, width, height);
 
   const text = `${watermarkDateStamp()}  ${formatTimer(Date.now() - recordStartTs)}`;
   const fontSize = Math.round(height * 0.032);
@@ -541,14 +613,29 @@ function drawWatermarkFrame(timestamp) {
   watermarkCtx.fillText(text, boxX + paddingX, boxY + boxHeight / 2);
 }
 
+// The preset is a ceiling the recording is actually held to, not a hint.
+// This used to size the canvas off the camera's negotiated resolution, which
+// meant a webcam with no 480p mode handed back 720p and we recorded 720p
+// pixels against a 480p bitrate - worse picture than either setting, and the
+// quality control silently did nothing. Cropping (not stretching) is handled
+// by drawCoverFrame, and the source still caps it, so we never upscale.
+function computeRecordingSize(preset) {
+  const srcW = previewEl.videoWidth || preset.width;
+  const srcH = previewEl.videoHeight || preset.height;
+
+  // The tallest 16:9 region this camera can actually fill.
+  const availableHeight = Math.min(srcH, srcW / VIEWFINDER_ASPECT);
+  const height = Math.min(preset.height, Math.floor(availableHeight));
+  const width = Math.round(height * VIEWFINDER_ASPECT);
+
+  // H.264 encoders reject odd dimensions.
+  return { width: width - (width % 2), height: height - (height % 2) };
+}
+
 function startWatermarkCompositing() {
-  // The actual negotiated resolution, not the preset's ideal - getUserMedia
-  // constraints use "ideal", not "exact", so what the camera actually
-  // delivers can differ; sizing off the preset instead would stretch every
-  // frame to fit the wrong aspect ratio.
-  const preset = getQualityPreset();
-  watermarkCanvas.width = previewEl.videoWidth || preset.width;
-  watermarkCanvas.height = previewEl.videoHeight || preset.height;
+  const size = computeRecordingSize(getQualityPreset());
+  watermarkCanvas.width = size.width;
+  watermarkCanvas.height = size.height;
   watermarkLastDrawTs = 0;
   watermarkRafId = requestAnimationFrame(drawWatermarkFrame);
 
@@ -571,22 +658,30 @@ function startRecording() {
   if (!stream) return;
 
   chunks = [];
-  currentRecordingFormat = getSupportedRecordingFormat();
   // Set before starting the watermark loop - it reads recordStartTs on its
   // very first drawn frame, which would otherwise show a garbage elapsed
   // time computed against the stale value from the previous recording.
   recordStartTs = Date.now();
   const recordingStream = startWatermarkCompositing();
-  mediaRecorder = new MediaRecorder(recordingStream, {
-    ...(currentRecordingFormat.mimeType ? { mimeType: currentRecordingFormat.mimeType } : {}),
+  const { recorder, extension } = createRecorder(recordingStream, {
     videoBitsPerSecond: getQualityPreset().bitrate,
     audioBitsPerSecond: 128_000,
   });
+  mediaRecorder = recorder;
   mediaRecorder.ondataavailable = (event) => {
     if (event.data.size > 0) chunks.push(event.data);
   };
   mediaRecorder.onstop = handleStop;
   mediaRecorder.start();
+
+  // Read back only after start() - some engines leave mimeType empty until
+  // the encoder is actually running, and it's the authoritative answer for
+  // what the file should be called.
+  const negotiated = mediaRecorder.mimeType;
+  currentRecordingFormat = {
+    mimeType: negotiated || "",
+    extension: extensionForMimeType(negotiated, extension),
+  };
 
   recDotEl.hidden = false;
   recLabelEl.hidden = false;
@@ -630,7 +725,7 @@ async function handleStop() {
   updateCameraToggleUI();
 
   const durationMs = Date.now() - recordStartTs;
-  const format = currentRecordingFormat ?? getSupportedRecordingFormat();
+  const format = currentRecordingFormat ?? BLIND_FALLBACK_FORMAT;
   const blob = new Blob(chunks, { type: format.mimeType || `video/${format.extension}` });
   const question = getSelectedQuestion();
   if (question) {
@@ -810,11 +905,6 @@ export function exitReviewMode() {
     enableCamera();
   }
 }
-
-// Matches QUALITY_PRESETS (1280x720 / 1920x1080) — both 16:9. A mismatched
-// container ratio here just wastes space against object-fit: cover, since
-// the box shape no longer matches what's actually being recorded.
-const VIEWFINDER_ASPECT = 16 / 9;
 
 // Prep notes is resizable and, unlike the transcript/review notes, is meant
 // to compete with the player for space (that's the point of resizing it) -
