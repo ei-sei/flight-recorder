@@ -1338,6 +1338,14 @@ textarea {
   margin-bottom: 6px;
 }
 
+.settings-note {
+  margin: 0;
+  font-size: 11px;
+  color: var(--text-dim);
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+}
+
 .settings-select {
   width: 100%;
   background-color: var(--bg-raised);

@@ -278,14 +278,46 @@ async function resetAllData() {
   location.reload();
 }
 
+function formatBytes(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ["KB", "MB", "GB", "TB"];
+  let value = bytes / 1024;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit++;
+  }
+  return `${value < 10 ? value.toFixed(1) : Math.round(value)} ${units[unit]}`;
+}
+
+// Deliberately not awaited by the caller - walking the folder takes a moment
+// once there are a few hundred recordings in it, and the rest of the dialog
+// shouldn't wait on a number that's only informational.
+async function refreshLibrarySize() {
+  const { invoke } = window.__TAURI__.core;
+  const el = document.getElementById("settings-library-size");
+  el.textContent = "Calculating…";
+  try {
+    const bytes = await invoke("get_library_size");
+    el.textContent = `${formatBytes(bytes)} in Videos/flight-recorder. Nothing is deleted automatically.`;
+  } catch (err) {
+    console.error("Couldn't measure the library folder", err);
+    el.textContent = "Couldn't measure the library folder.";
+  }
+}
+
 async function openSettingsModal() {
   const overlay = document.getElementById("settings-overlay");
   const cameraSelect = document.getElementById("settings-camera");
   const micSelect = document.getElementById("settings-mic");
   const qualitySelect = document.getElementById("settings-quality");
+  const noiseSuppressionInput = document.getElementById("settings-noise-suppression");
 
   const settings = await getRecordingSettings();
   const { cameras, mics } = await listDevices();
+
+  noiseSuppressionInput.checked = settings.noiseSuppression !== false;
+  refreshLibrarySize();
 
   populateDeviceSelect(cameraSelect, cameras, settings.cameraId, "Camera");
   populateDeviceSelect(micSelect, mics, settings.micId, "Microphone");
@@ -299,6 +331,7 @@ function initSettingsModal() {
   const cameraSelect = document.getElementById("settings-camera");
   const micSelect = document.getElementById("settings-mic");
   const qualitySelect = document.getElementById("settings-quality");
+  const noiseSuppressionInput = document.getElementById("settings-noise-suppression");
   const closeBtn = document.getElementById("settings-close");
 
   async function applyDeviceChange() {
@@ -306,12 +339,16 @@ function initSettingsModal() {
       cameraId: cameraSelect.value || null,
       micId: micSelect.value || null,
       quality: qualitySelect.value,
+      noiseSuppression: noiseSuppressionInput.checked,
     });
   }
 
   cameraSelect.addEventListener("change", applyDeviceChange);
   micSelect.addEventListener("change", applyDeviceChange);
   qualitySelect.addEventListener("change", applyDeviceChange);
+  // Same path as a device change - the constraint is baked into the track at
+  // getUserMedia time, so the stream has to be reacquired for it to take.
+  noiseSuppressionInput.addEventListener("change", applyDeviceChange);
 
   closeBtn.addEventListener("click", () => {
     overlay.hidden = true;
@@ -671,6 +708,7 @@ async function init() {
   await initRecorder({
     getSelectedQuestion,
     cameraEnabled: settings.cameraEnabled,
+    noiseSuppression: settings.noiseSuppression,
     // Wrapped rather than passing saveAttempt directly: this runs from
     // MediaRecorder's onstop handler, which nothing awaits, so a failure
     // here (disk full, permissions) would otherwise reject into nowhere and

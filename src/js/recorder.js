@@ -5,6 +5,11 @@ import {
   autosizeTextarea,
   formatResponseDelay,
   formatWpm,
+  formatPauses,
+  formatLongestPause,
+  formatSpeakingRatio,
+  formatFillers,
+  countFillers,
   watermarkDateStamp,
   enableTabIndent,
   countWords,
@@ -66,8 +71,21 @@ const wpmToggleHint = document.getElementById("wpm-toggle-hint");
 
 const { convertFileSrc, invoke } = window.__TAURI__.core;
 
-const SPEECH_RMS_THRESHOLD = 0.02;
+// With auto gain control off, absolute mic levels vary hugely between a
+// close headset and a laptop's built-in array, so a fixed threshold would
+// either miss a quiet speaker entirely or trip on room hum. Track the noise
+// floor instead and require speech to sit well clear of it.
+const SPEECH_NOISE_MULTIPLIER = 4;
+// Still needs an absolute floor: in a silent room the tracked floor tends to
+// zero, and any multiple of nearly-zero is nearly-zero.
+const SPEECH_RMS_FLOOR = 0.01;
 const SPEECH_SUSTAIN_MS = 150;
+// Below the speech threshold for this long counts as a pause worth showing.
+// Shorter gaps are ordinary between-sentence breathing, not hesitation.
+const PAUSE_MIN_MS = 1200;
+// How long the level has to stay down before a run of speech is considered
+// over. Covers the dips between syllables and words.
+const SILENCE_HOLD_MS = 400;
 const SpeechRecognitionImpl = window.SpeechRecognition || window.webkitSpeechRecognition;
 
 let stream = null;
@@ -87,6 +105,14 @@ let volumeData = null;
 let volumeRafId = null;
 let speechAboveThresholdSinceTs = null;
 let responseDelayMs = null;
+let noiseFloorRms = null;
+let isSpeaking = false;
+let speechStartTs = null;
+let lastSpeechEndTs = null;
+let belowThresholdSinceTs = null;
+let speakingMs = 0;
+let pauseCount = 0;
+let longestPauseMs = 0;
 let waveformStrokeStyle = "#4c7cf6";
 
 let wpmEnabled = false;
@@ -103,6 +129,7 @@ let onScoreChange = () => {};
 let onOpenSettings = () => {};
 
 let currentQuality = "720";
+let currentNoiseSuppression = true;
 let cameraEnabled = false;
 let cameraWasEnabledBeforeReview = false;
 
@@ -134,8 +161,17 @@ async function acquireStream(cameraId, micId, quality) {
     audio: {
       deviceId: micId ? { exact: micId } : undefined,
       echoCancellation: true,
-      noiseSuppression: true,
-      autoGainControl: true,
+      // User's call - suppression cleans up a noisy room and helps
+      // transcription, but it also trims breaths and quiet trailing words,
+      // which are exactly the hesitation markers you'd want to hear back.
+      noiseSuppression: currentNoiseSuppression,
+      // Off, deliberately. AGC normalises your volume in real time: quiet,
+      // hesitant speech gets boosted to sound confident and projection gets
+      // pulled down. That flattens the dynamic range of your own delivery,
+      // which is part of what you're here to review. Response-delay
+      // detection compensates by tracking the noise floor instead of
+      // comparing against a fixed level (see speechRmsThreshold).
+      autoGainControl: false,
     },
   };
 
@@ -237,9 +273,10 @@ export async function listDevices() {
   };
 }
 
-export async function applyRecordingSettings({ cameraId, micId, quality }) {
+export async function applyRecordingSettings({ cameraId, micId, quality, noiseSuppression }) {
   currentQuality = quality;
-  await saveRecordingSettings({ cameraId, micId, quality });
+  currentNoiseSuppression = noiseSuppression;
+  await saveRecordingSettings({ cameraId, micId, quality, noiseSuppression });
 
   if (mediaRecorder && mediaRecorder.state === "recording") {
     return; // don't disrupt an in-progress recording; takes effect on the next one
@@ -358,18 +395,22 @@ function pollVolume(timestamp) {
   analyser.getFloatTimeDomainData(volumeData);
   drawWaveform();
 
-  // Response delay only makes sense relative to an actual recording's start
-  // time - the analyser itself runs continuously whenever the camera/mic is
-  // on, well before (and after) any given recording.
-  if (isRecordingActive() && responseDelayMs === null) {
-    let sumSquares = 0;
-    for (let i = 0; i < volumeData.length; i++) {
-      sumSquares += volumeData[i] * volumeData[i];
-    }
-    const rms = Math.sqrt(sumSquares / volumeData.length);
+  const rms = computeRms();
+  // Tracked whenever the mic is live, not only while recording, so the floor
+  // is already settled by the time Record is pressed - otherwise the first
+  // couple of seconds of every attempt would be measured against nothing.
+  trackNoiseFloor(rms);
 
-    const now = Date.now();
-    if (rms > SPEECH_RMS_THRESHOLD) {
+  // Everything below is relative to an actual recording's start time. The
+  // analyser itself runs continuously whenever the camera/mic is on, well
+  // before (and after) any given recording.
+  if (!isRecordingActive()) return;
+
+  const now = Date.now();
+  const speaking = rms > speechRmsThreshold();
+
+  if (responseDelayMs === null) {
+    if (speaking) {
       if (speechAboveThresholdSinceTs === null) {
         speechAboveThresholdSinceTs = now;
       } else if (now - speechAboveThresholdSinceTs >= SPEECH_SUSTAIN_MS) {
@@ -379,6 +420,87 @@ function pollVolume(timestamp) {
     } else {
       speechAboveThresholdSinceTs = null;
     }
+  }
+
+  trackPauses(speaking, now);
+}
+
+function computeRms() {
+  let sumSquares = 0;
+  for (let i = 0; i < volumeData.length; i++) {
+    sumSquares += volumeData[i] * volumeData[i];
+  }
+  return Math.sqrt(sumSquares / volumeData.length);
+}
+
+// Drops quickly but climbs very slowly, so moving somewhere quieter is picked
+// up within a second or two while sustained speech can never drag the floor
+// up to meet itself and silence the detector.
+function trackNoiseFloor(rms) {
+  if (noiseFloorRms === null) noiseFloorRms = rms;
+  else if (rms < noiseFloorRms) noiseFloorRms = noiseFloorRms * 0.8 + rms * 0.2;
+  else noiseFloorRms = noiseFloorRms * 0.999 + rms * 0.001;
+}
+
+function speechRmsThreshold() {
+  return Math.max((noiseFloorRms ?? 0) * SPEECH_NOISE_MULTIPLIER, SPEECH_RMS_FLOOR);
+}
+
+// RMS dips between syllables, so a bare threshold crossing would register
+// dozens of "pauses" per sentence. Speech is treated as continuing until the
+// level has stayed down for SILENCE_HOLD_MS, and the pause is measured from
+// where it actually went quiet rather than from where we noticed.
+function trackPauses(speaking, now) {
+  // Only after the first word. The gap before it is the response delay,
+  // already measured on its own - counting it here too would make it the
+  // longest pause of nearly every attempt.
+  if (responseDelayMs === null) return;
+
+  if (speaking) {
+    belowThresholdSinceTs = null;
+    if (!isSpeaking) {
+      if (lastSpeechEndTs !== null) {
+        const gap = now - lastSpeechEndTs;
+        if (gap >= PAUSE_MIN_MS) {
+          pauseCount++;
+          longestPauseMs = Math.max(longestPauseMs, gap);
+        }
+      }
+      isSpeaking = true;
+      speechStartTs = now;
+    }
+    return;
+  }
+
+  if (!isSpeaking) return;
+  if (belowThresholdSinceTs === null) {
+    belowThresholdSinceTs = now;
+    return;
+  }
+  if (now - belowThresholdSinceTs < SILENCE_HOLD_MS) return;
+
+  isSpeaking = false;
+  speakingMs += belowThresholdSinceTs - speechStartTs;
+  lastSpeechEndTs = belowThresholdSinceTs;
+  belowThresholdSinceTs = null;
+}
+
+function resetSpeechAnalysis() {
+  isSpeaking = false;
+  speechStartTs = null;
+  lastSpeechEndTs = null;
+  belowThresholdSinceTs = null;
+  speakingMs = 0;
+  pauseCount = 0;
+  longestPauseMs = 0;
+}
+
+// Closes off a run of speech still open when the recording stopped, so the
+// last sentence counts towards speaking time like every other one.
+function finaliseSpeechAnalysis() {
+  if (isSpeaking && speechStartTs !== null) {
+    speakingMs += Date.now() - speechStartTs;
+    isSpeaking = false;
   }
 }
 
@@ -391,6 +513,10 @@ function startWaveformMonitoring() {
   stopWaveformMonitoring();
   sizeWaveformCanvas();
   waveformStrokeStyle = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#4c7cf6";
+
+  // A different mic (or the same one without AGC) sits at a completely
+  // different level, so the old floor would be meaningless here.
+  noiseFloorRms = null;
 
   audioCtx = new AudioContext();
   const source = audioCtx.createMediaStreamSource(stream);
@@ -421,6 +547,7 @@ function resetResponseDelayTracking() {
   responseDelayMs = null;
   speechAboveThresholdSinceTs = null;
   readoutDelayEl.textContent = "delay —";
+  resetSpeechAnalysis();
 }
 
 function startSpeechPaceTracking() {
@@ -725,6 +852,7 @@ async function handleStop() {
   updateCameraToggleUI();
 
   const durationMs = Date.now() - recordStartTs;
+  finaliseSpeechAnalysis();
   const format = currentRecordingFormat ?? BLIND_FALLBACK_FORMAT;
   const blob = new Blob(chunks, { type: format.mimeType || `video/${format.extension}` });
   const question = getSelectedQuestion();
@@ -735,6 +863,11 @@ async function handleStop() {
       durationMs,
       question,
       responseDelayMs,
+      pauseCount,
+      longestPauseMs,
+      // Voiced time over total time. Measured from mic level, so it works on
+      // every platform - unlike anything derived from a transcript.
+      speakingRatio: durationMs > 0 ? Math.min(1, speakingMs / durationMs) : null,
       wpm: wpmEnabled ? wpm : null,
       transcript: wpmEnabled ? transcript : null,
       // On platforms without a browser SpeechRecognition engine, wpm/
@@ -835,7 +968,19 @@ export async function enterReviewMode(attempt, attemptNumber) {
   renderReviewStars(attempt.id, attempt.score);
   viewfinderMetaEl.hidden = false;
 
-  const statsLine = [formatResponseDelay(attempt.responseDelayMs), formatWpm(attempt.wpm)].filter(Boolean).join(" · ");
+  const statsLine = [
+    formatResponseDelay(attempt.responseDelayMs),
+    formatWpm(attempt.wpm),
+    formatPauses(attempt.pauseCount),
+    formatLongestPause(attempt.longestPauseMs),
+    formatSpeakingRatio(attempt.speakingRatio),
+    // Only worth showing when there's a transcript to have counted it from -
+    // "0 fillers" against no transcript reads as a result rather than an
+    // absence of one.
+    attempt.transcript ? formatFillers(countFillers(attempt.transcript)) : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
   reviewStatsRow.textContent = statsLine;
   reviewStatsRow.hidden = !statsLine;
 
@@ -1144,6 +1289,7 @@ export async function initRecorder(options = {}) {
   onScoreChange = options.onScoreChange ?? (() => {});
   onOpenSettings = options.onOpenSettings ?? (() => {});
   onPrepNotesChange = options.onPrepNotesChange ?? (() => {});
+  currentNoiseSuppression = options.noiseSuppression ?? true;
 
   recordBtn.addEventListener("click", toggleRecording);
   backToLiveBtn.addEventListener("click", exitReviewMode);

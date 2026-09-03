@@ -66,6 +66,81 @@ export function countWords(text) {
   return trimmed ? trimmed.split(/\s+/).length : 0;
 }
 
+export function formatPauses(count) {
+  if (count === null || count === undefined) return null;
+  return `${count} ${count === 1 ? "pause" : "pauses"}`;
+}
+
+export function formatLongestPause(ms) {
+  if (!ms) return null;
+  return `longest ${(ms / 1000).toFixed(1)}s`;
+}
+
+export function formatSpeakingRatio(ratio) {
+  if (ratio === null || ratio === undefined) return null;
+  return `${Math.round(ratio * 100)}% talking`;
+}
+
+// Hesitation markers, and the hedges people reach for while thinking. Ordered
+// longest-first so "you know" is matched before "know" would be, and so the
+// multi-word phrases can't be double-counted by their parts.
+//
+// Worth knowing: speech recognition often strips these out. Google's engine
+// drops "um" and "uh" almost entirely, and Whisper keeps them inconsistently.
+// A zero here means "none survived transcription", not necessarily "none
+// said" - which is why the pause figures, measured straight off the mic, are
+// the more trustworthy signal.
+const FILLER_PHRASES = [
+  "you know",
+  "i mean",
+  "sort of",
+  "kind of",
+  "basically",
+  "literally",
+  "actually",
+  "honestly",
+  "obviously",
+  "erm",
+  "hmm",
+  "um",
+  "uh",
+  "er",
+  "ah",
+  "like",
+];
+
+export function countFillers(text) {
+  if (!text) return 0;
+  const normalised = text.toLowerCase().replace(/[^a-z\s]/g, " ");
+  let total = 0;
+  let remaining = ` ${normalised.replace(/\s+/g, " ").trim()} `;
+  for (const phrase of FILLER_PHRASES) {
+    const pattern = new RegExp(`\\s${phrase}\\s`, "g");
+    // Replaced as they're counted so a longer phrase's words can't also be
+    // counted on their own. The single space keeps neighbouring words apart.
+    remaining = remaining.replace(pattern, () => {
+      total++;
+      return " ";
+    });
+    // One pass can't catch back-to-back repeats ("um um") - the shared space
+    // gets consumed by the first match, so sweep until nothing more is found.
+    let previous;
+    do {
+      previous = remaining;
+      remaining = remaining.replace(pattern, () => {
+        total++;
+        return " ";
+      });
+    } while (remaining !== previous);
+  }
+  return total;
+}
+
+export function formatFillers(count) {
+  if (count === null || count === undefined) return null;
+  return `${count} ${count === 1 ? "filler" : "fillers"}`;
+}
+
 export function autosizeTextarea(el) {
   el.style.height = "auto";
   el.style.height = `${el.scrollHeight}px`;

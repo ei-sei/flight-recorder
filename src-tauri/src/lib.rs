@@ -18,6 +18,35 @@ fn open_devtools(window: tauri::WebviewWindow) {
     window.open_devtools();
 }
 
+// Recordings accumulate indefinitely - nothing prunes them - so the only
+// honest thing to do is make the number visible rather than let it grow
+// unnoticed. Walked in Rust because it's one IPC call instead of one per
+// file, and the folder is a few hundred entries deep by year two.
+fn directory_size(dir: &std::path::Path) -> u64 {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return 0;
+    };
+    entries
+        .flatten()
+        .map(|entry| match entry.file_type() {
+            Ok(file_type) if file_type.is_dir() => directory_size(&entry.path()),
+            Ok(file_type) if file_type.is_file() => entry.metadata().map(|m| m.len()).unwrap_or(0),
+            // Symlinks are skipped rather than followed - a link pointing back
+            // up the tree would recurse until the stack gave out.
+            _ => 0,
+        })
+        .sum()
+}
+
+#[tauri::command]
+fn get_library_size(app: tauri::AppHandle) -> Result<u64, String> {
+    let video_dir = app
+        .path()
+        .video_dir()
+        .map_err(|err| format!("Couldn't locate the Videos folder: {err}"))?;
+    Ok(directory_size(&video_dir.join("flight-recorder")))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -41,6 +70,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_commit_sha,
             open_devtools,
+            get_library_size,
             download_whisper_model,
             transcribe_recording
         ])

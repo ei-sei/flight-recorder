@@ -284,6 +284,20 @@
           </select>
         </div>
 
+        <div class="settings-section toggle-row">
+          <label class="switch">
+            <input type="checkbox" id="settings-noise-suppression" />
+            <span class="switch-track"><span class="switch-thumb"></span></span>
+          </label>
+          <div class="toggle-copy">
+            <span class="toggle-label">Noise suppression</span>
+            <span class="toggle-hint">
+              On by default. Cleans up a noisy room, but it also trims breaths and quiet trailing words — turn it off if
+              you want to hear your hesitations back exactly as they were.
+            </span>
+          </div>
+        </div>
+
         <div class="settings-section toggle-row" id="wpm-toggle-row">
           <label class="switch">
             <input type="checkbox" id="wpm-toggle-input" />
@@ -296,6 +310,11 @@
               and save a transcript you can review afterward.
             </span>
           </div>
+        </div>
+
+        <div class="settings-section">
+          <span class="settings-label">Library size</span>
+          <p class="settings-note" id="settings-library-size">Calculating…</p>
         </div>
 
         <div class="modal-actions">
