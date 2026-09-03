@@ -113,7 +113,7 @@ async function migrateFromOldStoreLocation(newStore) {
 
   await newStore.set("questions", oldQuestions);
   await newStore.set("attempts", migratedAttempts);
-  for (const key of ["wpmEnabled", "recordingSettings", "theme"]) {
+  for (const key of ["wpmEnabled", "recordingSettings", "theme", "prepNotesCollapsed", "prepNotesHeight"]) {
     const value = await oldStore.get(key);
     if (value !== undefined) await newStore.set(key, value);
   }
@@ -206,6 +206,31 @@ export async function saveRecordingSettings(settings) {
   const store = await getStore();
   const current = await getRecordingSettings();
   await store.set("recordingSettings", { ...current, ...settings });
+  await store.save();
+}
+
+export async function getPrepNotesCollapsed() {
+  const store = await getStore();
+  const value = await store.get("prepNotesCollapsed");
+  return value ?? false;
+}
+
+export async function setPrepNotesCollapsed(collapsed) {
+  const store = await getStore();
+  await store.set("prepNotesCollapsed", collapsed);
+  await store.save();
+}
+
+// null means "no custom height chosen yet" - use the built-in default.
+export async function getPrepNotesHeight() {
+  const store = await getStore();
+  const value = await store.get("prepNotesHeight");
+  return value ?? null;
+}
+
+export async function setPrepNotesHeight(height) {
+  const store = await getStore();
+  await store.set("prepNotesHeight", height);
   await store.save();
 }
 

@@ -6,8 +6,18 @@ import {
   formatResponseDelay,
   formatWpm,
   watermarkDateStamp,
+  enableTabIndent,
 } from "./util.js";
-import { getWpmEnabled, setWpmEnabled, getRecordingSettings, saveRecordingSettings } from "./store.js";
+import {
+  getWpmEnabled,
+  setWpmEnabled,
+  getRecordingSettings,
+  saveRecordingSettings,
+  getPrepNotesCollapsed,
+  setPrepNotesCollapsed,
+  getPrepNotesHeight,
+  setPrepNotesHeight,
+} from "./store.js";
 import { resolveVideoPath } from "./attempts.js";
 
 const previewEl = document.getElementById("preview");
@@ -31,12 +41,16 @@ const backToLiveBtn = document.getElementById("back-to-live-btn");
 const currentQuestionEl = document.getElementById("current-question");
 const prepNotesRow = document.getElementById("prep-notes-row");
 const prepNotesInput = document.getElementById("prep-notes-input");
+const prepNotesToggleBtn = document.getElementById("prep-notes-toggle");
+const prepNotesBodyEl = document.getElementById("prep-notes-body");
+const prepNotesResizeHandleEl = document.getElementById("prep-notes-resize-handle");
 const reviewNotesRow = document.getElementById("review-notes-row");
 const reviewNotesInput = document.getElementById("review-notes-input");
 const reviewStatsRow = document.getElementById("review-stats-row");
 const reviewTranscriptRow = document.getElementById("review-transcript-row");
 const reviewTranscriptText = document.getElementById("review-transcript-text");
 const reviewTranscriptEmpty = document.getElementById("review-transcript-empty");
+const reviewTranscriptEmptyText = document.getElementById("review-transcript-empty-text");
 const reviewTranscriptSettingsBtn = document.getElementById("review-transcript-settings-btn");
 const liveReadoutsEl = document.getElementById("live-readouts");
 const waveformCanvasEl = document.getElementById("voice-waveform");
@@ -75,6 +89,8 @@ let waveformStrokeStyle = "#4c7cf6";
 let wpmEnabled = false;
 let speechRecognizer = null;
 let transcript = "";
+let prepNotesCollapsed = false;
+let prepNotesHeight = 0;
 let wpm = null;
 
 let isReviewing = false;
@@ -621,18 +637,16 @@ export function setActiveQuestion(question) {
 
   currentQuestion = question;
   prepNotesInput.value = question?.prepNotes ?? "";
-  // Visibility before autosize - measuring scrollHeight on a still-hidden
-  // (display: none) textarea reads 0, so the height would be wrong until
-  // some later, unrelated trigger happened to recalculate it.
   updatePrepNotesVisibility();
-  autosizeTextarea(prepNotesInput);
 }
 
 function updatePrepNotesVisibility() {
-  // Only shown while actually preparing to record: a question picked, not
-  // mid-recording (the live-readouts row takes this space then), and not
-  // reviewing (which has its own separate, after-the-fact notes field).
-  prepNotesRow.hidden = !currentQuestion || isReviewing || isRecordingActive();
+  // Shown whenever a question is picked, including while recording - only
+  // reviewing hides it (that has its own separate, after-the-fact notes
+  // field instead).
+  prepNotesRow.hidden = !currentQuestion || isReviewing;
+  // The drawer's own visibility changes how much height the player gets.
+  updateViewfinderSize();
 }
 
 function renderReviewStars(attemptId, score) {
@@ -710,6 +724,14 @@ export async function enterReviewMode(attempt, attemptNumber) {
   } else {
     reviewTranscriptText.hidden = true;
     reviewTranscriptEmpty.hidden = false;
+    // transcript is "" when WPM was on but nothing was heard, vs. null/
+    // undefined when WPM was off for this attempt entirely - those need
+    // different messages, since "turn on WPM" is wrong advice for the first.
+    const wpmWasOn = attempt.transcript === "";
+    reviewTranscriptEmptyText.textContent = wpmWasOn
+      ? "No speech detected in this recording."
+      : "No transcript for this attempt. Turn on Speech pace (WPM) to capture one for your next recording.";
+    reviewTranscriptSettingsBtn.hidden = wpmWasOn;
   }
 
   reviewNotesRow.hidden = false;
@@ -765,31 +787,49 @@ export function exitReviewMode() {
 // the box shape no longer matches what's actually being recorded.
 const VIEWFINDER_ASPECT = 16 / 9;
 
+// Prep notes is resizable and, unlike the transcript/review notes, is meant
+// to compete with the player for space (that's the point of resizing it) -
+// these keep that trade sane at both ends.
+const MIN_VIDEO_HEIGHT = 160;
+const PREP_NOTES_DEFAULT_HEIGHT = 90;
+const PREP_NOTES_MIN_HEIGHT = 48;
+
+// recorderPanelEl.clientHeight is stable regardless of content - it has
+// overflow-y: auto, so overflowing children scroll instead of growing the
+// box. This is the space left over for the player and the notes drawer
+// combined, after the chrome that should always stay visible alongside
+// them. Transcript and review notes are deliberately left out here: unlike
+// prep notes, they're meant to scroll with the rest of the panel instead of
+// competing with the player for space.
+function computeAvailableHeightForVideoAndNotes() {
+  const panelStyle = getComputedStyle(recorderPanelEl);
+  const verticalPadding = parseFloat(panelStyle.paddingTop) + parseFloat(panelStyle.paddingBottom);
+  const gap = parseFloat(panelStyle.rowGap) || 0;
+
+  // liveReadoutsEl isn't listed separately - it now renders inline inside
+  // recordControlsEl (next to the record button) rather than as its own
+  // stacked row, so its height is already covered by recordControlsEl's.
+  const alwaysVisible = [viewfinderMetaEl, cameraToggleRowEl, currentQuestionEl, recordControlsEl].filter(
+    (el) => !el.hidden
+  );
+  const chromeHeight = alwaysVisible.reduce((sum, el) => sum + el.offsetHeight, 0);
+  const gapsCount = alwaysVisible.length; // one gap between each always-visible element and the player
+  return recorderPanelEl.clientHeight - verticalPadding - chromeHeight - gapsCount * gap;
+}
+
 function updateViewfinderSize() {
   viewfinderEl.style.flex = "0 0 auto";
 
   const panelStyle = getComputedStyle(recorderPanelEl);
   const horizontalPadding = parseFloat(panelStyle.paddingLeft) + parseFloat(panelStyle.paddingRight);
-  const verticalPadding = parseFloat(panelStyle.paddingTop) + parseFloat(panelStyle.paddingBottom);
   const gap = parseFloat(panelStyle.rowGap) || 0;
   const availableWidth = recorderPanelEl.clientWidth - horizontalPadding;
 
-  // recorderPanelEl.clientHeight is stable regardless of content - it has
-  // overflow-y: auto, so overflowing children scroll instead of growing the
-  // box. Available height for the player is that stable number minus only
-  // the chrome that should always stay visible alongside it. Transcript and
-  // notes are deliberately left out here: they're meant to scroll with the
-  // rest of the panel instead of competing with the player for space.
-  const alwaysVisible = [
-    viewfinderMetaEl,
-    cameraToggleRowEl,
-    currentQuestionEl,
-    liveReadoutsEl,
-    recordControlsEl,
-  ].filter((el) => !el.hidden);
-  const chromeHeight = alwaysVisible.reduce((sum, el) => sum + el.offsetHeight, 0);
-  const gapsCount = alwaysVisible.length; // one gap between each always-visible element and the player
-  const availableHeight = recorderPanelEl.clientHeight - verticalPadding - chromeHeight - gapsCount * gap;
+  let availableHeight = computeAvailableHeightForVideoAndNotes();
+  if (!prepNotesRow.hidden) {
+    // One more gap between the player/controls and the drawer itself.
+    availableHeight -= prepNotesRow.offsetHeight + gap;
+  }
 
   if (availableWidth <= 0 || availableHeight <= 0) return;
 
@@ -820,6 +860,82 @@ function updateViewfinderSize() {
 function initViewfinderSizing() {
   updateViewfinderSize();
   new ResizeObserver(updateViewfinderSize).observe(recorderPanelEl);
+}
+
+function syncPrepNotesBodyHeight() {
+  if (prepNotesCollapsed) return;
+  prepNotesBodyEl.style.height = `${prepNotesHeight}px`;
+  prepNotesBodyEl.style.maxHeight = `${prepNotesHeight}px`;
+}
+
+function applyPrepNotesCollapsed() {
+  prepNotesRow.classList.toggle("collapsed", prepNotesCollapsed);
+  if (prepNotesCollapsed) {
+    prepNotesBodyEl.style.height = "0px";
+    prepNotesBodyEl.style.maxHeight = "0px";
+  } else {
+    syncPrepNotesBodyHeight();
+  }
+  // Collapsing/expanding changes how much of the panel the drawer takes up.
+  updateViewfinderSize();
+}
+
+async function initPrepNotesToggle() {
+  prepNotesCollapsed = await getPrepNotesCollapsed();
+  applyPrepNotesCollapsed();
+
+  prepNotesToggleBtn.addEventListener("click", () => {
+    prepNotesCollapsed = !prepNotesCollapsed;
+    applyPrepNotesCollapsed();
+    setPrepNotesCollapsed(prepNotesCollapsed);
+  });
+}
+
+// How tall the notes drawer is allowed to grow: whatever's left in the panel
+// after the always-visible chrome, minus enough to keep the player at a
+// sane minimum size - resizing notes shouldn't be able to squeeze the video
+// down to nothing.
+function computeMaxPrepNotesHeight() {
+  const available = computeAvailableHeightForVideoAndNotes();
+  const gap = parseFloat(getComputedStyle(recorderPanelEl).rowGap) || 0;
+  // The drawer's own chrome (resize handle + "Prep notes" toggle bar) that
+  // isn't part of the resizable body itself.
+  const drawerChromeHeight = prepNotesRow.offsetHeight - prepNotesBodyEl.offsetHeight;
+  const maxForBody = available - MIN_VIDEO_HEIGHT - gap - drawerChromeHeight;
+  return Math.max(PREP_NOTES_MIN_HEIGHT, maxForBody);
+}
+
+async function initPrepNotesResize() {
+  // initPrepNotesToggle runs right after this and applies it (collapsed or
+  // not), so there's no need to touch the DOM with it here too.
+  prepNotesHeight = (await getPrepNotesHeight()) ?? PREP_NOTES_DEFAULT_HEIGHT;
+
+  prepNotesResizeHandleEl.addEventListener("mousedown", (event) => {
+    event.preventDefault();
+    const startY = event.clientY;
+    const startHeight = prepNotesBodyEl.offsetHeight;
+    prepNotesResizeHandleEl.classList.add("dragging");
+    prepNotesBodyEl.classList.add("resizing");
+
+    function onMove(moveEvent) {
+      const deltaY = startY - moveEvent.clientY; // dragging up grows the drawer
+      const max = computeMaxPrepNotesHeight();
+      prepNotesHeight = Math.min(max, Math.max(PREP_NOTES_MIN_HEIGHT, startHeight + deltaY));
+      syncPrepNotesBodyHeight();
+      updateViewfinderSize();
+    }
+
+    function onUp() {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      prepNotesResizeHandleEl.classList.remove("dragging");
+      prepNotesBodyEl.classList.remove("resizing");
+      setPrepNotesHeight(prepNotesHeight);
+    }
+
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  });
 }
 
 async function initWpmToggle() {
@@ -858,7 +974,8 @@ export async function initRecorder(options = {}) {
   prepNotesInput.addEventListener("blur", () => {
     if (currentQuestion) onPrepNotesChange(currentQuestion.id, prepNotesInput.value);
   });
-  prepNotesInput.addEventListener("input", () => autosizeTextarea(prepNotesInput));
+  enableTabIndent(prepNotesInput);
+  enableTabIndent(reviewNotesInput);
   updateCameraToggleUI();
   initViewfinderSizing();
   sizeWaveformCanvas();
@@ -869,4 +986,6 @@ export async function initRecorder(options = {}) {
     if (!mediaRecorder || mediaRecorder.state !== "recording") drawIdleWaveform();
   }).observe(waveformCanvasEl);
   await initWpmToggle();
+  await initPrepNotesResize();
+  await initPrepNotesToggle();
 }

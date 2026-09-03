@@ -66,6 +66,20 @@ export function autosizeTextarea(el) {
   el.style.height = `${el.scrollHeight}px`;
 }
 
+const TAB_INDENT = "  ";
+
+// Tab normally jumps focus to the next control - for a notes field, typing
+// an indent is more useful. Shift+Tab is left alone (normal focus-back).
+export function enableTabIndent(el) {
+  el.addEventListener("keydown", (event) => {
+    if (event.key !== "Tab" || event.shiftKey) return;
+    event.preventDefault();
+    const { selectionStart, selectionEnd, value } = el;
+    el.value = value.slice(0, selectionStart) + TAB_INDENT + value.slice(selectionEnd);
+    el.selectionStart = el.selectionEnd = selectionStart + TAB_INDENT.length;
+  });
+}
+
 export function renderStars(container, score, onChange, readOnly = false) {
   container.innerHTML = "";
   container.classList.toggle("readonly", readOnly);

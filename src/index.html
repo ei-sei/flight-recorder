@@ -154,16 +154,34 @@
           <div class="record-controls">
             <button class="btn btn-record" id="record-btn" disabled>Record</button>
             <button class="btn btn-teal" id="back-to-live-btn" hidden>Back to live</button>
+            <div class="live-readouts mono" id="live-readouts" hidden>
+              <span class="readout" id="readout-delay">delay —</span>
+              <span class="readout" id="readout-wpm" hidden>wpm —</span>
+            </div>
           </div>
 
-          <div class="live-readouts mono" id="live-readouts" hidden>
-            <span class="readout" id="readout-delay">delay —</span>
-            <span class="readout" id="readout-wpm" hidden>wpm —</span>
-          </div>
-
-          <div class="review-notes" id="prep-notes-row" hidden>
-            <label class="review-notes-label" for="prep-notes-input">Prep notes</label>
-            <textarea class="notes-input" id="prep-notes-input" placeholder="Talking points, structure, things to remember…" rows="2"></textarea>
+          <div class="prep-notes-drawer" id="prep-notes-row" hidden>
+            <div class="prep-notes-resize-handle" id="prep-notes-resize-handle"></div>
+            <button type="button" class="prep-notes-handle" id="prep-notes-toggle">
+              <span>Prep notes</span>
+              <svg
+                class="prep-notes-handle-arrow"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M6 15l6-6 6 6" />
+              </svg>
+            </button>
+            <div class="prep-notes-body" id="prep-notes-body">
+              <div class="prep-notes-body-inner">
+                <textarea class="notes-input" id="prep-notes-input" placeholder="Talking points, structure, things to remember…" rows="2"></textarea>
+              </div>
+            </div>
           </div>
 
           <div class="review-stats mono" id="review-stats-row" hidden></div>
@@ -179,10 +197,7 @@
               hidden
             ></textarea>
             <div class="transcript-empty" id="review-transcript-empty" hidden>
-              <span
-                >No transcript for this attempt. Turn on Speech pace (WPM) to capture one for your next
-                recording.</span
-              >
+              <span id="review-transcript-empty-text"></span>
               <button type="button" class="btn btn-teal" id="review-transcript-settings-btn">Open Settings</button>
             </div>
           </div>
