@@ -661,6 +661,7 @@ async function init() {
   await initQuestions({ onSelectionChange: handleQuestionSelectionChange });
   await initRecorder({
     getSelectedQuestion,
+    cameraEnabled: settings.cameraEnabled,
     // Wrapped rather than passing saveAttempt directly: this runs from
     // MediaRecorder's onstop handler, which nothing awaits, so a failure
     // here (disk full, permissions) would otherwise reject into nowhere and
