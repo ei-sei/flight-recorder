@@ -186,11 +186,14 @@ function initPanelResize() {
 
 async function resetView() {
   resetPanelWidths();
-  // Sidebar starts collapsed - a clean, recording-focused default. The rail
-  // (kept visible) is what lets you bring it back with one click.
-  setSidebarVisible(false);
+  // Both content panels visible, activity rail hidden. This used to be the
+  // other way round - question panel collapsed, rail shown to bring it back -
+  // which put the app in a state it never actually starts in: the rail
+  // defaults to hidden on a fresh install (see isRailVisible). Reset view
+  // should return to the default, not to a different arrangement of its own.
+  setSidebarVisible(true);
   setLogPanelVisible(true);
-  setRailVisible(true);
+  setRailVisible(false);
 
   try {
     // Must match tauri.conf.json's app.windows[0] width/height default.
@@ -615,7 +618,10 @@ function initMenuBar() {
         },
       },
       {
-        label: "Show sidebar",
+        // "Show sidebar" until now, which named the wrong thing: this toggles
+        // the icon strip, while the sidebar proper is the question panel that
+        // strip opens and closes.
+        label: "Show activity bar",
         checked: isRailVisible(),
         onClick: () => setRailVisible(!isRailVisible()),
       },
