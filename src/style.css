@@ -1406,10 +1406,6 @@ textarea {
      line - the longest label decides this, and wrapping it made the row taller
      than every other row for no reason. */
   max-width: 470px;
-  /* Tighter than the shared .modal-box padding. This panel is a list of
-     controls rather than a sentence and a pair of buttons, so the generous
-     padding that suits a confirm dialog just makes it taller here. */
-  padding: 16px 18px;
   /* Short enough now that this rarely engages, but a small window or a large
      system font can still outgrow it, and a settings panel that runs off the
      screen has no way back to its Done button. */
@@ -1422,8 +1418,8 @@ textarea {
    header rather than between every setting, which is what turns one long list
    into three scannable blocks. */
 .settings-group-header {
-  margin: 0 0 6px;
-  padding-top: 11px;
+  margin: 0 0 8px;
+  padding-top: 14px;
   border-top: 1px solid var(--border);
   font-size: 10px;
   font-weight: 600;
@@ -1542,7 +1538,7 @@ textarea {
 }
 
 .settings-section {
-  margin-bottom: 10px;
+  margin-bottom: 16px;
 }
 
 /* Label beside its control rather than above it. Stacking them spent a whole
@@ -1584,7 +1580,7 @@ textarea {
   font-size: 11px;
   color: var(--text-dim);
   letter-spacing: 0.03em;
-  margin-bottom: 5px;
+  margin-bottom: 6px;
 }
 
 .settings-note {
@@ -1612,7 +1608,7 @@ textarea {
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
   color: var(--text-primary);
-  padding: 7px 10px;
+  padding: 8px 10px;
   cursor: pointer;
 }
 
