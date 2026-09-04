@@ -220,6 +220,50 @@ export function computePaceRange(segments) {
   return { minWpm: Math.min(...rates), maxWpm: Math.max(...rates) };
 }
 
+// Level whisper is handed, as RMS across the whole recording. Speech at a
+// comfortable listening level sits near here; the exact figure matters far
+// less than not handing it something almost silent.
+const TARGET_RMS = 0.1;
+// Ceiling on how much the signal may be lifted. Without it a near-silent
+// recording gets its noise floor amplified to full scale, and whisper invents
+// fluent sentences over the result - the very failure
+// rejectHallucinatedSegments exists to catch, so better not to manufacture it.
+const MAX_NORMALISE_GAIN = 30;
+// Below this there is no signal worth lifting, only noise.
+const SILENCE_RMS = 1e-4;
+
+// Lifts quiet audio to a level whisper can work with. Mutates in place - the
+// buffer is millions of samples and is thrown away straight afterwards.
+//
+// This replaces the microphone's auto gain control, which used to do the same
+// job during capture at the cost of flattening the recording itself. Doing it
+// here means the saved video keeps the real dynamics of the voice, and only
+// the copy whisper sees gets levelled. Turning AGC off *without* this made
+// quiet microphones transcribe to nothing at all, silently - so the two are
+// coupled: if this ever goes, auto gain control has to come back on.
+//
+// RMS rather than peak: one door slam or chair scrape would hold a peak-based
+// gain right down, whereas RMS tracks how loud the speech actually is. The
+// clamp afterwards means such a transient simply clips, which a speech model
+// does not care about.
+export function normaliseForTranscription(samples) {
+  if (samples.length === 0) return samples;
+
+  let sumSquares = 0;
+  for (let i = 0; i < samples.length; i++) sumSquares += samples[i] * samples[i];
+  const rms = Math.sqrt(sumSquares / samples.length);
+  if (rms < SILENCE_RMS) return samples;
+
+  const gain = Math.min(TARGET_RMS / rms, MAX_NORMALISE_GAIN);
+  // Already at or above the target. Leaving it alone beats quietening it.
+  if (gain <= 1) return samples;
+
+  for (let i = 0; i < samples.length; i++) {
+    samples[i] = Math.max(-1, Math.min(1, samples[i] * gain));
+  }
+  return samples;
+}
+
 export function autosizeTextarea(el) {
   el.style.height = "auto";
   el.style.height = `${el.scrollHeight}px`;

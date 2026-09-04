@@ -13,6 +13,7 @@ import {
   countWords,
   rejectHallucinatedSegments,
   computePaceRange,
+  normaliseForTranscription,
 } from "./util.js";
 import { showConfirm } from "./modal.js";
 import { showContextMenu } from "./contextmenu.js";
@@ -214,6 +215,8 @@ async function extractPcmForTranscription(videoPath) {
       for (let i = 0; i < data.length; i++) mono[i] += data[i] / channels;
     }
   }
+
+  normaliseForTranscription(mono);
 
   // Written next to the video so it stays inside the library folder, which is
   // the only place the fs scope and the Rust command will accept a path from.

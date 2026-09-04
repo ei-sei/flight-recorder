@@ -186,25 +186,28 @@ async function acquireStream(cameraId, micId, quality) {
     },
     audio: {
       deviceId: micId ? { exact: micId } : undefined,
-      // Acoustic echo cancellation exists to remove far-end playback from a
-      // call. There is no far end here and the preview is muted while
-      // recording, so it never had anything to cancel - but switching it on
-      // engages Chromium's full WebRTC processing chain, including a
-      // high-pass filter, which audibly thins the voice. Compared against
-      // Windows' own Sound Recorder on the same mic, this app sounded
-      // noticeably more processed, and this is the first cause to rule out.
-      // Unlike the two below, it was never weighed up before.
+      // All three off, which is what Windows' own Sound Recorder does. Any
+      // one of them engages Chromium's WebRTC processing chain, which is
+      // tuned for telephony intelligibility rather than fidelity: it
+      // high-pass filters, gates room tone, and normalises level. Recordings
+      // came out audibly thinner and flatter than the same microphone
+      // captured natively, which defeats the point of an app for reviewing
+      // your own delivery.
+      //
+      // The trade is real and deliberate: room tone, fan noise and breaths
+      // are now audible, because they were always there and the processing
+      // was hiding them.
+      //
+      // autoGainControl in particular was ON for a hard-won reason - without
+      // it, quiet microphones recorded quietly enough that Whisper
+      // transcribed nothing at all, with no error to explain it. What makes
+      // switching it off safe now is normaliseForTranscription() in util.js,
+      // which levels the copy of the audio Whisper is given while leaving the
+      // saved recording untouched. THE TWO ARE COUPLED: if that
+      // normalisation is ever removed, autoGainControl has to come back on.
       echoCancellation: false,
-      // These two stay on, and the reason is recorded rather than assumed:
-      // autoGainControl:false was tried and was actively harmful (real
-      // testing showed some mics went quiet enough that Whisper transcribed
-      // nothing at all), and noiseSuppression:false was judged a niche
-      // trade-off for someone rehearsing alone in a quiet room. Both still
-      // engage the same processing chain, so turning off echoCancellation
-      // alone may only partly close the gap. Don't change either without
-      // testing a real recording end to end - the failure is silent.
-      noiseSuppression: true,
-      autoGainControl: true,
+      noiseSuppression: false,
+      autoGainControl: false,
     },
   };
 

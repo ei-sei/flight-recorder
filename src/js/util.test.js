@@ -16,9 +16,67 @@ import {
   formatBytes,
   formatPaceRange,
   formatTimer,
+  normaliseForTranscription,
   rejectHallucinatedSegments,
   slugify,
 } from "./util.js";
+
+// Helper: a constant-amplitude square wave, so RMS equals the amplitude and
+// the expected gain is arithmetic rather than guesswork.
+function tone(amplitude, length = 1000) {
+  const out = new Float32Array(length);
+  for (let i = 0; i < length; i++) out[i] = i % 2 === 0 ? amplitude : -amplitude;
+  return out;
+}
+
+function rmsOf(samples) {
+  let sum = 0;
+  for (const s of samples) sum += s * s;
+  return Math.sqrt(sum / samples.length);
+}
+
+test("normalise lifts quiet audio towards the target level", () => {
+  // This is the case that made quiet mics transcribe to nothing when auto
+  // gain control was turned off at capture.
+  const quiet = tone(0.005);
+  normaliseForTranscription(quiet);
+  assert.ok(rmsOf(quiet) > 0.09, `expected ~0.1, got ${rmsOf(quiet)}`);
+});
+
+test("normalise refuses to amplify a silent recording into noise", () => {
+  // Without the cap, a noise floor gets lifted to full scale and whisper
+  // invents fluent sentences over it.
+  const nearSilent = tone(1e-6);
+  normaliseForTranscription(nearSilent);
+  assert.ok(rmsOf(nearSilent) < 0.01, "near-silence must stay quiet");
+});
+
+test("normalise caps its gain rather than hitting the target at any cost", () => {
+  const veryQuiet = tone(0.001);
+  normaliseForTranscription(veryQuiet);
+  // 0.001 * 30 (the cap) = 0.03, well short of the 0.1 target.
+  assert.ok(rmsOf(veryQuiet) <= 0.031, `gain exceeded the cap: ${rmsOf(veryQuiet)}`);
+});
+
+test("normalise leaves already-loud audio alone", () => {
+  const loud = tone(0.4);
+  const before = Array.from(loud);
+  normaliseForTranscription(loud);
+  assert.deepEqual(Array.from(loud), before);
+});
+
+test("normalise clamps rather than letting a transient exceed full scale", () => {
+  const withTransient = tone(0.02, 999);
+  const buf = new Float32Array(1000);
+  buf.set(withTransient);
+  buf[999] = 0.9;
+  normaliseForTranscription(buf);
+  for (const s of buf) assert.ok(s >= -1 && s <= 1, `sample out of range: ${s}`);
+});
+
+test("normalise handles an empty buffer", () => {
+  assert.equal(normaliseForTranscription(new Float32Array(0)).length, 0);
+});
 
 test("rejectHallucinatedSegments keeps a segment overlapping measured speech", () => {
   const segments = [{ text: "hello", startMs: 1000, endMs: 2000 }];
