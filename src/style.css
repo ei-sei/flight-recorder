@@ -1402,7 +1402,10 @@ textarea {
 }
 
 .settings-box {
-  max-width: 420px;
+  /* Wide enough that "Microphone gain" and its ⓘ fit the label column on one
+     line - the longest label decides this, and wrapping it made the row taller
+     than every other row for no reason. */
+  max-width: 470px;
   /* Tighter than the shared .modal-box padding. This panel is a list of
      controls rather than a sentence and a pair of buttons, so the generous
      padding that suits a confirm dialog just makes it taller here. */
@@ -1429,12 +1432,11 @@ textarea {
   color: var(--text-dim);
 }
 
-/* No rule above the first: directly under the title it would read as an
-   underline for the title rather than a section break. */
-.settings-group-header:first-of-type {
-  padding-top: 4px;
-  border-top: none;
-}
+/* Every header keeps its rule. There was a :first-of-type exception here to
+   stop the topmost one reading as an underline for the title, but the
+   Recording header it applied to is gone - the first controls now sit
+   directly under the title, and the remaining headers all have content above
+   them that genuinely needs separating. */
 
 /* Detail that would otherwise be three lines of prose beneath a control.
    Native title rather than a styled bubble, deliberately - .settings-box
@@ -1474,6 +1476,13 @@ textarea {
   font-size: 12px;
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
+}
+
+/* .modal-actions carries no margin of its own - in a confirm dialog the
+   message above it provides the gap. Settings ends on the storage block
+   instead, which left Done sitting right against it. */
+.settings-box .modal-actions {
+  margin-top: 18px;
 }
 
 .about-header {
@@ -1544,7 +1553,9 @@ textarea {
    name is clipped by the dropdown instead of widening the modal. */
 .settings-row {
   display: grid;
-  grid-template-columns: 116px minmax(0, 1fr);
+  /* Sized to the longest label, "Microphone gain" plus its ⓘ. Anything
+     narrower wraps that one row and leaves it taller than the rest. */
+  grid-template-columns: 136px minmax(0, 1fr);
   align-items: center;
   column-gap: 10px;
 }
