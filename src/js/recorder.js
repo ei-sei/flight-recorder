@@ -1516,8 +1516,10 @@ async function initPrepNotesResize() {
   });
 }
 
-const WHISPER_WPM_HINT =
-  "Off by default. When on, your recording is transcribed on this device after you stop it, to measure words per minute and save a transcript you can review afterward.";
+// Short by design: this line is restored after a download finishes, and the
+// full explanation now lives in the ⓘ tooltip beside the label rather than
+// as three lines of prose under the switch.
+const WHISPER_WPM_HINT = "Measure your speaking pace after recording.";
 
 async function initWpmToggle() {
   wpmToggleHint.textContent = WHISPER_WPM_HINT;

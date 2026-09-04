@@ -266,18 +266,33 @@
       <div class="modal-box settings-box">
         <h3 class="modal-title">Settings</h3>
 
-        <div class="settings-section">
+        <h4 class="settings-group-header">Recording</h4>
+
+        <div class="settings-section settings-row">
           <label class="settings-label" for="settings-camera">Camera</label>
           <select class="settings-select" id="settings-camera"></select>
         </div>
 
-        <div class="settings-section">
+        <div class="settings-section settings-row">
           <label class="settings-label" for="settings-mic">Microphone</label>
           <select class="settings-select" id="settings-mic"></select>
         </div>
 
-        <div class="settings-section">
-          <label class="settings-label" for="settings-mic-gain">Microphone gain</label>
+        <div class="settings-section settings-row">
+          <label class="settings-label" for="settings-mic-gain">
+            Microphone gain
+            <!-- The full explanation lives in the tooltip rather than under the
+                 control. Native title rather than a styled bubble on purpose:
+                 the modal scrolls, and an absolutely positioned tooltip would
+                 be clipped by it at exactly the settings furthest down. -->
+            <span
+              class="settings-info"
+              tabindex="0"
+              role="note"
+              title="Recording is captured unprocessed, so it keeps the natural dynamics of your voice. This lifts the whole recording by a fixed amount without flattening it, unlike the automatic gain most apps apply."
+              >&#9432;</span
+            >
+          </label>
           <select class="settings-select" id="settings-mic-gain">
             <option value="0">Off</option>
             <option value="6">+6 dB</option>
@@ -285,14 +300,10 @@
             <option value="18">+18 dB</option>
             <option value="24">+24 dB</option>
           </select>
-          <p class="settings-note">
-            Recording is captured unprocessed, so it keeps the natural dynamics of your voice. This lifts the whole
-            recording by a fixed amount without flattening it. Raise it if playback is too quiet, lower it if loud
-            moments distort.
-          </p>
+          <p class="settings-note">Increase if audio is too quiet; decrease if loud audio distorts.</p>
         </div>
 
-        <div class="settings-section">
+        <div class="settings-section settings-row">
           <label class="settings-label" for="settings-quality">Recording quality</label>
           <select class="settings-select" id="settings-quality">
             <option value="480">Standard (480p)</option>
@@ -300,23 +311,37 @@
           </select>
         </div>
 
+        <h4 class="settings-group-header">Speech</h4>
+
         <div class="settings-section toggle-row" id="wpm-toggle-row">
           <label class="switch">
             <input type="checkbox" id="wpm-toggle-input" />
             <span class="switch-track"><span class="switch-thumb"></span></span>
           </label>
           <div class="toggle-copy">
-            <span class="toggle-label">Speech pace (WPM)</span>
-            <span class="toggle-hint" id="wpm-toggle-hint">
-              Off by default. When on, your recording is transcribed on this device after you stop it, to measure
-              words per minute and save a transcript you can review afterward.
+            <span class="toggle-label">
+              Speech pace (WPM)
+              <span
+                class="settings-info"
+                tabindex="0"
+                role="note"
+                title="Off by default. When on, your recording is transcribed on this device after you stop it, to measure words per minute and save a transcript you can review afterwards. Needs a one-time ~60MB model download; nothing is uploaded."
+                >&#9432;</span
+              >
             </span>
+            <!-- Kept as its own element because recorder.js writes download
+                 progress into it, not just this static line. -->
+            <span class="toggle-hint" id="wpm-toggle-hint">Measure your speaking pace after recording.</span>
           </div>
         </div>
 
-        <div class="settings-section">
-          <span class="settings-label">Library size</span>
-          <p class="settings-note" id="settings-library-size">Calculating…</p>
+        <h4 class="settings-group-header">Storage</h4>
+
+        <!-- Informational, not a control - so it reads as a status block
+             rather than a setting with a missing input. -->
+        <div class="settings-status">
+          <p class="settings-status-primary mono" id="settings-library-size">Calculating…</p>
+          <p class="settings-note">Nothing is deleted automatically.</p>
         </div>
 
         <div class="modal-actions">

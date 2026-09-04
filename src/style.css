@@ -1211,6 +1211,9 @@ textarea {
 }
 
 .toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
   font-size: 12px;
   color: var(--text-primary);
 }
@@ -1400,6 +1403,77 @@ textarea {
 
 .settings-box {
   max-width: 420px;
+  /* Tighter than the shared .modal-box padding. This panel is a list of
+     controls rather than a sentence and a pair of buttons, so the generous
+     padding that suits a confirm dialog just makes it taller here. */
+  padding: 16px 18px;
+  /* Short enough now that this rarely engages, but a small window or a large
+     system font can still outgrow it, and a settings panel that runs off the
+     screen has no way back to its Done button. */
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+}
+
+/* Section markers, not labels - uppercase and dim so they read as structure
+   at a glance without competing with the controls. The rule sits above each
+   header rather than between every setting, which is what turns one long list
+   into three scannable blocks. */
+.settings-group-header {
+  margin: 0 0 6px;
+  padding-top: 11px;
+  border-top: 1px solid var(--border);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+/* No rule above the first: directly under the title it would read as an
+   underline for the title rather than a section break. */
+.settings-group-header:first-of-type {
+  padding-top: 4px;
+  border-top: none;
+}
+
+/* Detail that would otherwise be three lines of prose beneath a control.
+   Native title rather than a styled bubble, deliberately - .settings-box
+   scrolls, and an absolutely positioned tooltip would be clipped by it on
+   exactly the settings furthest down the panel. */
+.settings-info {
+  cursor: help;
+  color: var(--text-dim);
+  opacity: 0.7;
+  font-size: 12px;
+  line-height: 1;
+  transition: opacity var(--ease), color var(--ease);
+}
+
+.settings-info:hover,
+.settings-info:focus-visible {
+  opacity: 1;
+  color: var(--accent);
+  outline: none;
+}
+
+/* Library size and its caveat: the app's state rather than anything
+   adjustable, so it sits apart from the controls instead of looking like a
+   setting whose input has gone missing. */
+.settings-status {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 9px 11px;
+  background-color: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.settings-status-primary {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
 }
 
 .about-header {
@@ -1459,32 +1533,75 @@ textarea {
 }
 
 .settings-section {
-  margin-bottom: 16px;
+  margin-bottom: 10px;
 }
 
+/* Label beside its control rather than above it. Stacking them spent a whole
+   line per setting on a label of two or three words, which is most of why the
+   panel read as a form rather than a settings list - and adding section
+   headers would otherwise have made it taller than it started.
+   The control column is 1fr with min-width: 0 on the select, so a long device
+   name is clipped by the dropdown instead of widening the modal. */
+.settings-row {
+  display: grid;
+  grid-template-columns: 116px minmax(0, 1fr);
+  align-items: center;
+  column-gap: 10px;
+}
+
+.settings-row .settings-label {
+  margin-bottom: 0;
+}
+
+/* Helper text lines up under the control it describes, not under the label. */
+.settings-row .settings-note {
+  grid-column: 2;
+}
+
+/* The last control in a section already has the next section's rule beneath
+   it; its own margin would double that gap. */
+.settings-section:last-of-type {
+  margin-bottom: 0;
+}
+
+/* Flex rather than block, so the ⓘ can sit inline with the label text and
+   stay vertically centred against it. */
 .settings-label {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 5px;
   font-size: 11px;
   color: var(--text-dim);
   letter-spacing: 0.03em;
-  margin-bottom: 6px;
+  margin-bottom: 5px;
 }
 
 .settings-note {
-  margin: 0;
+  margin: 4px 0 0;
   font-size: 11px;
   color: var(--text-dim);
   line-height: 1.4;
   font-variant-numeric: tabular-nums;
 }
 
+/* The status block's own note needs no top margin - the gap is the flex
+   container's. */
+.settings-status .settings-note {
+  margin-top: 0;
+}
+
 .settings-select {
   width: 100%;
+  /* A long device name ("Microphone (2- HUAWEI USB-C HEADSET...)") gives the
+     select a wide intrinsic size, which would otherwise stretch the modal
+     rather than being clipped by it. */
+  max-width: 100%;
+  min-width: 0;
   background-color: var(--bg-raised);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
   color: var(--text-primary);
-  padding: 8px 10px;
+  padding: 7px 10px;
   cursor: pointer;
 }
 

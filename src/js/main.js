@@ -300,7 +300,10 @@ async function refreshLibrarySize() {
   el.textContent = "Calculating…";
   try {
     const bytes = await invoke("get_library_size");
-    el.textContent = `${formatBytes(bytes)} in Videos/flight-recorder. Nothing is deleted automatically.`;
+    // Size and location only. "Nothing is deleted automatically" is static
+    // markup in the status block now, rather than being rebuilt into this
+    // string every time the folder is measured.
+    el.textContent = `${formatBytes(bytes)} · Videos/flight-recorder`;
   } catch (err) {
     console.error("Couldn't measure the library folder", err);
     el.textContent = "Couldn't measure the library folder.";
