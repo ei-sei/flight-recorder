@@ -90,6 +90,16 @@ export function formatSpeakingRatio(ratio) {
 // for stenographic accuracy. A zero here means "none survived
 // transcription", not necessarily "none said", which is why the pause
 // figures, measured straight off the mic, are the more trustworthy signal.
+// Multi-word hedges. Matched literally, longest first so "you know" is
+// consumed before anything could match a single word inside it.
+//
+// Bare "like" was on this list and is deliberately off it now. It is an
+// ordinary verb and an ordinary preposition ("I like working in teams",
+// "something like that"), so every one of those counted as a filler and
+// inflated the total on answers containing none. Nothing replaces it:
+// separating filler "like" from ordinary "like" needs the grammar around it,
+// which this cannot see, and over-counting is worse than missing it - the
+// number is shown bare, with nothing to signal it might be wrong.
 const FILLER_PHRASES = [
   "you know",
   "i mean",
@@ -100,28 +110,38 @@ const FILLER_PHRASES = [
   "actually",
   "honestly",
   "obviously",
-  "erm",
-  "hmm",
-  "um",
-  "uh",
-  "er",
-  "ah",
-  // Bare "like" was on this list and is deliberately off it now. It is an
-  // ordinary verb and an ordinary preposition ("I like working in teams",
-  // "something like that"), so every one of those counted as a filler and
-  // inflated the total on answers containing none. Nothing replaces it:
-  // separating filler "like" from ordinary "like" needs the grammar around
-  // it, which this cannot see, and over-counting is worse than missing it -
-  // the number is shown bare, with nothing to signal it might be wrong.
 ];
+
+// Hesitation sounds, which people stretch out - "ummm", "errr", "uhhh" - and
+// which Whisper transcribes with the stretch intact when it transcribes them
+// at all. Every letter is therefore allowed to repeat, because matching these
+// literally found "um" and missed "ummm", which is the form people actually
+// produce when hesitating. Longest first for the same reason as above, so
+// "erm" is consumed before "er" could take part of it.
+const FILLER_INTERJECTIONS = ["erm", "hmm", "um", "uh", "er", "ah"];
+
+// Whitespace-delimited either way, so "um" can't match inside "umbrella" and
+// the elongated forms can't match inside a longer word either.
+function fillerPattern(phrase, elongated) {
+  const body = elongated
+    ? phrase
+        .split("")
+        .map((letter) => `${letter}+`)
+        .join("")
+    : phrase;
+  return new RegExp(`\\s${body}\\s`, "g");
+}
 
 export function countFillers(text) {
   if (!text) return 0;
   const normalised = text.toLowerCase().replace(/[^a-z\s]/g, " ");
   let total = 0;
   let remaining = ` ${normalised.replace(/\s+/g, " ").trim()} `;
-  for (const phrase of FILLER_PHRASES) {
-    const pattern = new RegExp(`\\s${phrase}\\s`, "g");
+  const patterns = [
+    ...FILLER_PHRASES.map((phrase) => fillerPattern(phrase, false)),
+    ...FILLER_INTERJECTIONS.map((phrase) => fillerPattern(phrase, true)),
+  ];
+  for (const pattern of patterns) {
     // Replaced as they're counted so a longer phrase's words can't also be
     // counted on their own. The single space keeps neighbouring words apart.
     remaining = remaining.replace(pattern, () => {

@@ -154,6 +154,35 @@ test("countFillers is zero on text with none", () => {
   assert.equal(countFillers(""), 0);
 });
 
+test("countFillers matches stretched-out hesitations", () => {
+  // What people actually produce when hesitating, and what Whisper writes
+  // down when it writes it down at all. Matching only the clipped forms found
+  // "um" and missed every "ummm".
+  assert.equal(countFillers("ummm so I did the thing"), 1);
+  assert.equal(countFillers("errr so I did the thing"), 1);
+  assert.equal(countFillers("uhhh so I did the thing"), 1);
+  assert.equal(countFillers("hmmm so I did the thing"), 1);
+  assert.equal(countFillers("aaah so I did the thing"), 1);
+});
+
+test("countFillers still matches the clipped forms", () => {
+  assert.equal(countFillers("um so I did the thing"), 1);
+  assert.equal(countFillers("er so I did the thing"), 1);
+  assert.equal(countFillers("Um, so I did the thing"), 1);
+});
+
+test("countFillers counts erm as one filler, not erm plus er", () => {
+  assert.equal(countFillers("erm so I did the thing"), 1);
+  assert.equal(countFillers("ermmm so I did the thing"), 1);
+});
+
+test("countFillers does not match a hesitation inside a real word", () => {
+  // The whitespace delimiters are what stop u+m+ finding "um" in "umbrella".
+  assert.equal(countFillers("I brought an umbrella to the interview"), 0);
+  assert.equal(countFillers("the answer was uhhhindered by nothing"), 0);
+  assert.equal(countFillers("I was there early"), 0);
+});
+
 test("countFillers does not count ordinary uses of like", () => {
   // "like" is a verb and a preposition far more often than it is a filler,
   // and this count is shown as a bare number with nothing to qualify it.
