@@ -231,9 +231,17 @@ async function transcribeAttemptInBackground(attempt, speechIntervals) {
     // Rust hands back segments (text + start/end in ms), not a flat string -
     // the timings are what the pace spread is computed from, and what makes
     // the hallucination check possible at all.
-    const raw = await invoke("transcribe_recording", { pcmPath });
+    const result = await invoke("transcribe_recording", { pcmPath });
+    // Console only, never shown in the UI: this is a diagnostic about the
+    // machine, not a measurement of how the user spoke. Transcription being
+    // slower than it should be went unnoticed because nothing reported it.
+    const realtime = result.elapsed_ms > 0 ? result.audio_ms / result.elapsed_ms : 0;
+    console.info(
+      `Transcribed ${(result.audio_ms / 1000).toFixed(1)}s of audio in ` +
+        `${(result.elapsed_ms / 1000).toFixed(1)}s (${realtime.toFixed(2)}x real-time)`
+    );
     const segments = rejectHallucinatedSegments(
-      raw.map((s) => ({ text: s.text, startMs: s.start_ms, endMs: s.end_ms })),
+      result.segments.map((s) => ({ text: s.text, startMs: s.start_ms, endMs: s.end_ms })),
       speechIntervals
     );
 

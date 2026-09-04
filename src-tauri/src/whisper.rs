@@ -22,6 +22,18 @@ pub struct TranscriptSegment {
     pub end_ms: i64,
 }
 
+// Carries how long transcription took alongside the result. Tuning this path
+// without a number to compare against is guesswork, and guesswork is how a
+// 4 minute recording came to take 5 minutes without anyone noticing. The
+// frontend logs it to the console rather than showing it - it is a
+// diagnostic, not a metric about the user's speech.
+#[derive(serde::Serialize)]
+pub struct TranscriptionResult {
+    pub segments: Vec<TranscriptSegment>,
+    pub audio_ms: u64,
+    pub elapsed_ms: u64,
+}
+
 const MODEL_FILENAME: &str = "ggml-base.en-q5_1.bin";
 const MODEL_URL: &str =
     "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en-q5_1.bin";
@@ -48,8 +60,10 @@ mod backend {
     };
     use std::io::{Read, Write};
     use std::path::{Path, PathBuf};
+    use std::sync::{Mutex, OnceLock};
     use std::time::{Duration, Instant};
     use tauri::{AppHandle, Emitter, Manager};
+    use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
 
     // fs:scope in capabilities/default.json bounds the fs plugin, but it has
     // no say over a custom command, which opens whatever path the frontend
@@ -216,15 +230,41 @@ mod backend {
         Ok(samples)
     }
 
+    // The loaded model, kept alive between transcriptions. Building a
+    // WhisperContext reads and parses the whole ~60MB file, and doing that
+    // again for every recording is pure waste when the path never changes.
+    // Keyed on the path anyway, so a future model swap can't be served a
+    // stale context. Transcriptions are already serialised on the frontend
+    // (see transcriptionQueue in attempts.js), so holding this lock for the
+    // duration of a run costs nothing.
+    struct CachedModel {
+        path: PathBuf,
+        ctx: WhisperContext,
+    }
+
+    static MODEL_CACHE: OnceLock<Mutex<Option<CachedModel>>> = OnceLock::new();
+
     pub fn run_transcription(
         model_path: &Path,
         pcm: Vec<f32>,
-    ) -> Result<Vec<TranscriptSegment>, String> {
-        use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
+    ) -> Result<(Vec<TranscriptSegment>, u64), String> {
+        let cache = MODEL_CACHE.get_or_init(|| Mutex::new(None));
+        // A poisoned lock means a previous run panicked inside whisper. The
+        // context itself is still fine to reuse, so recover rather than
+        // failing every subsequent transcription for the life of the process.
+        let mut cached = cache.lock().unwrap_or_else(|e| e.into_inner());
 
-        let model_path = model_path.to_str().ok_or("invalid model path")?;
-        let ctx = WhisperContext::new_with_params(model_path, WhisperContextParameters::default())
-            .map_err(|e| e.to_string())?;
+        if cached.as_ref().map(|m| m.path.as_path()) != Some(model_path) {
+            let path_str = model_path.to_str().ok_or("invalid model path")?;
+            let ctx =
+                WhisperContext::new_with_params(path_str, WhisperContextParameters::default())
+                    .map_err(|e| e.to_string())?;
+            *cached = Some(CachedModel {
+                path: model_path.to_path_buf(),
+                ctx,
+            });
+        }
+        let ctx = &cached.as_ref().expect("populated directly above").ctx;
         let mut state = ctx.create_state().map_err(|e| e.to_string())?;
 
         let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
@@ -249,8 +289,18 @@ mod backend {
         // looking sentences over silence; the caller cross-checks segment
         // times against measured mic activity for that.
         params.set_suppress_nst(true);
+        // No temperature fallback. When decoding fails whisper's confidence
+        // checks it re-runs the SAME audio at successively higher
+        // temperatures, up to six passes, and quiet or low-contrast recordings
+        // trigger that constantly - a 4 minute recording was taking 5 minutes
+        // to transcribe, against the 1-2 minutes base.en should manage on CPU.
+        // The cost is that a genuinely difficult passage no longer gets those
+        // retries to rescue it. One line to put back if transcripts suffer.
+        params.set_temperature_inc(0.0);
 
+        let started = Instant::now();
         state.full(params, &pcm).map_err(|e| e.to_string())?;
+        let elapsed_ms = started.elapsed().as_millis() as u64;
 
         let num_segments = state.full_n_segments().map_err(|e| e.to_string())?;
         let mut segments = Vec::with_capacity(num_segments as usize);
@@ -266,7 +316,7 @@ mod backend {
                 end_ms: state.full_get_segment_t1(i).map_err(|e| e.to_string())? * 10,
             });
         }
-        Ok(segments)
+        Ok((segments, elapsed_ms))
     }
 }
 
@@ -286,14 +336,20 @@ pub async fn download_whisper_model(app: AppHandle) -> Result<(), String> {
 pub async fn transcribe_recording(
     app: AppHandle,
     pcm_path: String,
-) -> Result<Vec<TranscriptSegment>, String> {
+) -> Result<TranscriptionResult, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let pcm_file = backend::resolve_recording_path(&app, &pcm_path)?;
         // Before reading the PCM, so a missing model doesn't consume the
         // scratch file and leave nothing to retry with.
         let model = backend::ensure_model_downloaded(&app)?;
         let pcm = backend::read_pcm_and_delete(&pcm_file)?;
-        backend::run_transcription(&model, pcm)
+        let audio_ms = (pcm.len() as u64 * 1000) / WHISPER_SAMPLE_RATE as u64;
+        let (segments, elapsed_ms) = backend::run_transcription(&model, pcm)?;
+        Ok(TranscriptionResult {
+            segments,
+            audio_ms,
+            elapsed_ms,
+        })
     })
     .await
     .map_err(|e| e.to_string())?
