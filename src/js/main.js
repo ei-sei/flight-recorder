@@ -226,7 +226,12 @@ function tickClock() {
   clockEl.textContent = now.toLocaleTimeString("en-GB", { hour12: false });
 }
 
-function handleQuestionSelectionChange(question) {
+// `filterAttemptLog` distinguishes the user picking a question from a question
+// being selected on their behalf. Picking one in the sidebar should narrow the
+// attempt log to it; having one selected as a side effect of clicking a video
+// in that same log should leave the log alone, or the list reorganises itself
+// under the cursor that just clicked it.
+function handleQuestionSelectionChange(question, { filterAttemptLog = true } = {}) {
   // No-ops if not currently reviewing (including the reverse path, where
   // onPlay selects the attempt's question before entering review mode -
   // isReviewing is still false at that point). Picking a different question
@@ -235,7 +240,7 @@ function handleQuestionSelectionChange(question) {
   exitReviewMode();
   currentQuestionEl.textContent = question ? question.text : "Select a question to begin.";
   setActiveQuestion(question);
-  setSelectedQuestion(question);
+  if (filterAttemptLog) setSelectedQuestion(question);
 }
 
 function populateDeviceSelect(select, devices, selectedId, kindLabel) {
@@ -722,7 +727,11 @@ async function init() {
 
   await initAttempts({
     onPlay: (attempt, attemptNumber) => {
-      selectQuestionById(attempt.questionId);
+      // Selects the question in the sidebar so the record button and prep
+      // notes follow the video being reviewed, but deliberately leaves the
+      // attempt log's own filter and tab alone - the user clicked a row in
+      // that list and it should still be the list they clicked.
+      selectQuestionById(attempt.questionId, { filterAttemptLog: false });
       enterReviewMode(attempt, attemptNumber);
     },
     onExitReview: exitReviewMode,
@@ -750,7 +759,10 @@ async function init() {
       }
     },
     onExitReview: () => {
-      handleQuestionSelectionChange(getSelectedQuestion());
+      // Also leaves the log filter alone. Narrowing it on the way out of
+      // review would just delay the same surprise: the list would sit
+      // untouched while a video played, then reorganise the moment it closed.
+      handleQuestionSelectionChange(getSelectedQuestion(), { filterAttemptLog: false });
       clearReviewing();
     },
     onNotesChange: updateAttemptNotes,

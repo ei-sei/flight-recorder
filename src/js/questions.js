@@ -139,7 +139,11 @@ async function renameQuestion(id, text) {
   await saveQuestions(questions);
   await renameQuestionInAttempts(id, text);
   if (selectedId === id) {
-    onSelectionChange(getSelectedQuestion());
+    // Only to refresh the question text shown above the record button.
+    // renameQuestionInAttempts has already redrawn the log with the new
+    // wording, so there is nothing here that should move its filter - and
+    // moving it would narrow the list on a rename, which nobody asked for.
+    onSelectionChange(getSelectedQuestion(), { filterAttemptLog: false });
   }
   render();
 }
@@ -187,10 +191,14 @@ async function confirmDeleteQuestion(question) {
   }
 }
 
-function selectQuestion(id) {
+// `options` is forwarded untouched to onSelectionChange. The only thing in it
+// today is filterAttemptLog, which separates "the user picked this question"
+// from "this question was selected on the user's behalf" - see
+// selectQuestionById.
+function selectQuestion(id, options) {
   selectedId = id;
   render();
-  onSelectionChange(getSelectedQuestion());
+  onSelectionChange(getSelectedQuestion(), options);
 }
 
 async function removeQuestion(id) {
@@ -257,7 +265,7 @@ export function getSelectedQuestion() {
   return questions.find((q) => q.id === selectedId) ?? null;
 }
 
-export function selectQuestionById(id) {
+export function selectQuestionById(id, options) {
   const question = questions.find((q) => q.id === id);
   if (!question) return;
 
@@ -270,6 +278,8 @@ export function selectQuestionById(id) {
   // an exit back to the live view.
   if (id === selectedId) return;
 
+  // The sidebar's own category tab does still move - the question has to be
+  // visible in the bank for its selection to mean anything.
   setActiveCategory(question.category);
-  selectQuestion(question.id);
+  selectQuestion(question.id, options);
 }
