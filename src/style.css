@@ -1424,7 +1424,11 @@ textarea {
      line - the longest label decides this, and wrapping it made the row taller
      than every other row for no reason. */
   max-width: 470px;
-  /* Short enough now that this rarely engages, but a small window or a large
+  /* Tighter than the shared .modal-box padding. This panel is a list of
+     controls rather than a sentence and a pair of buttons, so the padding that
+     suits a confirm dialog only makes it taller here. */
+  padding: 16px 18px;
+  /* Short enough that this rarely engages, but a small window or a large
      system font can still outgrow it, and a settings panel that runs off the
      screen has no way back to its Done button. */
   max-height: calc(100vh - 80px);
@@ -1436,8 +1440,8 @@ textarea {
    header rather than between every setting, which is what turns one long list
    into three scannable blocks. */
 .settings-group-header {
-  margin: 0 0 8px;
-  padding-top: 14px;
+  margin: 0 0 6px;
+  padding-top: 11px;
   border-top: 1px solid var(--border);
   font-size: 10px;
   font-weight: 600;
@@ -1554,7 +1558,13 @@ textarea {
 }
 
 .settings-section {
-  margin-bottom: 16px;
+  margin-bottom: 10px;
+}
+
+/* The last control in a section already has the next section's rule beneath
+   it; its own margin would double that gap. */
+.settings-section:last-of-type {
+  margin-bottom: 0;
 }
 
 /* Label beside its control rather than above it. Stacking them spent a whole
@@ -1590,15 +1600,21 @@ textarea {
   font-size: 11px;
   color: var(--text-dim);
   letter-spacing: 0.03em;
-  margin-bottom: 6px;
+  margin-bottom: 5px;
 }
 
 .settings-note {
-  margin: 0;
+  margin: 4px 0 0;
   font-size: 11px;
   color: var(--text-dim);
   line-height: 1.4;
   font-variant-numeric: tabular-nums;
+}
+
+/* The status block's own note needs no top margin - the gap is the flex
+   container's. */
+.settings-status .settings-note {
+  margin-top: 0;
 }
 
 .settings-select {
@@ -1612,7 +1628,7 @@ textarea {
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
   color: var(--text-primary);
-  padding: 8px 10px;
+  padding: 7px 10px;
   cursor: pointer;
 }
 
