@@ -277,6 +277,22 @@
         </div>
 
         <div class="settings-section">
+          <label class="settings-label" for="settings-mic-gain">Microphone gain</label>
+          <select class="settings-select" id="settings-mic-gain">
+            <option value="0">Off</option>
+            <option value="6">+6 dB</option>
+            <option value="12">+12 dB</option>
+            <option value="18">+18 dB</option>
+            <option value="24">+24 dB</option>
+          </select>
+          <p class="settings-note">
+            Recording is captured unprocessed, so it keeps the natural dynamics of your voice. This lifts the whole
+            recording by a fixed amount without flattening it. Raise it if playback is too quiet, lower it if loud
+            moments distort.
+          </p>
+        </div>
+
+        <div class="settings-section">
           <label class="settings-label" for="settings-quality">Recording quality</label>
           <select class="settings-select" id="settings-quality">
             <option value="480">Standard (480p)</option>

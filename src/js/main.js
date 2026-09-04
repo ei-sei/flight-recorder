@@ -7,6 +7,7 @@ import {
   renderReviewDetails,
   listDevices,
   applyRecordingSettings,
+  applyMicGain,
 } from "./recorder.js";
 import {
   initAttempts,
@@ -320,6 +321,7 @@ async function openSettingsModal() {
   populateDeviceSelect(cameraSelect, cameras, settings.cameraId, "Camera");
   populateDeviceSelect(micSelect, mics, settings.micId, "Microphone");
   qualitySelect.value = settings.quality;
+  document.getElementById("settings-mic-gain").value = String(settings.micGainDb);
 
   overlay.hidden = false;
 }
@@ -357,6 +359,14 @@ function initSettingsModal() {
   cameraSelect.addEventListener("change", applyDeviceChange);
   micSelect.addEventListener("change", applyDeviceChange);
   qualitySelect.addEventListener("change", applyDeviceChange);
+
+  // Its own handler rather than applyDeviceChange: gain is a value on a node
+  // in the existing audio graph, so it takes effect without re-acquiring the
+  // camera. Routing it through applyRecordingSettings would blink the preview
+  // every time the number changed.
+  document.getElementById("settings-mic-gain").addEventListener("change", (event) => {
+    applyMicGain(Number(event.target.value));
+  });
 
   wireOverlayDismiss(
     document.getElementById("settings-overlay"),

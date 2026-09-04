@@ -239,6 +239,12 @@ export async function getRecordingSettings() {
     quality: "480",
     alwaysOnTop: false,
     cameraEnabled: false,
+    // Makeup gain in dB, applied to the recording as one constant multiplier.
+    // Defaults to +12 because capture no longer applies auto gain control, and
+    // without a boost most microphones record noticeably quieter than they
+    // used to - AGC was what made the old recordings loud. Unlike AGC this is
+    // static, so it lifts the whole recording without flattening it.
+    micGainDb: 12,
     ...value,
   };
 }

@@ -97,6 +97,12 @@ const SILENCE_HOLD_MS = 400;
 // reported as if nothing had happened - see finaliseSpeechAnalysis.
 const HIDDEN_TOLERANCE_MS = 1000;
 
+// Decibels are what microphone levels are discussed in, and they're what the
+// Settings control offers; the Web Audio gain node wants a plain multiplier.
+function dbToGain(db) {
+  return 10 ** (db / 20);
+}
+
 let stream = null;
 let mediaRecorder = null;
 let chunks = [];
@@ -110,6 +116,9 @@ let getSelectedQuestion = () => null;
 
 let audioCtx = null;
 let analyser = null;
+let micGainNode = null;
+let gainedAudioDestination = null;
+let micGainDb = 12;
 let volumeData = null;
 let volumeTimerId = null;
 let speechAboveThresholdSinceTs = null;
@@ -243,6 +252,9 @@ async function enableCamera() {
   const generation = ++streamGeneration;
   const settings = await getRecordingSettings();
   currentQuality = settings.quality;
+  // Read before the gain chain is built, so the first recording of a session
+  // already uses the saved level rather than the default.
+  micGainDb = settings.micGainDb;
 
   try {
     const acquiredStream = await acquireStream(settings.cameraId, settings.micId, currentQuality);
@@ -653,12 +665,47 @@ function startWaveformMonitoring() {
 
   audioCtx = new AudioContext();
   const source = audioCtx.createMediaStreamSource(stream);
+
+  // Makeup gain, and the reason it exists: capture no longer applies auto
+  // gain control, and AGC was what made recordings loud. This restores the
+  // loudness without the flattening, because it is one constant multiplier
+  // for the whole recording rather than a level that rides up and down.
+  micGainNode = audioCtx.createGain();
+  micGainNode.gain.value = dbToGain(micGainDb);
+  source.connect(micGainNode);
+
   analyser = audioCtx.createAnalyser();
   analyser.fftSize = 2048;
   volumeData = new Float32Array(analyser.fftSize);
-  source.connect(analyser);
+  // Deliberately AFTER the gain, not straight off the source. SPEECH_RMS_FLOOR
+  // and the waveform's own gain were tuned against AGC-processed audio, and
+  // raw unprocessed speech sits close enough to that floor that quieter
+  // passages would stop registering - taking the pause counts and response
+  // delay down with them. Reading the gained signal puts the levels back in
+  // the range those constants expect, and means what gets analysed is exactly
+  // what gets recorded. The trade is that turning gain off also makes speech
+  // detection less sensitive, which is at least honest: there is genuinely
+  // less signal to work with.
+  micGainNode.connect(analyser);
+
+  // The recording taps the same gained signal. Kept as its own destination
+  // rather than reusing the mic track directly, which is what carries the
+  // gain into the file.
+  gainedAudioDestination = audioCtx.createMediaStreamDestination();
+  micGainNode.connect(gainedAudioDestination);
 
   volumeTimerId = setInterval(sampleVolume, 1000 / WAVEFORM_FPS);
+}
+
+// Applies a new gain immediately, without re-acquiring the camera - changing
+// a number should not make the preview blink. Ramped rather than jumped so it
+// can't click if it happens while something is listening.
+export async function applyMicGain(db) {
+  micGainDb = db;
+  if (micGainNode && audioCtx) {
+    micGainNode.gain.setTargetAtTime(dbToGain(db), audioCtx.currentTime, 0.02);
+  }
+  await saveRecordingSettings({ micGainDb: db });
 }
 
 function stopWaveformMonitoring() {
@@ -670,6 +717,8 @@ function stopWaveformMonitoring() {
     audioCtx.close();
     audioCtx = null;
   }
+  micGainNode = null;
+  gainedAudioDestination = null;
   drawIdleWaveform();
 }
 
@@ -827,6 +876,17 @@ function computeRecordingSize(preset) {
   return { width: width - (width % 2), height: height - (height % 2) };
 }
 
+// The gained audio if the Web Audio chain is up, the bare microphone track if
+// it isn't. Falling back matters more than the gain does: a recording with
+// quiet audio is a minor annoyance, a recording with no audio at all is a
+// lost attempt, and startWaveformMonitoring is not guaranteed to have run.
+function recordingAudioTracks() {
+  const gained = gainedAudioDestination?.stream.getAudioTracks() ?? [];
+  if (gained.length > 0) return gained;
+  console.warn("Mic gain chain unavailable; recording the microphone directly");
+  return stream.getAudioTracks();
+}
+
 function startWatermarkCompositing() {
   const size = computeRecordingSize(getQualityPreset());
   watermarkCanvas.width = size.width;
@@ -837,7 +897,7 @@ function startWatermarkCompositing() {
   watermarkTimerId = setInterval(compositeWatermarkFrame, 1000 / WATERMARK_FPS);
 
   watermarkStream = watermarkCanvas.captureStream(WATERMARK_FPS);
-  return new MediaStream([...watermarkStream.getVideoTracks(), ...stream.getAudioTracks()]);
+  return new MediaStream([...watermarkStream.getVideoTracks(), ...recordingAudioTracks()]);
 }
 
 function stopWatermarkCompositing() {
