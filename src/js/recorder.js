@@ -25,8 +25,6 @@ import {
   setPrepNotesCollapsed,
   getPrepNotesHeight,
   setPrepNotesHeight,
-  getWhisperModelDownloaded,
-  setWhisperModelDownloaded,
 } from "./store.js";
 import { resolveVideoPath } from "./attempts.js";
 import { showConfirm, showAlert, setModalProgress, finishModal } from "./modal.js";
@@ -1524,11 +1522,27 @@ const WHISPER_WPM_HINT =
 async function initWpmToggle() {
   wpmToggleHint.textContent = WHISPER_WPM_HINT;
   wpmEnabled = await getWpmEnabled();
+
+  // The setting lives in library.json, inside Videos/flight-recorder, so it
+  // survives an uninstall along with the rest of the library - that folder is
+  // meant to be portable and carrying your preferences is the point. The model
+  // does NOT: it's app infrastructure and lives in the OS app-data directory.
+  // So the two can legitimately disagree, and when they do the setting is the
+  // one that's wrong. Switching WPM off here means the next time it's turned
+  // on, the download is offered and consented to properly, rather than being
+  // fetched silently on the next recording.
+  if (wpmEnabled && !(await invoke("whisper_model_present"))) {
+    wpmEnabled = false;
+    await setWpmEnabled(false);
+  }
   wpmToggleInput.checked = wpmEnabled;
 
   wpmToggleInput.addEventListener("change", async () => {
     const turningOn = wpmToggleInput.checked;
-    if (turningOn && !(await getWhisperModelDownloaded())) {
+    // Asked of the filesystem every time, not of a stored flag. A stored flag
+    // is exactly what let the app skip this dialog on a device where the model
+    // had been removed.
+    if (turningOn && !(await invoke("whisper_model_present"))) {
       // Settings and the confirm dialog share the same overlay styling/
       // z-index, so with Settings still open the confirm dialog would be
       // fully covered by it (and unclickable) - close Settings out of the
@@ -1569,7 +1583,9 @@ async function initWpmToggle() {
 
       try {
         await invoke("download_whisper_model");
-        await setWhisperModelDownloaded(true);
+        // Nothing to record afterwards: the model file on disk is the only
+        // answer to "is it downloaded", and a second copy of that answer in
+        // library.json is what let the two drift apart.
         // Waited on, not fire-and-forget - the user asked to be told
         // explicitly that the download finished, not have the dialog just
         // vanish and leave them to notice the toggle is now enabled.
@@ -1587,8 +1603,9 @@ async function initWpmToggle() {
         return;
       } finally {
         // Both branches used to repeat these three lines, and neither ran if
-        // setWhisperModelDownloaded threw - which left a progress listener
-        // attached for the rest of the session and the toggle stuck disabled.
+        // anything between the download and the dialog threw - which left a
+        // progress listener attached for the rest of the session and the
+        // toggle stuck disabled.
         unlisten();
         wpmToggleInput.disabled = false;
         wpmToggleHint.textContent = WHISPER_WPM_HINT;

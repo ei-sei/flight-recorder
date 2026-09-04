@@ -129,7 +129,9 @@ async function migrateFromOldStoreLocation(newStore) {
     "theme",
     "prepNotesCollapsed",
     "prepNotesHeight",
-    "whisperModelDownloaded",
+    // whisperModelDownloaded was migrated here too. It isn't any more - the
+    // model's presence is read from the filesystem now, so carrying a stale
+    // copy of that answer forward would only reintroduce the drift.
   ]) {
     const value = await oldStore.get(key);
     if (value !== undefined) await newStore.set(key, value);
@@ -213,22 +215,15 @@ export async function setWpmEnabled(enabled) {
   await store.save();
 }
 
-// Whether the local Whisper speech model has already been downloaded, on
-// every platform (this used to say Mac/Linux only, from when Windows ran the
-// browser's SpeechRecognition API instead). Purely a UX shortcut to skip
-// re-prompting; the Rust side re-downloads transparently if the cached file
-// is ever missing, so nothing depends on this staying accurate.
-export async function getWhisperModelDownloaded() {
-  const store = await getStore();
-  const value = await store.get("whisperModelDownloaded");
-  return value ?? false;
-}
-
-export async function setWhisperModelDownloaded(downloaded) {
-  const store = await getStore();
-  await store.set("whisperModelDownloaded", downloaded);
-  await store.save();
-}
+// There was a getWhisperModelDownloaded/setWhisperModelDownloaded pair here,
+// storing whether the speech model had been fetched. It is gone on purpose.
+//
+// This store lives in Videos/flight-recorder, and the model lives in the OS
+// app-data directory, so the flag and the file it described could be removed
+// independently - and were. Deleting app data took the model but left the flag
+// saying it was present, which skipped the download confirmation dialog and
+// let the next recording pull 60MB down unannounced. The `whisper_model_present`
+// command asks the filesystem instead, which cannot disagree with itself.
 
 export async function getRecordingSettings() {
   const store = await getStore();

@@ -92,6 +92,25 @@ mod backend {
         Ok(dir.join(MODEL_FILENAME))
     }
 
+    // Whether the model is actually on this device, asked of the filesystem
+    // rather than of a stored boolean.
+    //
+    // The two used to disagree, and the disagreement mattered: the model lives
+    // in the OS app-data directory, while the flag recording "it's downloaded"
+    // lived in library.json inside Videos/flight-recorder. Removing app data
+    // deleted the model and left the flag saying otherwise, so the frontend
+    // skipped its confirmation dialog and the next recording quietly pulled
+    // 60MB down. This app promises the download only ever happens after the
+    // user agrees to it, so the answer has to come from the file itself.
+    pub fn model_if_present(app: &AppHandle) -> Result<Option<PathBuf>, String> {
+        let path = model_path(app)?;
+        if path.exists() {
+            Ok(Some(path))
+        } else {
+            Ok(None)
+        }
+    }
+
     pub fn ensure_model_downloaded(app: &AppHandle) -> Result<PathBuf, String> {
         let path = model_path(app)?;
         if path.exists() {
@@ -327,6 +346,13 @@ mod backend {
     }
 }
 
+// Asked before offering the download, so the offer is based on what is on
+// disk now rather than on what was true when the setting was last changed.
+#[tauri::command]
+pub async fn whisper_model_present(app: AppHandle) -> Result<bool, String> {
+    Ok(backend::model_if_present(&app)?.is_some())
+}
+
 #[tauri::command]
 pub async fn download_whisper_model(app: AppHandle) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || backend::ensure_model_downloaded(&app))
@@ -346,9 +372,17 @@ pub async fn transcribe_recording(
 ) -> Result<TranscriptionResult, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let pcm_file = backend::resolve_recording_path(&app, &pcm_path)?;
-        // Before reading the PCM, so a missing model doesn't consume the
-        // scratch file and leave nothing to retry with.
-        let model = backend::ensure_model_downloaded(&app)?;
+        // Checked before reading the PCM, so a missing model doesn't consume
+        // the scratch file and leave nothing to retry with.
+        //
+        // Deliberately does NOT download. This used to call
+        // ensure_model_downloaded, which meant a recording could trigger a
+        // 60MB fetch on its own if the model had gone missing - no dialog, no
+        // mention, on a device where the user had never agreed to it. The
+        // download now only ever happens from download_whisper_model, which is
+        // the command behind the confirmation prompt.
+        let model = backend::model_if_present(&app)?
+            .ok_or("the speech model isn't on this device - turn Speech pace (WPM) off and on again in Settings to download it")?;
         let pcm = backend::read_pcm_and_delete(&pcm_file)?;
         let audio_ms = (pcm.len() as u64 * 1000) / WHISPER_SAMPLE_RATE as u64;
         let (segments, elapsed_ms) = backend::run_transcription(&model, pcm)?;
