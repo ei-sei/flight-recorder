@@ -186,14 +186,23 @@ async function acquireStream(cameraId, micId, quality) {
     },
     audio: {
       deviceId: micId ? { exact: micId } : undefined,
-      // Not exposed as settings. Both were tried as user-facing toggles;
-      // autoGainControl:false was actively harmful (real testing showed some
-      // mics went quiet enough that Whisper transcribed nothing at all), and
-      // noiseSuppression:false is a niche trade-off that doesn't suit this
-      // app's actual use case - someone rehearsing alone, in a room they've
-      // already chosen to be quiet. Hardcoded on for both. Don't reintroduce
-      // either as a toggle without a real, demonstrated need.
-      echoCancellation: true,
+      // Acoustic echo cancellation exists to remove far-end playback from a
+      // call. There is no far end here and the preview is muted while
+      // recording, so it never had anything to cancel - but switching it on
+      // engages Chromium's full WebRTC processing chain, including a
+      // high-pass filter, which audibly thins the voice. Compared against
+      // Windows' own Sound Recorder on the same mic, this app sounded
+      // noticeably more processed, and this is the first cause to rule out.
+      // Unlike the two below, it was never weighed up before.
+      echoCancellation: false,
+      // These two stay on, and the reason is recorded rather than assumed:
+      // autoGainControl:false was tried and was actively harmful (real
+      // testing showed some mics went quiet enough that Whisper transcribed
+      // nothing at all), and noiseSuppression:false was judged a niche
+      // trade-off for someone rehearsing alone in a quiet room. Both still
+      // engage the same processing chain, so turning off echoCancellation
+      // alone may only partly close the gap. Don't change either without
+      // testing a real recording end to end - the failure is silent.
       noiseSuppression: true,
       autoGainControl: true,
     },
