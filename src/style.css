@@ -18,6 +18,13 @@
   --record-glow: rgba(244, 65, 92, 0.4);
   --record-dim: rgba(244, 65, 92, 0.12);
 
+  /* The camera mark, and the one place this vermilion appears. Deliberately
+     its own token rather than --record: the recording red means "this is
+     live", and reusing it for a logo that is always on screen would spend
+     that meaning. Matches the colour baked into src-tauri/icons/icon.svg, so
+     the in-app mark and the taskbar icon are the same orange. */
+  --brand-mark: #ff3d00;
+
   --gold: #f5b942;
   --gold-glow: rgba(245, 185, 66, 0.35);
 
@@ -57,6 +64,10 @@
   --record: #dc2743;
   --record-glow: rgba(220, 39, 67, 0.3);
   --record-dim: rgba(220, 39, 67, 0.1);
+
+  /* Darkened a little for the light theme - #ff3d00 on white is bright enough
+     to vibrate, and the mark sits next to small text in the topbar. */
+  --brand-mark: #e63500;
 
   --gold: #b8860a;
   --gold-glow: rgba(184, 134, 10, 0.3);
@@ -270,9 +281,16 @@ textarea {
   height: 18px;
 }
 
-.brand-icon rect {
-  fill: var(--record);
-  filter: drop-shadow(0 0 6px var(--record-glow));
+/* Stroked, not filled, and no drop shadow. The reference this mark came from
+   had a neon bloom; at 18px a glow only thickens every line until the shape
+   closes up. Shared with .about-icon so the two can never drift apart. */
+.brand-icon,
+.about-icon {
+  fill: none;
+  stroke: var(--brand-mark);
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .status-cluster {
@@ -1496,8 +1514,6 @@ textarea {
   width: 26px;
   height: 26px;
   flex-shrink: 0;
-  fill: var(--record);
-  filter: drop-shadow(0 0 6px var(--record-glow));
 }
 
 .about-description {

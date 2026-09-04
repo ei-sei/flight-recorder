@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1024" height="1024"
+     fill="none" stroke="#ff3d00" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+  <title>Flight recorder</title>
+  <desc>
+    Master artwork for every generated icon in this folder. Regenerate the set
+    with the tauri CLI's icon command, pointing it at this file; it reads SVG
+    directly, so no rasteriser is needed.
+
+    Note for anyone editing the comments here: XML forbids a double hyphen
+    inside a comment, and the tauri CLI's SVG parser rejects the whole file
+    when it finds one. A shell example containing a bare flag separator is
+    enough to break it, which is why this note is a desc element rather than a
+    comment.
+
+    Kept as strokes on a transparent ground, with no glow or drop shadow. The
+    reference this came from had a neon bloom, which turns to mud as soon as
+    the icon is scaled to a 16px favicon or a taskbar button.
+
+    The colour is baked in because the generated PNG, ICO and ICNS files cannot
+    inherit anything. The copy inlined in index.html uses currentColor instead,
+    so the in-app mark follows the theme.
+  </desc>
+
+  <!-- Film reels. The left one is slightly larger and sits a touch lower,
+       which is what stops the pair reading as a face. -->
+  <circle cx="6.3" cy="5.8" r="3.5"/>
+  <circle cx="13" cy="5.8" r="3.2"/>
+
+  <!-- Camera body -->
+  <rect x="1.8" y="9.4" width="14.4" height="11.4" rx="2.6"/>
+
+  <!-- The bar across the body. First thing to close up at small sizes, so it
+       is deliberately shallow and set well clear of the body's own edges. -->
+  <rect x="3.9" y="11.7" width="9" height="2.5" rx="1.25"/>
+
+  <!-- Lens, flaring outward. A wedge rather than a rectangle: it is what makes
+       the silhouette read as a camera rather than a television. -->
+  <path d="M16.6 12.7 19.9 11a1.2 1.2 0 0 1 1.8 1.05v6.1a1.2 1.2 0 0 1-1.8 1.05L16.6 17.5Z"/>
+</svg>
