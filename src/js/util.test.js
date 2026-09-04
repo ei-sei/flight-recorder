@@ -18,6 +18,7 @@ import {
   formatPaceRange,
   formatTimer,
   normaliseForTranscription,
+  pluralise,
   rejectHallucinatedSegments,
   slugify,
 } from "./util.js";
@@ -211,6 +212,15 @@ test("countFillers does not count ordinary uses of like", () => {
 test("countWords ignores surrounding and repeated whitespace", () => {
   assert.equal(countWords("  one   two \n three "), 3);
   assert.equal(countWords("   "), 0);
+});
+
+test("pluralise agrees with its count", () => {
+  // Used in the reset-all-data warning, where "1 questions" would undercut a
+  // dialog that is asking the user to type DELETE.
+  assert.equal(pluralise(0, "question"), "0 questions");
+  assert.equal(pluralise(1, "question"), "1 question");
+  assert.equal(pluralise(2, "attempt"), "2 attempts");
+  assert.equal(pluralise(11, "attempt"), "11 attempts");
 });
 
 test("formatBytes switches unit and precision at the right points", () => {

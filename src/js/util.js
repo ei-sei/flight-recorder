@@ -162,6 +162,12 @@ export function countFillers(text) {
   return total;
 }
 
+// "1 question", "3 questions". Only handles nouns that pluralise with an s,
+// which is all this app has.
+export function pluralise(count, noun) {
+  return `${count} ${noun}${count === 1 ? "" : "s"}`;
+}
+
 export function formatBytes(bytes) {
   if (bytes < 1024) return `${bytes} B`;
   const units = ["KB", "MB", "GB", "TB"];

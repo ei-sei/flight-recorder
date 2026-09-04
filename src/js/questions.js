@@ -265,6 +265,10 @@ export function getSelectedQuestion() {
   return questions.find((q) => q.id === selectedId) ?? null;
 }
 
+export function getQuestionCount() {
+  return questions.length;
+}
+
 export function selectQuestionById(id, options) {
   const question = questions.find((q) => q.id === id);
   if (!question) return;

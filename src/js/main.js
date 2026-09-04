@@ -1,4 +1,10 @@
-import { initQuestions, getSelectedQuestion, selectQuestionById, updateQuestionPrepNotes } from "./questions.js";
+import {
+  initQuestions,
+  getSelectedQuestion,
+  selectQuestionById,
+  updateQuestionPrepNotes,
+  getQuestionCount,
+} from "./questions.js";
 import {
   initRecorder,
   setActiveQuestion,
@@ -16,6 +22,7 @@ import {
   setSelectedQuestion,
   updateAttemptNotes,
   updateAttemptScore,
+  getAttemptCount,
 } from "./attempts.js";
 import {
   getRecordingSettings,
@@ -25,7 +32,7 @@ import {
   setTheme,
   libraryDir,
 } from "./store.js";
-import { formatBytes } from "./util.js";
+import { formatBytes, pluralise } from "./util.js";
 import { showAlert, showConfirm } from "./modal.js";
 import { showContextMenu, hideContextMenu, isContextMenuVisible } from "./contextmenu.js";
 
@@ -270,10 +277,42 @@ async function openRecordingsFolder() {
   }
 }
 
+// Spells out exactly what is about to go, rather than saying "every question,
+// every attempt, and every recorded video" - which is true of an empty library
+// too, and is easy to skim past. Knowing it is 11 attempts and 118 MB is the
+// difference between reading the dialog and dismissing it.
+async function buildResetWarning() {
+  const questionCount = getQuestionCount();
+  const attemptCount = getAttemptCount();
+
+  if (questionCount === 0 && attemptCount === 0) {
+    return "There are no questions or attempts to delete, but this will still reset the folder and every setting. This can't be undone.";
+  }
+
+  let size = "";
+  try {
+    // Awaited rather than filled in afterwards: the number is the point, and a
+    // dialog that asks you to type DELETE should be complete before you read
+    // it. get_library_size is an async command, so this doesn't block the UI.
+    const { invoke } = window.__TAURI__.core;
+    const bytes = await invoke("get_library_size");
+    if (bytes > 0) size = `, including ${formatBytes(bytes)} of recorded video`;
+  } catch (err) {
+    // Worth continuing without: the counts alone still say enough, and a
+    // failure to measure shouldn't stand between the user and a reset.
+    console.error("Couldn't measure the library folder for the reset warning", err);
+  }
+
+  return (
+    `This deletes ${pluralise(questionCount, "question")} and ` +
+    `${pluralise(attemptCount, "attempt")}${size}. This can't be undone.`
+  );
+}
+
 async function resetAllData() {
   const confirmed = await showConfirm({
     title: "Reset all data?",
-    message: "This deletes every question, every attempt, and every recorded video. This can't be undone.",
+    message: await buildResetWarning(),
     confirmLabel: "Reset everything",
     danger: true,
     requireTypedWord: "DELETE",

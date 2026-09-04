@@ -535,6 +535,10 @@ export function getAttemptCountForQuestion(questionId) {
   return attempts.filter((a) => a.questionId === questionId).length;
 }
 
+export function getAttemptCount() {
+  return attempts.length;
+}
+
 export function clearReviewing() {
   setReviewingHighlight(null);
 }
