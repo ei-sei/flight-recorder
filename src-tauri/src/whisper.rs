@@ -289,14 +289,21 @@ mod backend {
         // looking sentences over silence; the caller cross-checks segment
         // times against measured mic activity for that.
         params.set_suppress_nst(true);
-        // No temperature fallback. When decoding fails whisper's confidence
-        // checks it re-runs the SAME audio at successively higher
-        // temperatures, up to six passes, and quiet or low-contrast recordings
-        // trigger that constantly - a 4 minute recording was taking 5 minutes
-        // to transcribe, against the 1-2 minutes base.en should manage on CPU.
-        // The cost is that a genuinely difficult passage no longer gets those
-        // retries to rescue it. One line to put back if transcripts suffer.
-        params.set_temperature_inc(0.0);
+        // Temperature fallback stays ON (whisper's default 0.2, so up to six
+        // passes). It was briefly disabled for speed, which worked - and cost
+        // noticeably more than it bought.
+        //
+        // Those retries are precisely what rescues a passage the decoder is
+        // struggling with, and this app deliberately makes the audio harder:
+        // capture no longer applies noise suppression or auto gain control,
+        // because faithful recordings matter more than convenient ones. Taking
+        // away the safety net at the same moment as roughening the input was
+        // the wrong pair of changes to combine, and transcripts got worse.
+        //
+        // If transcription needs to be faster again, take it from somewhere
+        // that isn't accuracy: the model context is already cached, and the
+        // elapsed time is now logged so the next attempt can be measured
+        // rather than guessed at.
 
         let started = Instant::now();
         state.full(params, &pcm).map_err(|e| e.to_string())?;
