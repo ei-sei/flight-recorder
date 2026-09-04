@@ -13,6 +13,7 @@ import {
   computePaceRange,
   countFillers,
   countWords,
+  dbfs,
   formatBytes,
   formatPaceRange,
   formatTimer,
@@ -75,7 +76,25 @@ test("normalise clamps rather than letting a transient exceed full scale", () =>
 });
 
 test("normalise handles an empty buffer", () => {
-  assert.equal(normaliseForTranscription(new Float32Array(0)).length, 0);
+  assert.deepEqual(normaliseForTranscription(new Float32Array(0)), { rms: 0, gain: 1 });
+});
+
+test("normalise reports what it measured and what it did", () => {
+  // The caller logs these so how quiet a microphone really is can be read off
+  // rather than guessed at.
+  const quiet = tone(0.005);
+  const { rms, gain } = normaliseForTranscription(quiet);
+  assert.ok(Math.abs(rms - 0.005) < 1e-6, `rms should describe the input, got ${rms}`);
+  assert.ok(gain > 1 && gain <= 30, `gain should be within the cap, got ${gain}`);
+
+  assert.equal(normaliseForTranscription(tone(0.4)).gain, 1, "loud audio reports no lift");
+});
+
+test("dbfs converts to the unit microphone levels are discussed in", () => {
+  assert.equal(Math.round(dbfs(1)), 0);
+  assert.equal(Math.round(dbfs(0.1)), -20);
+  assert.equal(Math.round(dbfs(0.01)), -40);
+  assert.equal(dbfs(0), -Infinity);
 });
 
 test("rejectHallucinatedSegments keeps a segment overlapping measured speech", () => {

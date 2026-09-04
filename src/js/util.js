@@ -266,22 +266,34 @@ const SILENCE_RMS = 1e-4;
 // gain right down, whereas RMS tracks how loud the speech actually is. The
 // clamp afterwards means such a transient simply clips, which a speech model
 // does not care about.
+// Returns { rms, gain } describing what it found and what it did. The caller
+// logs these: how quiet the microphone actually is, is otherwise guesswork,
+// and guessing is a bad way to decide whether a recording needs more gain at
+// the hardware, at the OS, or in this app.
 export function normaliseForTranscription(samples) {
-  if (samples.length === 0) return samples;
+  if (samples.length === 0) return { rms: 0, gain: 1 };
 
   let sumSquares = 0;
   for (let i = 0; i < samples.length; i++) sumSquares += samples[i] * samples[i];
   const rms = Math.sqrt(sumSquares / samples.length);
-  if (rms < SILENCE_RMS) return samples;
+  if (rms < SILENCE_RMS) return { rms, gain: 1 };
 
   const gain = Math.min(TARGET_RMS / rms, MAX_NORMALISE_GAIN);
   // Already at or above the target. Leaving it alone beats quietening it.
-  if (gain <= 1) return samples;
+  if (gain <= 1) return { rms, gain: 1 };
 
   for (let i = 0; i < samples.length; i++) {
     samples[i] = Math.max(-1, Math.min(1, samples[i] * gain));
   }
-  return samples;
+  return { rms, gain };
+}
+
+// RMS as dBFS, which is the unit microphone levels are actually discussed in.
+// Speech recorded at a healthy level sits around -20; below about -40 the
+// signal is weak enough that boosting it also boosts the room.
+export function dbfs(rms) {
+  if (rms <= 0) return -Infinity;
+  return 20 * Math.log10(rms);
 }
 
 export function autosizeTextarea(el) {

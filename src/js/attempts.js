@@ -14,6 +14,7 @@ import {
   rejectHallucinatedSegments,
   computePaceRange,
   normaliseForTranscription,
+  dbfs,
 } from "./util.js";
 import { showConfirm } from "./modal.js";
 import { showContextMenu } from "./contextmenu.js";
@@ -216,7 +217,16 @@ async function extractPcmForTranscription(videoPath) {
     }
   }
 
-  normaliseForTranscription(mono);
+  // Console only, and a diagnostic about the microphone rather than anything
+  // about the user's speech. How quiet a capture really is decides whether
+  // more gain belongs at the hardware, in Windows, or in this app, and that
+  // is not a judgement to make by ear.
+  const { rms, gain } = normaliseForTranscription(mono);
+  console.info(
+    `Input level: ${dbfs(rms).toFixed(1)} dBFS` +
+      `${gain > 1 ? `, lifted ${gain.toFixed(1)}x for transcription` : " (no lift needed)"}` +
+      ` — healthy speech is around -20 dBFS, below -40 is weak`
+  );
 
   // Written next to the video so it stays inside the library folder, which is
   // the only place the fs scope and the Rust command will accept a path from.

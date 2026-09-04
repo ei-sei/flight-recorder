@@ -926,6 +926,9 @@ textarea {
   font-size: 12px;
   line-height: 1.6;
   color: var(--text-secondary);
+  /* Same reason as .review-notes below: a flex item in the panel's column,
+     and this one wraps to two rows on a narrow panel. */
+  flex-shrink: 0;
 }
 
 .review-stat-label {
@@ -938,6 +941,16 @@ textarea {
   flex-direction: column;
   gap: 6px;
   width: 100%;
+  /* Never squeezed. .recorder-panel is a flex column, so once its content
+     overflows, flex items shrink to fit instead of the panel simply
+     scrolling - and these rows hold a textarea that autosizeTextarea() has
+     given an exact pixel height, inside .notes-input's overflow: hidden. The
+     result was a long transcript being silently clipped, with the panel's
+     scrollbar sitting right there looking like it should have covered it.
+     Holding their height is what makes the panel scroll instead, which is
+     what computeAvailableHeightForVideoAndNotes() already assumes happens
+     (it deliberately leaves these rows out of the video's height budget). */
+  flex-shrink: 0;
 }
 
 .review-notes-label {
