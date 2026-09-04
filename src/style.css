@@ -1565,12 +1565,6 @@ textarea {
   grid-column: 2;
 }
 
-/* The last control in a section already has the next section's rule beneath
-   it; its own margin would double that gap. */
-.settings-section:last-of-type {
-  margin-bottom: 0;
-}
-
 /* Flex rather than block, so the ⓘ can sit inline with the label text and
    stay vertically centred against it. */
 .settings-label {
@@ -1584,17 +1578,11 @@ textarea {
 }
 
 .settings-note {
-  margin: 4px 0 0;
+  margin: 0;
   font-size: 11px;
   color: var(--text-dim);
   line-height: 1.4;
   font-variant-numeric: tabular-nums;
-}
-
-/* The status block's own note needs no top margin - the gap is the flex
-   container's. */
-.settings-status .settings-note {
-  margin-top: 0;
 }
 
 .settings-select {
