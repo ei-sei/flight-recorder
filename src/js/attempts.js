@@ -251,8 +251,14 @@ async function transcribeAttemptInBackground(attempt, speechIntervals) {
     const realtime = result.elapsed_ms > 0 ? result.audio_ms / result.elapsed_ms : 0;
     console.info(
       `Transcribed ${(result.audio_ms / 1000).toFixed(1)}s of audio in ` +
-        `${(result.elapsed_ms / 1000).toFixed(1)}s (${realtime.toFixed(2)}x real-time)`
+        `${(result.elapsed_ms / 1000).toFixed(1)}s (${realtime.toFixed(2)}x real-time), ` +
+        `${result.threads} threads`
     );
+    // The instruction sets this build can actually use. Fixed at compile time
+    // by whichever machine built the release, so it can only be read off an
+    // installed copy - and AVX2 or its absence is worth several times the
+    // speed of everything else on this path put together.
+    console.info(`Speech engine build: ${result.system_info}`);
     const segments = rejectHallucinatedSegments(
       result.segments.map((s) => ({ text: s.text, startMs: s.start_ms, endMs: s.end_ms })),
       speechIntervals

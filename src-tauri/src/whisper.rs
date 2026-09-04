@@ -32,6 +32,15 @@ pub struct TranscriptionResult {
     pub segments: Vec<TranscriptSegment>,
     pub audio_ms: u64,
     pub elapsed_ms: u64,
+    // What the shipped binary can actually use, and how hard it was allowed to
+    // work. Both are properties of the build and the machine, not of anything
+    // decided here, and neither is discoverable any other way: ggml's SIMD
+    // support is fixed at compile time by whichever runner built the release,
+    // so the only honest way to know whether a given install has AVX2 is to
+    // ask it. Transcription being several times slower than the hardware
+    // suggests is exactly the question this answers.
+    pub threads: i32,
+    pub system_info: String,
 }
 
 const MODEL_FILENAME: &str = "ggml-base.en-q5_1.bin";
@@ -263,6 +272,22 @@ mod backend {
 
     static MODEL_CACHE: OnceLock<Mutex<Option<CachedModel>>> = OnceLock::new();
 
+    // whisper.cpp defaults to 4 threads regardless of the machine, which
+    // leaves most of an 8-core box idle on the slowest operation in the app
+    // and oversubscribes a 2-core one. Capped at 8 because ggml sees little
+    // past that, and this runs in the background while the user is still
+    // using the app.
+    //
+    // available_parallelism reports LOGICAL processors, so a 4-core machine
+    // with hyperthreading asks for 8 threads over 4 physical cores. Whether
+    // that helps or hurts ggml is worth measuring rather than assuming, which
+    // is why the figure is reported back with the timing.
+    pub fn transcription_threads() -> i32 {
+        std::thread::available_parallelism()
+            .map(|n| n.get().min(8) as i32)
+            .unwrap_or(4)
+    }
+
     pub fn run_transcription(
         model_path: &Path,
         pcm: Vec<f32>,
@@ -287,16 +312,7 @@ mod backend {
         let mut state = ctx.create_state().map_err(|e| e.to_string())?;
 
         let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
-        // whisper.cpp defaults to 4 threads regardless of the machine, which
-        // leaves most of an 8-core laptop idle on the slowest operation in the
-        // app and oversubscribes a 2-core one. Capped at 8 because ggml sees
-        // little past that, and this runs in the background while the user is
-        // still using the app.
-        params.set_n_threads(
-            std::thread::available_parallelism()
-                .map(|n| n.get().min(8) as i32)
-                .unwrap_or(4),
-        );
+        params.set_n_threads(transcription_threads());
         params.set_language(Some("en"));
         params.set_print_progress(false);
         params.set_print_realtime(false);
@@ -390,6 +406,8 @@ pub async fn transcribe_recording(
             segments,
             audio_ms,
             elapsed_ms,
+            threads: backend::transcription_threads(),
+            system_info: whisper_rs::print_system_info().to_string(),
         })
     })
     .await
