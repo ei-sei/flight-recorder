@@ -863,11 +863,21 @@ textarea {
 }
 
 .current-question {
-  max-width: 560px;
+  /* No max-width here on purpose - it used to be a flat 560px regardless of
+     how wide the video actually was, so a long question wrapped early even
+     with plenty of room to spare, then crowded the record button underneath
+     it. updateViewfinderSize() in recorder.js sets an explicit width
+     matching the video itself, the same way it already does for
+     .viewfinder-meta and .camera-toggle-row. */
   text-align: center;
   color: var(--text-secondary);
   font-size: 14px;
+  line-height: 1.4;
   min-height: 20px;
+  /* A bit more than .recorder-panel's own 10px gap once this wraps to a
+     second line - the panel gap alone read as cramped against the record
+     button right underneath it. */
+  margin-bottom: 4px;
 }
 
 .viewfinder-meta {

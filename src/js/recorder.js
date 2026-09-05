@@ -1418,11 +1418,28 @@ function updateViewfinderSize() {
   // retracted).
   viewfinderMetaEl.style.width = `${finalWidth}px`;
   cameraToggleRowEl.style.width = `${finalWidth}px`;
+  // Same reasoning, and fixes a real complaint: .current-question used to
+  // carry a flat 560px CSS max-width with no relation to the actual video
+  // width, so on a wide window with plenty of room it wrapped a long
+  // question early anyway, then crowded the record button underneath it.
+  // Tying it to finalWidth lets it use exactly as much width as the video
+  // itself has to give before it needs a second line.
+  currentQuestionEl.style.width = `${finalWidth}px`;
 }
 
 function initViewfinderSizing() {
   updateViewfinderSize();
-  new ResizeObserver(updateViewfinderSize).observe(recorderPanelEl);
+  new ResizeObserver(() => {
+    updateViewfinderSize();
+    // A narrower panel wraps the same transcript/notes text into more lines,
+    // but each textarea's height was fixed at whatever scrollHeight needed
+    // at the width it was LAST sized for - autosizeTextarea only ever ran
+    // once, when the text was first shown. Without re-running it here, the
+    // extra wrapped lines a resize creates are clipped by .notes-input's
+    // overflow: hidden rather than shown.
+    if (!reviewTranscriptText.hidden) autosizeTextarea(reviewTranscriptText);
+    if (!reviewNotesRow.hidden) autosizeTextarea(reviewNotesInput);
+  }).observe(recorderPanelEl);
 }
 
 function syncPrepNotesBodyHeight() {
