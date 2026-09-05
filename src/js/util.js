@@ -210,7 +210,21 @@ export function formatPaceRange(minWpm, maxWpm) {
 //
 // Below this share of segments surviving, the filter itself is treated as the
 // unreliable party and skipped entirely - see the comment in the body.
-const MIN_SEGMENT_KEEP_RATIO = 0.25;
+//
+// Was 0.25. Proven too low by a real recording (2:34, clean single-take
+// interview answer, nothing hallucinated): whisper produced 23 correct
+// segments, the live detector's speechIntervals only covered a sliver of the
+// actual speaking time (recorded speakingRatio 1.4%), and the filter kept 8
+// of 23 - 34.8%, comfortably past the old 25% floor, so the bypass never
+// fired. It silently deleted 15 real segments, including the entire action
+// section of the answer, with nothing to indicate anything was missing.
+// 0.6 sits above that measured 34.8%, so a recording with this same failure
+// mode is now caught. It doesn't fix the live detector itself - see the
+// SPEECH_NOISE_MULTIPLIER comment in recorder.js - it only stops that
+// detector's mistakes from being allowed to delete real words, which the
+// function's own original design principle already called worse than
+// keeping an occasional invented sentence.
+const MIN_SEGMENT_KEEP_RATIO = 0.6;
 
 export function rejectHallucinatedSegments(segments, speechIntervals) {
   if (!Array.isArray(speechIntervals) || speechIntervals.length === 0) return segments;

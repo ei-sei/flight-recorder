@@ -137,6 +137,28 @@ test("rejectHallucinatedSegments gives up rather than blank the transcript", () 
   assert.equal(rejectHallucinatedSegments(segments, [[0, 500]]).length, 5);
 });
 
+test("rejectHallucinatedSegments does not let a degraded live detector delete a real transcript", () => {
+  // A real production incident, reproduced at the same ratio. A 2:34
+  // single-take interview answer - nothing invented, confirmed by running
+  // the exact PCM directly through whisper outside the app - came back as
+  // 23 correct segments. The live mic-level detector only registered
+  // speechIntervals covering a sliver of the actual talking (measured
+  // speakingRatio on the attempt: 1.4%), so only 8 of the 23 segments
+  // overlapped anything - 34.8%. The old 0.25 floor let that through as a
+  // real filtering decision, and it silently deleted 15 segments including
+  // the entire action section of the answer.
+  const segments = Array.from({ length: 23 }, (_, i) => ({
+    text: `segment ${i}`,
+    startMs: i * 1000,
+    endMs: i * 1000 + 900,
+  }));
+  // Only the first 8 overlap a measured interval - the same 34.8% ratio as
+  // the incident.
+  const speechIntervals = segments.slice(0, 8).map((s) => [s.startMs, s.endMs]);
+  const kept = rejectHallucinatedSegments(segments, speechIntervals);
+  assert.equal(kept.length, 23, "34.8% is a real transcript, not a hallucination - must not be filtered");
+});
+
 test("computePaceRange ignores segments too short to be meaningful", () => {
   const segments = [
     { text: "two words", startMs: 0, endMs: 1000 },
