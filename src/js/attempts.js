@@ -10,11 +10,11 @@ import {
   abbreviateQuestion,
   formatDuration,
   renderStars,
-  countWords,
   rejectHallucinatedSegments,
   computePaceRange,
   normaliseForTranscription,
   dbfs,
+  joinWordsWithPauses,
 } from "./util.js";
 import { showConfirm } from "./modal.js";
 import { showContextMenu } from "./contextmenu.js";
@@ -260,16 +260,26 @@ async function transcribeAttemptInBackground(attempt, speechIntervals) {
     // speed of everything else on this path put together.
     console.info(`Speech engine build: ${result.system_info}`);
     const segments = rejectHallucinatedSegments(
-      result.segments.map((s) => ({ text: s.text, startMs: s.start_ms, endMs: s.end_ms })),
+      result.segments.map((s) => ({
+        text: s.text,
+        startMs: s.start_ms,
+        endMs: s.end_ms,
+        words: s.words.map((w) => ({ text: w.text, startMs: w.start_ms, endMs: w.end_ms })),
+      })),
       speechIntervals
     );
 
-    const transcript = segments
-      .map((s) => s.text)
-      .join("")
-      .trim();
+    // Built from words, not from segments.map(s => s.text).join(""), so a
+    // real gap shows up wherever it actually falls - including inside a
+    // segment, and including the span where a whole segment was dropped
+    // above, which otherwise vanishes with nothing to show it was ever there.
+    const words = segments.flatMap((s) => s.words);
+    const transcript = joinWordsWithPauses(words).trim();
     const elapsedMinutes = attempt.durationMs / 60000;
-    const wpm = transcript && elapsedMinutes > 0 ? countWords(transcript) / elapsedMinutes : null;
+    // words.length, not countWords(transcript) - that would split on the
+    // ellipsis's surrounding spaces and count "…" itself as a word,
+    // inflating wpm on any transcript with a marked pause in it.
+    const wpm = words.length > 0 && elapsedMinutes > 0 ? words.length / elapsedMinutes : null;
     const { minWpm, maxWpm } = computePaceRange(segments);
 
     await updateAttemptTranscript(attempt.id, {

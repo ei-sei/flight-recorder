@@ -20,6 +20,18 @@ pub struct TranscriptSegment {
     pub text: String,
     pub start_ms: i64,
     pub end_ms: i64,
+    // Present so the frontend can detect a gap between any two consecutive
+    // words and mark it, independent of where whisper happened to draw its
+    // segment boundaries - those are ~30s decode windows, not sentences or
+    // pauses, so a real gap in the middle of one would otherwise be invisible.
+    pub words: Vec<Word>,
+}
+
+#[derive(serde::Serialize)]
+pub struct Word {
+    pub text: String,
+    pub start_ms: i64,
+    pub end_ms: i64,
 }
 
 // Carries how long transcription took alongside the result. Tuning this path
@@ -324,6 +336,14 @@ mod backend {
         // looking sentences over silence; the caller cross-checks segment
         // times against measured mic activity for that.
         params.set_suppress_nst(true);
+        // Per-token timing, so words can be reconstructed with start/end times
+        // - see the merge loop below. This is whisper's plain per-token
+        // estimate (signal energy plus the decoder's own timestamp tokens),
+        // not the experimental DTW alignment: DTW needs a per-model attention-
+        // head preset and a dedicated 128MB buffer for a more precise result
+        // this doesn't need - placing an ellipsis at a multi-hundred-
+        // millisecond gap doesn't need frame-accurate boundaries.
+        params.set_token_timestamps(true);
         // Temperature fallback stays ON (whisper's default 0.2, so up to six
         // passes). It was briefly disabled for speed, which worked - and cost
         // noticeably more than it bought.
@@ -344,6 +364,11 @@ mod backend {
         state.full(params, &pcm).map_err(|e| e.to_string())?;
         let elapsed_ms = started.elapsed().as_millis() as u64;
 
+        // Anything at or past this id is a control or timestamp token, not
+        // transcript text - eot itself, language/task tokens, and the 1500
+        // timestamp tokens all sit beyond it in whisper's vocabulary layout.
+        let eot = ctx.token_eot();
+
         let num_segments = state.full_n_segments().map_err(|e| e.to_string())?;
         let mut segments = Vec::with_capacity(num_segments as usize);
         for i in 0..num_segments {
@@ -351,14 +376,65 @@ mod backend {
             if text.trim().is_empty() {
                 continue;
             }
+            let words = words_in_segment(&state, i, eot)?;
             // whisper reports these in centiseconds.
             segments.push(TranscriptSegment {
                 text,
                 start_ms: state.full_get_segment_t0(i).map_err(|e| e.to_string())? * 10,
                 end_ms: state.full_get_segment_t1(i).map_err(|e| e.to_string())? * 10,
+                words,
             });
         }
         Ok((segments, elapsed_ms))
+    }
+
+    // Whisper emits sub-word BPE tokens, not words - "Juniper" can arrive as
+    // "Jun" + "iper". Its tokenizer marks the start of a new word with a
+    // leading space on the token's own decoded text (the standard GPT-2/BPE
+    // convention), so a token that starts with one begins a new word and
+    // everything else continues the current one. Special and timestamp
+    // tokens (id >= eot) carry no transcript text and are dropped rather
+    // than merged in.
+    fn words_in_segment(
+        state: &whisper_rs::WhisperState,
+        segment: i32,
+        eot: whisper_rs::WhisperToken,
+    ) -> Result<Vec<super::Word>, String> {
+        let n_tokens = state.full_n_tokens(segment).map_err(|e| e.to_string())?;
+        let mut words: Vec<super::Word> = Vec::new();
+        for j in 0..n_tokens {
+            let id = state
+                .full_get_token_id(segment, j)
+                .map_err(|e| e.to_string())?;
+            if id >= eot {
+                continue;
+            }
+            let text = state
+                .full_get_token_text_lossy(segment, j)
+                .map_err(|e| e.to_string())?;
+            if text.is_empty() {
+                continue;
+            }
+            let data = state
+                .full_get_token_data(segment, j)
+                .map_err(|e| e.to_string())?;
+            // whisper reports these in centiseconds, same as segment times.
+            let start_ms = data.t0 * 10;
+            let end_ms = data.t1 * 10;
+
+            let starts_new_word = text.starts_with(' ') || words.is_empty();
+            if starts_new_word {
+                words.push(super::Word {
+                    text: text.trim_start().to_string(),
+                    start_ms,
+                    end_ms,
+                });
+            } else if let Some(last) = words.last_mut() {
+                last.text.push_str(&text);
+                last.end_ms = end_ms;
+            }
+        }
+        Ok(words)
     }
 }
 

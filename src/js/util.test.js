@@ -17,11 +17,16 @@ import {
   formatBytes,
   formatPaceRange,
   formatTimer,
+  joinWordsWithPauses,
   normaliseForTranscription,
   pluralise,
   rejectHallucinatedSegments,
   slugify,
 } from "./util.js";
+
+function word(text, startMs, endMs) {
+  return { text, startMs, endMs };
+}
 
 // Helper: a constant-amplitude square wave, so RMS equals the amplitude and
 // the expected gain is arithmetic rather than guesswork.
@@ -157,6 +162,41 @@ test("rejectHallucinatedSegments does not let a degraded live detector delete a 
   const speechIntervals = segments.slice(0, 8).map((s) => [s.startMs, s.endMs]);
   const kept = rejectHallucinatedSegments(segments, speechIntervals);
   assert.equal(kept.length, 23, "34.8% is a real transcript, not a hallucination - must not be filtered");
+});
+
+test("joinWordsWithPauses joins ordinary words with plain spaces", () => {
+  const words = [word("Hello", 0, 300), word("there", 350, 600)];
+  assert.equal(joinWordsWithPauses(words), "Hello there");
+});
+
+test("joinWordsWithPauses marks a gap at or past the threshold", () => {
+  const words = [word("Hello", 0, 300), word("there", 1100, 1400)];
+  // 1100 - 300 = 800ms, past the default 700ms.
+  assert.equal(joinWordsWithPauses(words), "Hello … there");
+});
+
+test("joinWordsWithPauses does not mark ordinary word-to-word spacing", () => {
+  const words = [word("Hello", 0, 300), word("there", 350, 600)];
+  // 350 - 300 = 50ms - normal, not a pause.
+  assert.equal(joinWordsWithPauses(words), "Hello there");
+  assert.ok(!joinWordsWithPauses(words).includes("…"));
+});
+
+test("joinWordsWithPauses respects a custom threshold", () => {
+  const words = [word("Hello", 0, 300), word("there", 500, 800)];
+  // 200ms gap: not a pause at the default 700ms, is one at 100ms.
+  assert.equal(joinWordsWithPauses(words), "Hello there");
+  assert.equal(joinWordsWithPauses(words, 100), "Hello … there");
+});
+
+test("joinWordsWithPauses can mark more than one gap", () => {
+  const words = [word("One", 0, 300), word("two", 1200, 1500), word("three", 2400, 2700)];
+  assert.equal(joinWordsWithPauses(words), "One … two … three");
+});
+
+test("joinWordsWithPauses handles zero and one words", () => {
+  assert.equal(joinWordsWithPauses([]), "");
+  assert.equal(joinWordsWithPauses([word("Solo", 0, 300)]), "Solo");
 });
 
 test("computePaceRange ignores segments too short to be meaningful", () => {
