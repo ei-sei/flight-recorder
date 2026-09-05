@@ -274,7 +274,7 @@ async function transcribeAttemptInBackground(attempt, speechIntervals) {
     // segment, and including the span where a whole segment was dropped
     // above, which otherwise vanishes with nothing to show it was ever there.
     const words = segments.flatMap((s) => s.words);
-    const transcript = joinWordsWithPauses(words).trim();
+    const transcript = joinWordsWithPauses(words, speechIntervals).trim();
     const elapsedMinutes = attempt.durationMs / 60000;
     // words.length, not countWords(transcript) - that would split on the
     // ellipsis's surrounding spaces and count "…" itself as a word,

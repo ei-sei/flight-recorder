@@ -241,39 +241,62 @@ export function rejectHallucinatedSegments(segments, speechIntervals) {
   return kept;
 }
 
-// How long a gap between two consecutive words has to be before it's shown
-// as a pause rather than read as ordinary word-to-word spacing.
-//
-// NOT the same value as PAUSE_MIN_MS (1200) in recorder.js, on purpose, and
-// this is worth explaining because reusing that constant was the obvious
-// first instinct. That 1200ms is tuned against live mic-level silence -
-// genuine dead air. Whisper's own per-word timestamps are measured
-// differently (signal energy plus the decoder's timestamp tokens - see
-// run_transcription in whisper.rs) and, on two full real recordings used to
-// tune this, never produced a SINGLE gap past 1200ms: a fluent four-minute
-// reading topped out around 990ms at its most dramatic sentence break, and
-// an interview answer with genuinely rambling delivery showed nothing past
-// 500ms anywhere. Whisper represents audio as continuous speech far more
-// readily than a person actually delivers it continuously, so its gaps run
-// smaller across the board. 700ms sits above the largest gap seen in either
-// real test, so it won't fire on ordinary breathing, while staying below
-// where this specific mechanism's gaps actually seem to top out - reused
-// PAUSE_MIN_MS verbatim would have shown nothing, ever, in either recording.
-const WORD_GAP_PAUSE_MS = 700;
+// Same bar recorder.js's trackPauses uses for pauseCount/longestPauseMs -
+// deliberately, not a separately-tuned value. This used to be its own
+// constant (700ms) tuned against whisper's own per-word gaps, on the
+// assumption those gaps reflected real silence. Direct testing against two
+// real recordings proved that wrong: one had a pause the live mic-level
+// detector measured at 37 seconds, and whisper reported the words either
+// side of it touching with a 0ms gap, not a large one - its plain per-token
+// timestamps just don't preserve real pause duration once a gap runs past
+// roughly a second. That made the ellipsis fire on nothing, ever, in real
+// use. The live detector's speechIntervals is the only signal here that's
+// actually measuring silence; whisper's word timestamps are only trustworthy
+// enough to say *which pair of words* a real pause falls between, not
+// whether one happened at all - see pauseWindows and joinWordsWithPauses.
+const PAUSE_MIN_MS = 1200;
+
+// Turns the live detector's speech-active stretches into the silences
+// between them, applying the same threshold trackPauses does so a pause the
+// review screen counts is also a pause the transcript marks.
+function pauseWindows(speechIntervals) {
+  const windows = [];
+  for (let i = 1; i < speechIntervals.length; i++) {
+    const gapStart = speechIntervals[i - 1][1];
+    const gapEnd = speechIntervals[i][0];
+    if (gapEnd - gapStart >= PAUSE_MIN_MS) windows.push([gapStart, gapEnd]);
+  }
+  return windows;
+}
 
 // Reconstructs the transcript from individual words rather than whole
-// segments, marking a real gap wherever one falls - including inside a
+// segments, marking a real pause wherever one falls - including inside a
 // segment, and including the span where an entire segment was dropped by
 // rejectHallucinatedSegments, which otherwise vanishes with nothing to show
 // it was ever there. Segments are ~30s decode windows, not sentences, so a
 // mid-answer hesitation the user actually wants to see would otherwise be
 // invisible in the middle of one.
-export function joinWordsWithPauses(words, gapMs = WORD_GAP_PAUSE_MS) {
+//
+// Pause locations come from speechIntervals (real mic-level silence, see
+// recorder.js), not from whisper's own word-to-word gap - see the comment on
+// PAUSE_MIN_MS above for why that gap can't be trusted. Whisper's word
+// timestamps are used only to find which pair of words a real pause falls
+// between: for each pause, the first word starting at or after it marks
+// where the ellipsis goes. A pause before the first surviving word or after
+// the last isn't marked - there's no adjacent word to attach it to, and the
+// response delay and any trailing silence are already measured elsewhere.
+export function joinWordsWithPauses(words, speechIntervals = []) {
   if (words.length === 0) return "";
+  const pauseBeforeWord = new Set();
+  let wordIdx = 0;
+  for (const [gapStart] of pauseWindows(speechIntervals)) {
+    while (wordIdx < words.length && words[wordIdx].startMs < gapStart) wordIdx++;
+    if (wordIdx > 0 && wordIdx < words.length) pauseBeforeWord.add(wordIdx);
+  }
+
   let out = words[0].text;
   for (let i = 1; i < words.length; i++) {
-    const gap = words[i].startMs - words[i - 1].endMs;
-    out += gap >= gapMs ? " … " : " ";
+    out += pauseBeforeWord.has(i) ? " … " : " ";
     out += words[i].text;
   }
   return out;

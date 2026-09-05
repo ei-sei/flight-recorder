@@ -164,39 +164,71 @@ test("rejectHallucinatedSegments does not let a degraded live detector delete a 
   assert.equal(kept.length, 23, "34.8% is a real transcript, not a hallucination - must not be filtered");
 });
 
-test("joinWordsWithPauses joins ordinary words with plain spaces", () => {
+test("joinWordsWithPauses joins ordinary words with plain spaces when nothing paused", () => {
   const words = [word("Hello", 0, 300), word("there", 350, 600)];
-  assert.equal(joinWordsWithPauses(words), "Hello there");
+  assert.equal(joinWordsWithPauses(words, [[0, 600]]), "Hello there");
 });
 
-test("joinWordsWithPauses marks a gap at or past the threshold", () => {
-  const words = [word("Hello", 0, 300), word("there", 1100, 1400)];
-  // 1100 - 300 = 800ms, past the default 700ms.
-  assert.equal(joinWordsWithPauses(words), "Hello … there");
+test("joinWordsWithPauses marks a real pause between two speech-active stretches", () => {
+  // Whisper reports these as touching (a 10ms gap) - exactly the failure
+  // mode that broke this feature. The live detector saw the words on either
+  // side as two separate speech intervals with a 1500ms silence between.
+  const words = [word("Hello", 0, 300), word("there", 310, 600)];
+  const speechIntervals = [
+    [0, 300],
+    [1800, 2100],
+  ];
+  assert.equal(joinWordsWithPauses(words, speechIntervals), "Hello … there");
 });
 
-test("joinWordsWithPauses does not mark ordinary word-to-word spacing", () => {
+test("joinWordsWithPauses does not mark a gap shorter than the pause threshold", () => {
   const words = [word("Hello", 0, 300), word("there", 350, 600)];
-  // 350 - 300 = 50ms - normal, not a pause.
-  assert.equal(joinWordsWithPauses(words), "Hello there");
-  assert.ok(!joinWordsWithPauses(words).includes("…"));
+  // Only 100ms between the speech-active stretches - not a pause.
+  const speechIntervals = [
+    [0, 300],
+    [400, 600],
+  ];
+  const result = joinWordsWithPauses(words, speechIntervals);
+  assert.equal(result, "Hello there");
+  assert.ok(!result.includes("…"));
 });
 
-test("joinWordsWithPauses respects a custom threshold", () => {
-  const words = [word("Hello", 0, 300), word("there", 500, 800)];
-  // 200ms gap: not a pause at the default 700ms, is one at 100ms.
-  assert.equal(joinWordsWithPauses(words), "Hello there");
-  assert.equal(joinWordsWithPauses(words, 100), "Hello … there");
+test("joinWordsWithPauses can mark more than one pause", () => {
+  const words = [word("One", 0, 300), word("two", 1600, 1900), word("three", 3200, 3500)];
+  const speechIntervals = [
+    [0, 300],
+    [1600, 1900],
+    [3200, 3500],
+  ];
+  assert.equal(joinWordsWithPauses(words, speechIntervals), "One … two … three");
 });
 
-test("joinWordsWithPauses can mark more than one gap", () => {
-  const words = [word("One", 0, 300), word("two", 1200, 1500), word("three", 2400, 2700)];
-  assert.equal(joinWordsWithPauses(words), "One … two … three");
+test("joinWordsWithPauses does not mark a pause before the first word or after the last", () => {
+  const words = [word("Solo", 1000, 1300)];
+  // A pause before the first word (response delay) and one after the last
+  // (trailing silence) - neither has an adjacent word to attach to.
+  const speechIntervals = [
+    [1000, 1300],
+    [3000, 3300],
+  ];
+  assert.equal(joinWordsWithPauses(words, speechIntervals), "Solo");
+});
+
+test("joinWordsWithPauses ignores whisper's own word gap entirely", () => {
+  // A large gap by whisper's own timestamps, but the live detector recorded
+  // continuous speech - not a real pause, so it must not be marked.
+  const words = [word("Hello", 0, 300), word("there", 5000, 5300)];
+  assert.equal(joinWordsWithPauses(words, [[0, 5300]]), "Hello there");
 });
 
 test("joinWordsWithPauses handles zero and one words", () => {
-  assert.equal(joinWordsWithPauses([]), "");
-  assert.equal(joinWordsWithPauses([word("Solo", 0, 300)]), "Solo");
+  assert.equal(joinWordsWithPauses([], [[0, 300]]), "");
+  assert.equal(joinWordsWithPauses([word("Solo", 0, 300)], [[0, 300]]), "Solo");
+});
+
+test("joinWordsWithPauses handles no speechIntervals at all", () => {
+  const words = [word("Hello", 0, 300), word("there", 350, 600)];
+  assert.equal(joinWordsWithPauses(words), "Hello there");
 });
 
 test("computePaceRange ignores segments too short to be meaningful", () => {
