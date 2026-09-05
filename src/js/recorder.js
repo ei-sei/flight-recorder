@@ -76,7 +76,22 @@ const { listen } = window.__TAURI__.event;
 // built-in array - more so with auto gain control off, but a fixed
 // threshold was never reliable even with it on. Track the noise floor
 // instead and require speech to sit well clear of it.
-const SPEECH_NOISE_MULTIPLIER = 4;
+//
+// Was 4 until real recordings made after auto gain control and noise
+// suppression came off (see acquireStream) proved it too demanding. Five
+// attempts recorded that way were simulated tick-by-tick against the exact
+// algorithm below: four showed 0% speakingRatio and a null response delay -
+// total detection failure on recordings whisper transcribed as fluent,
+// complete answers - and the fifth showed only 3.4%. The common cause: with
+// processing off, ordinary speech in a normal room often sits at only 2-3x
+// the local noise floor, not the 4x this required. 3 and 2.5 were tried
+// first and both still left some of those five recordings badly broken (one
+// showed a 176-second "response delay"); only 2 resolved all five into
+// plausible figures. Checked against a recording from before this
+// regression too, where the algorithm was already working correctly (65%
+// speakingRatio, sane pause structure) - at 2 its numbers barely move,
+// confirming this isn't just trading one failure mode for another.
+const SPEECH_NOISE_MULTIPLIER = 2;
 // Still needs an absolute floor: in a silent room the tracked floor tends to
 // zero, and any multiple of nearly-zero is nearly-zero.
 const SPEECH_RMS_FLOOR = 0.01;
