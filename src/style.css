@@ -565,7 +565,7 @@ textarea {
   align-items: flex-start;
   justify-content: space-between;
   gap: 8px;
-  padding: 11px 13px;
+  padding: 8px 10px;
   margin-bottom: 4px;
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
@@ -639,8 +639,14 @@ textarea {
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
   color: var(--text-primary);
-  padding: 9px 11px;
+  padding: 7px 11px;
   transition: border-color var(--ease), box-shadow var(--ease);
+}
+
+/* Scoped to this one button rather than the shared .btn rule, so tightening
+   this form's box doesn't shrink every other button in the app. */
+.add-question-form .btn {
+  padding: 7px 16px;
 }
 
 .add-question-form input:focus {
@@ -699,7 +705,7 @@ textarea {
   border-color: var(--record-glow);
   color: var(--record);
   font-weight: 600;
-  padding: 11px 32px;
+  padding: 10px 22px;
   border-radius: 999px;
 }
 
@@ -1661,8 +1667,8 @@ textarea {
 .attempt-item {
   display: flex;
   gap: 12px;
-  padding: 13px 14px;
-  margin-bottom: 6px;
+  padding: 9px 11px;
+  margin-bottom: 5px;
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
   background-color: var(--item-tint);
@@ -1692,7 +1698,7 @@ textarea {
   gap: 8px;
   font-size: 11px;
   color: var(--text-dim);
-  margin-bottom: 8px;
+  margin-bottom: 5px;
 }
 
 .attempt-item-meta {
@@ -1715,9 +1721,9 @@ textarea {
 }
 
 .attempt-item-question {
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1.45;
-  margin-bottom: 8px;
+  margin-bottom: 5px;
 }
 
 .attempt-list-empty {
@@ -1852,6 +1858,8 @@ textarea {
    the attempt in the review panel. */
 .attempt-item-notes {
   max-height: 64px;
+  min-height: 0;
+  padding: 5px 7px;
   line-height: 1.4;
   overflow: hidden;
 }
