@@ -33,9 +33,9 @@ Once installed, updates are handled in-app: Help → Check for updates, or the b
 
 - **[Tauri](https://tauri.app)** (v2) - Rust backend, paired with each OS's native webview (WebView2 on Windows, WebKitGTK on Linux, WKWebView on macOS) instead of bundling Chromium, which keeps the install small.
 - **Frontend**: plain HTML/CSS/JS - no React, Vue, or bundler. ES modules loaded directly by the webview.
-- **Plugins**: `tauri-plugin-store` (question/attempt/settings persistence), `tauri-plugin-fs` (video files), `tauri-plugin-opener` (reveal-in-folder, external links), `tauri-plugin-window-state`, `tauri-plugin-updater` + `tauri-plugin-process` (auto-updates).
+- **Plugins**: `tauri-plugin-store` (question/attempt/settings persistence), `tauri-plugin-fs` (video files), `tauri-plugin-opener` (reveal-in-folder, external links), `tauri-plugin-window-state`, `tauri-plugin-updater` + `tauri-plugin-process` (auto-updates), `tauri-plugin-single-instance` (a second launch focuses the existing window instead of starting a competing one).
 - Camera/mic capture and recording use standard `getUserMedia`/`MediaRecorder` Web APIs - no native plugin needed for that part.
-- **Speech-to-text**: [`whisper-rs`](https://github.com/tazz4843/whisper-rs) (whisper.cpp bindings) running locally, with [`symphonia`](https://github.com/pdeljanov/Symphonia) to decode the recording's audio track and [`rubato`](https://github.com/HEnquist/rubato) to resample it to the 16kHz mono Whisper expects. All pure Rust - no ffmpeg dependency.
+- **Speech-to-text**: [`whisper-rs`](https://github.com/tazz4843/whisper-rs) (whisper.cpp bindings) running locally. The recording's audio is decoded to 16kHz mono PCM in the webview itself (via `decodeAudioData`), not in Rust - Chromium's MP4 muxer omits a box that Rust demuxers expect, so decoding on the Rust side never worked reliably across platforms. Rust just reads the PCM whisper.cpp needs.
 
 ## Project structure
 
@@ -52,7 +52,8 @@ flight-recorder/
 │       ├── store.js          tauri-plugin-store wrapper
 │       ├── modal.js          Confirm/alert dialogs
 │       ├── contextmenu.js    Custom right-click and menu-bar dropdowns
-│       └── util.js           Formatting, slugify, filenames, transcript analysis
+│       ├── util.js           Formatting, slugify, filenames, transcript analysis
+│       └── util.test.js      Unit tests for util.js (node --test, no deps)
 ├── src-tauri/              Rust backend
 │   ├── src/
 │   │   ├── lib.rs            Plugin registration, window icon, commands
@@ -127,6 +128,10 @@ Releases are signed with a minisign-style keypair (`tauri signer generate`); the
 ## Design language
 
 Dark, sleek, flat editor-style chrome: panels are tightly packed with a small gap and each has its own complete hairline border (no shared dividers, no rounded corners, no drop shadows), with a permanent left activity rail selecting sidebar content. Blue/indigo as the primary accent, red for recording/destructive actions, gold for star ratings, segmented pill-style filter tabs as the one deliberately rounded control, monospace timers and numeric readouts, sentence-case labels, compact/efficient spacing.
+
+## License
+
+[MIT](LICENSE)
 
 ## Acknowledgments
 

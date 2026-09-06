@@ -5,8 +5,7 @@ description = "Practise job interviews on webcam, entirely on your own machine."
 authors = ["ei-sei"]
 edition = "2021"
 repository = "https://github.com/ei-sei/flight-recorder"
-# No `license` field on purpose - the repo has no LICENSE file, so there is
-# nothing to declare here yet. Worth adding both together.
+license = "MIT"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
