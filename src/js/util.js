@@ -241,30 +241,34 @@ export function rejectHallucinatedSegments(segments, speechIntervals) {
   return kept;
 }
 
-// Same bar recorder.js's trackPauses uses for pauseCount/longestPauseMs -
-// deliberately, not a separately-tuned value. This used to be its own
-// constant (700ms) tuned against whisper's own per-word gaps, on the
-// assumption those gaps reflected real silence. Direct testing against two
-// real recordings proved that wrong: one had a pause the live mic-level
-// detector measured at 37 seconds, and whisper reported the words either
-// side of it touching with a 0ms gap, not a large one - its plain per-token
-// timestamps just don't preserve real pause duration once a gap runs past
-// roughly a second. That made the ellipsis fire on nothing, ever, in real
-// use. The live detector's speechIntervals is the only signal here that's
-// actually measuring silence; whisper's word timestamps are only trustworthy
-// enough to say *which pair of words* a real pause falls between, not
-// whether one happened at all - see pauseWindows and joinWordsWithPauses.
-const PAUSE_MIN_MS = 1200;
+// NOT recorder.js's PAUSE_MIN_MS (1200) - deliberately higher, and this is
+// the second time this constant has needed correcting, so the reasoning is
+// worth spelling out. Pause *location* comes from speechIntervals (the live
+// mic-level detector); it's the right signal (see the comment on
+// joinWordsWithPauses for why whisper's own word gaps can't be trusted for
+// this), but reusing trackPauses's own bar for what counts as "real" was
+// still wrong. Tested directly against a real 166s recording that a user
+// reported as full of ellipses on ordinary speech: the live detector's own
+// pauseCount was 33, and simulating its algorithm tick-by-tick against the
+// actual audio to get each pause's real duration showed why - 18 of them
+// sat in a narrow 1200-1800ms band right above the detector's threshold,
+// consistent with ordinary breath/word-boundary dips barely crossing it
+// rather than real hesitation. Only from around 2500ms up did a pause look
+// like something a listener would actually notice. pauseCount itself is
+// left alone at 1200 - it's an aggregate a reader takes in as one number,
+// where a slightly generous count costs little. An ellipsis is read one at a
+// time inline in the transcript, where the same borderline detections read
+// as constant hesitation instead.
+const ELLIPSIS_PAUSE_MIN_MS = 2500;
 
 // Turns the live detector's speech-active stretches into the silences
-// between them, applying the same threshold trackPauses does so a pause the
-// review screen counts is also a pause the transcript marks.
+// between them.
 function pauseWindows(speechIntervals) {
   const windows = [];
   for (let i = 1; i < speechIntervals.length; i++) {
     const gapStart = speechIntervals[i - 1][1];
     const gapEnd = speechIntervals[i][0];
-    if (gapEnd - gapStart >= PAUSE_MIN_MS) windows.push([gapStart, gapEnd]);
+    if (gapEnd - gapStart >= ELLIPSIS_PAUSE_MIN_MS) windows.push([gapStart, gapEnd]);
   }
   return windows;
 }
@@ -279,8 +283,8 @@ function pauseWindows(speechIntervals) {
 //
 // Pause locations come from speechIntervals (real mic-level silence, see
 // recorder.js), not from whisper's own word-to-word gap - see the comment on
-// PAUSE_MIN_MS above for why that gap can't be trusted. Whisper's word
-// timestamps are used only to find which pair of words a real pause falls
+// ELLIPSIS_PAUSE_MIN_MS above for why that gap can't be trusted. Whisper's
+// word timestamps are used only to find which pair of words a real pause falls
 // between: for each pause, the first word starting at or after it marks
 // where the ellipsis goes. A pause before the first surviving word or after
 // the last isn't marked - there's no adjacent word to attach it to, and the

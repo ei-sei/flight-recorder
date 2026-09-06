@@ -172,11 +172,11 @@ test("joinWordsWithPauses joins ordinary words with plain spaces when nothing pa
 test("joinWordsWithPauses marks a real pause between two speech-active stretches", () => {
   // Whisper reports these as touching (a 10ms gap) - exactly the failure
   // mode that broke this feature. The live detector saw the words on either
-  // side as two separate speech intervals with a 1500ms silence between.
+  // side as two separate speech intervals with a 2900ms silence between.
   const words = [word("Hello", 0, 300), word("there", 310, 600)];
   const speechIntervals = [
     [0, 300],
-    [1800, 2100],
+    [3200, 3500],
   ];
   assert.equal(joinWordsWithPauses(words, speechIntervals), "Hello … there");
 });
@@ -193,23 +193,39 @@ test("joinWordsWithPauses does not mark a gap shorter than the pause threshold",
   assert.ok(!result.includes("…"));
 });
 
-test("joinWordsWithPauses can mark more than one pause", () => {
-  const words = [word("One", 0, 300), word("two", 1600, 1900), word("three", 3200, 3500)];
+test("joinWordsWithPauses does not mark a gap that trackPauses would count as a pause but isn't a large one", () => {
+  // 1700ms clears recorder.js's own PAUSE_MIN_MS (1200) - trackPauses would
+  // count this as a real pause for pauseCount - but sits well under this
+  // feature's higher ELLIPSIS_PAUSE_MIN_MS bar, which real-recording testing
+  // showed is needed: most pauses right above 1200ms are ordinary breath or
+  // word-boundary dips, not something a reader should see marked inline.
+  const words = [word("Hello", 0, 300), word("there", 2000, 2300)];
   const speechIntervals = [
     [0, 300],
-    [1600, 1900],
-    [3200, 3500],
+    [2000, 2300],
+  ];
+  const result = joinWordsWithPauses(words, speechIntervals);
+  assert.equal(result, "Hello there");
+  assert.ok(!result.includes("…"));
+});
+
+test("joinWordsWithPauses can mark more than one pause", () => {
+  const words = [word("One", 0, 300), word("two", 2900, 3200), word("three", 6100, 6400)];
+  const speechIntervals = [
+    [0, 300],
+    [2900, 3200],
+    [6100, 6400],
   ];
   assert.equal(joinWordsWithPauses(words, speechIntervals), "One … two … three");
 });
 
 test("joinWordsWithPauses does not mark a pause before the first word or after the last", () => {
-  const words = [word("Solo", 1000, 1300)];
+  const words = [word("Solo", 3000, 3300)];
   // A pause before the first word (response delay) and one after the last
   // (trailing silence) - neither has an adjacent word to attach to.
   const speechIntervals = [
-    [1000, 1300],
     [3000, 3300],
+    [6000, 6300],
   ];
   assert.equal(joinWordsWithPauses(words, speechIntervals), "Solo");
 });
