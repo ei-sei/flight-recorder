@@ -172,11 +172,11 @@ test("joinWordsWithPauses joins ordinary words with plain spaces when nothing pa
 test("joinWordsWithPauses marks a real pause between two speech-active stretches", () => {
   // Whisper reports these as touching (a 10ms gap) - exactly the failure
   // mode that broke this feature. The live detector saw the words on either
-  // side as two separate speech intervals with a 2900ms silence between.
+  // side as two separate speech intervals with a 3200ms silence between.
   const words = [word("Hello", 0, 300), word("there", 310, 600)];
   const speechIntervals = [
     [0, 300],
-    [3200, 3500],
+    [3500, 3800],
   ];
   assert.equal(joinWordsWithPauses(words, speechIntervals), "Hello … there");
 });
@@ -210,22 +210,22 @@ test("joinWordsWithPauses does not mark a gap that trackPauses would count as a 
 });
 
 test("joinWordsWithPauses can mark more than one pause", () => {
-  const words = [word("One", 0, 300), word("two", 2900, 3200), word("three", 6100, 6400)];
+  const words = [word("One", 0, 300), word("two", 3400, 3700), word("three", 7100, 7400)];
   const speechIntervals = [
     [0, 300],
-    [2900, 3200],
-    [6100, 6400],
+    [3400, 3700],
+    [7100, 7400],
   ];
   assert.equal(joinWordsWithPauses(words, speechIntervals), "One … two … three");
 });
 
 test("joinWordsWithPauses does not mark a pause before the first word or after the last", () => {
-  const words = [word("Solo", 3000, 3300)];
+  const words = [word("Solo", 3500, 3800)];
   // A pause before the first word (response delay) and one after the last
   // (trailing silence) - neither has an adjacent word to attach to.
   const speechIntervals = [
-    [3000, 3300],
-    [6000, 6300],
+    [3500, 3800],
+    [7000, 7300],
   ];
   assert.equal(joinWordsWithPauses(words, speechIntervals), "Solo");
 });

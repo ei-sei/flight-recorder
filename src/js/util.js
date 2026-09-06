@@ -253,13 +253,18 @@ export function rejectHallucinatedSegments(segments, speechIntervals) {
 // actual audio to get each pause's real duration showed why - 18 of them
 // sat in a narrow 1200-1800ms band right above the detector's threshold,
 // consistent with ordinary breath/word-boundary dips barely crossing it
-// rather than real hesitation. Only from around 2500ms up did a pause look
-// like something a listener would actually notice. pauseCount itself is
-// left alone at 1200 - it's an aggregate a reader takes in as one number,
-// where a slightly generous count costs little. An ellipsis is read one at a
-// time inline in the transcript, where the same borderline detections read
-// as constant hesitation instead.
-const ELLIPSIS_PAUSE_MIN_MS = 2500;
+// rather than real hesitation, with a second, greyer band up to about
+// 2900ms. 3000ms clears both: it's also the rough point conversational-
+// analysis research and interview coaching alike treat as where a silence
+// stops reading as normal pacing and starts reading as "they paused" - a
+// 1-2s gap while thinking is unremarkable, but a 3+ second one is what gets
+// flagged. On that same recording, 3000ms leaves 3 marked pauses (the
+// genuinely dramatic ones) instead of 33. pauseCount itself is left alone at
+// 1200 - it's an aggregate a reader takes in as one number, where a slightly
+// generous count costs little. An ellipsis is read one at a time inline in
+// the transcript, where the same borderline detections read as constant
+// hesitation instead.
+const ELLIPSIS_PAUSE_MIN_MS = 3000;
 
 // Turns the live detector's speech-active stretches into the silences
 // between them.
