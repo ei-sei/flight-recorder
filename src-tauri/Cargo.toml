@@ -37,7 +37,7 @@ serde_json = "1"
 # whisper everywhere costs Windows a C++ build and a few MB of binary, and
 # buys back an unconditional "nothing leaves this machine", one code path
 # instead of two, and WPM numbers that mean the same thing on every OS.
-whisper-rs = "0.14"
+whisper-rs = "0.16"
 # symphonia and rubato used to live here, to demux and resample the recording
 # on this side. They are gone because that could never work: Chromium's MP4
 # muxer omits the esds SLConfigDescriptor that symphonia's isomp4 reader
