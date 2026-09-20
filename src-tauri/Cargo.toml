@@ -47,3 +47,16 @@ whisper-rs = "0.14"
 # whisper.rs reads plain 16kHz f32 PCM.
 ureq = { version = "2", features = ["tls"] }
 
+[target.'cfg(target_os = "linux")'.dependencies]
+# Raw bindings to the same WebKitGTK build wry already links against here -
+# "2" resolves to whatever wry's own webkit2gtk-rs pin already put in
+# Cargo.lock (2.0.2 as of writing), so this doesn't introduce a second,
+# possibly-incompatible copy. Needed because Tauri's own API has no
+# cross-platform way to answer a camera/mic permission request - only Linux
+# requires the embedding app to answer one at all, so reaching past Tauri to
+# the raw webview is unavoidable here. v2_40 is a cumulative feature flag in
+# this binding crate, not a version requirement on the system's WebKitGTK
+# (which only needs to be at least that old) - it just gates how much of the
+# API surface the Rust bindings expose.
+webkit2gtk = { version = "2", features = ["v2_40"] }
+
