@@ -4,6 +4,17 @@ updates:
     directory: "/src-tauri"
     schedule:
       interval: "weekly"
+    ignore:
+      # RUSTSEC-2024-0429 is only fixed in glib 0.20, but Tauri's whole Linux
+      # webview stack (gtk, gdk, webkit2gtk, soup3...) is built on glib 0.18 -
+      # even the newest wry still pins gtk ^0.18 and webkit2gtk =2.0.2. The
+      # security update can never resolve, so it failed on every push. This
+      # blocks only the jump to 0.19+; a 0.18.x patch would still be offered.
+      # It's an "unsound" notice in VariantStrIter, which nothing here calls,
+      # and cargo-audit still reports it weekly. Drop this once Tauri moves
+      # past gtk 0.18.
+      - dependency-name: "glib"
+        versions: [">= 0.19"]
 
   - package-ecosystem: "npm"
     directory: "/"
