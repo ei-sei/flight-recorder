@@ -7,7 +7,6 @@ let questions = [];
 let activeCategory = "Behavioural";
 let selectedId = null;
 let onSelectionChange = () => {};
-let draggedId = null;
 let editingId = null;
 
 const listEl = document.getElementById("question-list");
@@ -38,14 +37,17 @@ function render() {
       continue;
     }
 
-    item.draggable = true;
-
     const text = document.createElement("span");
     text.className = "question-item-text";
     text.textContent = q.text;
 
     item.appendChild(text);
-    item.addEventListener("click", () => selectQuestion(q.id));
+    item.addEventListener("click", () => {
+      // The click that ends a drag lands on the question that was dragged;
+      // it isn't a request to select it.
+      if (suppressNextClick) return;
+      selectQuestion(q.id);
+    });
     item.addEventListener("contextmenu", (event) => {
       event.preventDefault();
       showContextMenu(event.clientX, event.clientY, [
@@ -53,33 +55,7 @@ function render() {
         { label: "Delete question", danger: true, onClick: () => confirmDeleteQuestion(q) },
       ]);
     });
-    item.addEventListener("dragstart", (event) => {
-      draggedId = q.id;
-      event.dataTransfer.effectAllowed = "move";
-      // Real drag data, so the drag completes in every engine - WebKit
-      // won't fire drop without it, and it costs nothing in Chromium.
-      event.dataTransfer.setData("text/plain", q.id);
-      item.classList.add("dragging");
-    });
-    item.addEventListener("dragend", () => {
-      item.classList.remove("dragging");
-      clearDragOverMarkers();
-      draggedId = null;
-    });
-    item.addEventListener("dragover", (event) => {
-      if (!draggedId || draggedId === q.id) return;
-      event.preventDefault();
-      clearDragOverMarkers();
-      const before = isDropBefore(event, item);
-      item.classList.add(before ? "drag-over-before" : "drag-over-after");
-    });
-    item.addEventListener("drop", (event) => {
-      event.preventDefault();
-      if (!draggedId || draggedId === q.id) return;
-      const before = isDropBefore(event, item);
-      reorderQuestion(draggedId, q.id, before);
-      draggedId = null;
-    });
+    item.addEventListener("pointerdown", (event) => watchForDrag(event, item));
     listEl.appendChild(item);
   }
 }
@@ -148,15 +124,157 @@ async function renameQuestion(id, text) {
   render();
 }
 
-function isDropBefore(event, item) {
-  const rect = item.getBoundingClientRect();
-  return event.clientY - rect.top < rect.height / 2;
+// Reordering by dragging, with pointer events rather than HTML5 drag-and-
+// drop. That gave a translucent ghost copy under the cursor, only registered
+// a drop made directly on top of another question, and moved nothing until
+// the drop. Here the question itself follows the pointer, the others slide
+// out of its way as it goes, and letting go anywhere - including the empty
+// space below the last question - puts it where the gap is.
+//
+// Positions are worked out in the list's scrolled content coordinates, from
+// where everything sat when the drag began, so auto-scrolling a long list
+// mid-drag doesn't throw them off.
+const DRAG_THRESHOLD_PX = 4;
+const EDGE_SCROLL_PX = 32;
+const MAX_SCROLL_STEP_PX = 14;
+let drag = null;
+let suppressNextClick = false;
+
+// Every press might become a drag, but only once the pointer has moved a few
+// pixels - until then it's an ordinary click that selects the question.
+function watchForDrag(event, item) {
+  if (event.button !== 0 || drag) return;
+  const pointerId = event.pointerId;
+  const startY = event.clientY;
+  item.setPointerCapture(pointerId);
+
+  const onMove = (e) => {
+    if (e.pointerId !== pointerId) return;
+    if (!drag) {
+      if (Math.abs(e.clientY - startY) < DRAG_THRESHOLD_PX) return;
+      beginDrag(item, startY);
+    }
+    drag.pointerY = e.clientY;
+    layoutDrag();
+  };
+  const onEnd = (e) => {
+    if (e.pointerId !== pointerId) return;
+    item.removeEventListener("pointermove", onMove);
+    item.removeEventListener("pointerup", onEnd);
+    item.removeEventListener("pointercancel", onEnd);
+    if (drag) finishDrag(e.type === "pointerup");
+  };
+  item.addEventListener("pointermove", onMove);
+  item.addEventListener("pointerup", onEnd);
+  item.addEventListener("pointercancel", onEnd);
 }
 
-function clearDragOverMarkers() {
-  for (const el of listEl.querySelectorAll(".drag-over-before, .drag-over-after")) {
-    el.classList.remove("drag-over-before", "drag-over-after");
+function contentY(clientY) {
+  return clientY - listEl.getBoundingClientRect().top + listEl.scrollTop;
+}
+
+function beginDrag(item, startClientY) {
+  const items = [...listEl.querySelectorAll(".question-item")];
+  const slots = items.map((el) => {
+    const rect = el.getBoundingClientRect();
+    return { el, top: contentY(rect.top), height: rect.height };
+  });
+  const index = items.indexOf(item);
+  const gap = parseFloat(getComputedStyle(item).marginBottom) || 0;
+  drag = {
+    item,
+    id: item.dataset.id,
+    slots,
+    index,
+    target: index,
+    // How far each question it passes has to move to close the gap it left.
+    shift: slots[index].height + gap,
+    startY: contentY(startClientY),
+    pointerY: startClientY,
+    frame: requestAnimationFrame(autoScroll),
+  };
+  item.classList.add("dragging");
+  listEl.classList.add("reordering");
+}
+
+function layoutDrag() {
+  const { item, slots, index, shift } = drag;
+  const own = slots[index];
+  const offset = contentY(drag.pointerY) - drag.startY;
+
+  // Where it would land goes by the pointer, unclamped, so dragging out past
+  // the last question still means "last" whatever the questions' heights.
+  const centre = own.top + own.height / 2 + offset;
+  let target = 0;
+  slots.forEach((slot, i) => {
+    if (i !== index && slot.top + slot.height / 2 < centre) target++;
+  });
+  drag.target = target;
+
+  // What's drawn stays inside the list, rather than trailing off the panel.
+  const first = slots[0];
+  const last = slots[slots.length - 1];
+  const shown = Math.min(last.top + last.height - own.top - own.height, Math.max(first.top - own.top, offset));
+  item.style.transform = `translateY(${shown}px)`;
+
+  slots.forEach((slot, i) => {
+    if (i === index) return;
+    let move = 0;
+    if (index < i && i <= target) move = -shift;
+    else if (target <= i && i < index) move = shift;
+    slot.el.style.transform = move ? `translateY(${move}px)` : "";
+  });
+}
+
+// Scrolls a long list while the pointer is held near its top or bottom edge,
+// faster the further past the edge it is.
+function autoScroll() {
+  if (!drag) return;
+  const rect = listEl.getBoundingClientRect();
+  let step = 0;
+  if (drag.pointerY < rect.top + EDGE_SCROLL_PX) step = -(rect.top + EDGE_SCROLL_PX - drag.pointerY) / 3;
+  else if (drag.pointerY > rect.bottom - EDGE_SCROLL_PX) step = (drag.pointerY - rect.bottom + EDGE_SCROLL_PX) / 3;
+  step = Math.max(-MAX_SCROLL_STEP_PX, Math.min(MAX_SCROLL_STEP_PX, step));
+  if (step) {
+    const before = listEl.scrollTop;
+    listEl.scrollTop += step;
+    if (listEl.scrollTop !== before) layoutDrag();
   }
+  drag.frame = requestAnimationFrame(autoScroll);
+}
+
+async function finishDrag(commit) {
+  const { item, id, slots, index, target } = drag;
+  cancelAnimationFrame(drag.frame);
+  drag = null;
+  suppressNextClick = true;
+  setTimeout(() => {
+    suppressNextClick = false;
+  });
+  listEl.classList.remove("reordering");
+
+  if (!commit || target === index) {
+    // Everything glides back to where it was.
+    item.classList.remove("dragging");
+    for (const slot of slots) slot.el.style.transform = "";
+    return;
+  }
+
+  const others = slots.filter((_, i) => i !== index).map((slot) => slot.el.dataset.id);
+  const fromTop = item.getBoundingClientRect().top;
+  if (target >= others.length) await reorderQuestion(id, others[others.length - 1], false);
+  else await reorderQuestion(id, others[target], true);
+
+  // The list is redrawn in its new order; start the dropped question from
+  // where it was let go and ease it the last few pixels into its slot,
+  // instead of it jumping there.
+  const dropped = listEl.querySelector(`.question-item[data-id="${CSS.escape(id)}"]`);
+  if (!dropped) return;
+  dropped.style.transition = "none";
+  dropped.style.transform = `translateY(${fromTop - dropped.getBoundingClientRect().top}px)`;
+  dropped.getBoundingClientRect();
+  dropped.style.transition = "";
+  dropped.style.transform = "";
 }
 
 async function reorderQuestion(draggedQuestionId, targetId, before) {

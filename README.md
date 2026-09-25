@@ -18,7 +18,7 @@ Once installed, updates are handled in-app: Help → Check for updates, or the b
 
 ## Features
 
-- **Question bank** organised by category (Behavioural, Technical, Case). Add and remove your own questions.
+- **Question bank** organised by category (Behavioural, Technical, Case). Add, remove and drag to reorder your own questions.
 - **Webcam recorder** with a live viewfinder, record/stop tied to the selected question, and adjustable camera/microphone/quality (480p or 720p) in Settings. Captured at 24fps to MP4/H.264, so a library copied between machines still opens. A date/timer watermark is burned into the saved recording itself (not just shown live), and a live voice waveform is shown while recording.
 - **Prep notes** per question, in a collapsible drawer you can resize, kept visible while you record.
 - **Attempt log** - every recording is captured automatically with question, category, date, duration, and a per-question attempt number. Review any past attempt's video, rate it (1-5 stars), and add notes.
@@ -89,7 +89,7 @@ npm run build:helper   # the speech helper; only needed for Speech pace (WPM)
 npm start
 ```
 
-`npm test` runs the unit tests; `npm run test:e2e` records a take through the real UI with a fake camera and microphone (set `FR_E2E_MODEL` to a model file to include transcription).
+`npm run dev` runs it with its own library under `.dev/` (seeded with sample questions), so it can run next to an installed copy without touching your real recordings. `npm test` runs the unit tests; `npm run test:e2e` records a take through the real UI with a fake camera and microphone (set `FR_E2E_MODEL` to a model file to include transcription).
 
 ## Build installers
 

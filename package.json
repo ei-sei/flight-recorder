@@ -9,6 +9,7 @@
   "main": "electron/main.js",
   "scripts": {
     "start": "node scripts/start.js",
+    "dev": "node scripts/start.js --dev",
     "test": "node --test src/js/*.test.js electron/*.test.js scripts/*.test.js",
     "build:helper": "node scripts/build-helper.js",
     "dist": "electron-builder --publish never",
