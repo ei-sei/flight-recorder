@@ -487,6 +487,13 @@ textarea {
   transition: color var(--ease), background-color var(--ease), box-shadow var(--ease);
 }
 
+/* The attempt log fits four tabs into a column narrower than the sidebar's
+   three; at the shared 12px "Behavioural" was cut off to "Behavio…". */
+#log-filter-tabs .tab {
+  font-size: 11px;
+  padding: 7px 4px;
+}
+
 .tab:hover {
   color: var(--text-primary);
 }
@@ -551,7 +558,7 @@ textarea {
 }
 
 .question-item-text {
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1.45;
 }
 
@@ -562,7 +569,7 @@ textarea {
   border-radius: var(--radius-sm);
   color: var(--text-primary);
   font-family: inherit;
-  font-size: 13px;
+  font-size: 12px;
   padding: 3px 5px;
 }
 
@@ -591,6 +598,8 @@ textarea {
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
   color: var(--text-primary);
+  /* Matches the questions it adds to the list. */
+  font-size: 12px;
   padding: 7px 11px;
   transition: border-color var(--ease), box-shadow var(--ease);
 }
