@@ -3,6 +3,7 @@
 // too late to take effect.
 
 import { app, BrowserWindow, protocol } from "electron";
+import { spawn } from "node:child_process";
 import path from "node:path";
 
 import { libraryRoot, appDataDir, whisperHelperPath } from "./paths.js";
@@ -12,6 +13,7 @@ import { createAppHandler, createMediaHandler, APP_ORIGIN } from "./protocols.js
 import { lockDownSession, lockDownNavigation, webPreferencesFor } from "./security.js";
 import { loadWindowState, trackWindowState, MIN_WIDTH, MIN_HEIGHT } from "./window-state.js";
 import { registerIpc } from "./ipc.js";
+import { createUpdater } from "./updater.js";
 
 const SRC_DIR = path.join(import.meta.dirname, "..", "src");
 
@@ -41,11 +43,18 @@ function relaunchIfNeeded() {
   const needsMangoHudOff = Boolean(process.env.MANGOHUD) && process.env.DISABLE_MANGOHUD !== "1";
   if (!needsX11 && !needsMangoHudOff) return false;
 
-  if (needsMangoHudOff) process.env.DISABLE_MANGOHUD = "1";
+  const env = { ...process.env };
+  if (needsMangoHudOff) env.DISABLE_MANGOHUD = "1";
   const args = process.argv.slice(1);
   if (needsX11) args.push("--ozone-platform=x11");
-  // Inside an AppImage, execPath points into a mount that disappears on exit.
-  app.relaunch({ execPath: process.env.APPIMAGE || process.execPath, args });
+  // Started directly rather than with app.relaunch(). Inside an AppImage,
+  // app.relaunch's helper runs from the AppImage's mount, which disappears
+  // the moment this process exits - taking the helper with it, so the app
+  // never came back. That includes the restart after an update, which
+  // arrives without the X11 flag. Safe to overlap: nothing has taken the
+  // single-instance lock or opened a window yet.
+  const child = spawn(process.env.APPIMAGE || process.execPath, args, { env, detached: true, stdio: "ignore" });
+  child.unref();
   app.exit(0);
   return true;
 }
@@ -88,7 +97,7 @@ function start() {
     lockDownSession();
     protocol.handle("app", createAppHandler(SRC_DIR));
     protocol.handle("media", createMediaHandler(library));
-    registerIpc({ library, whisper });
+    registerIpc({ library, whisper, updater: createUpdater() });
 
     const state = loadWindowState();
     mainWindow = new BrowserWindow({
@@ -100,7 +109,9 @@ function start() {
       roundedCorners: false,
       show: false,
       title: "Flight recorder",
-      icon: path.join(import.meta.dirname, "..", "src-tauri", "icons", "icon.png"),
+      // Set explicitly for Linux, where the window doesn't pick up the
+      // installed launcher's icon by itself.
+      icon: path.join(import.meta.dirname, "icon.png"),
       webPreferences: webPreferencesFor(path.join(import.meta.dirname, "preload.cjs")),
     });
     if (state.maximized) mainWindow.maximize();

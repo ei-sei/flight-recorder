@@ -48,7 +48,7 @@ function commitSha() {
   }
 }
 
-export function registerIpc({ library, whisper }) {
+export function registerIpc({ library, whisper, updater }) {
   // Files and paths
   handle("paths:videoDir", () => videosDir());
   handle("paths:join", (_e, ...parts) => path.join(...parts.map(String)));
@@ -105,8 +105,7 @@ export function registerIpc({ library, whisper }) {
   handle("whisper:download", (e) => whisper.downloadModel((progress) => e.sender.send("shell-event", "whisper-download-progress", progress)));
   handle("whisper:transcribe", (_e, pcmPath) => whisper.transcribe(pcmPath));
 
-  // Updates - wired up with packaging.
-  handle("updater:check", () => {
-    throw new Error("Updates aren't available in this build yet.");
-  });
+  // Updates
+  handle("updater:check", () => updater.check());
+  handle("updater:install", () => updater.install());
 }
