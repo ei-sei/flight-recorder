@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Written by CI at release time (commit SHA for the About box)
+electron/build-info.json

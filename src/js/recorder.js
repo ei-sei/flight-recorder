@@ -761,8 +761,14 @@ function resetResponseDelayTracking() {
 //
 // Profile order is High -> Main -> Baseline: High is ~10% more efficient and
 // every decoder from the last decade handles it, but not every *encoder*
-// will emit it. Audio must be AAC (mp4a.40.2) - Chromium will happily put
-// Opus in an MP4 and Safari won't play it back.
+// will emit it. Audio is AAC (mp4a.40.2) wherever the engine can encode it -
+// Safari won't play Opus in an MP4.
+//
+// Chromium on Linux has an H.264 encoder but no AAC one, so there the Opus
+// variants are what match. Asked for by name, and before the bare
+// "video/mp4": left to choose for itself, Chromium puts VP9 in the MP4.
+// The app's own player is Chromium everywhere under Electron, so an Opus
+// recording plays back on every platform in the app.
 //
 // WebM stays on the end as a genuine fallback for an engine with no H.264
 // encoder at all. It no longer costs the WPM feature: transcription decodes
@@ -773,6 +779,9 @@ const RECORDING_FORMAT_CANDIDATES = [
   { mimeType: "video/mp4;codecs=avc1.640028,mp4a.40.2", extension: "mp4" },
   { mimeType: "video/mp4;codecs=avc1.4D401F,mp4a.40.2", extension: "mp4" },
   { mimeType: "video/mp4;codecs=avc1.42E01F,mp4a.40.2", extension: "mp4" },
+  { mimeType: "video/mp4;codecs=avc1.640028,opus", extension: "mp4" },
+  { mimeType: "video/mp4;codecs=avc1.4D401F,opus", extension: "mp4" },
+  { mimeType: "video/mp4;codecs=avc1.42E01F,opus", extension: "mp4" },
   { mimeType: "video/mp4", extension: "mp4" },
   { mimeType: "video/webm;codecs=vp9,opus", extension: "webm" },
   { mimeType: "video/webm;codecs=vp8,opus", extension: "webm" },

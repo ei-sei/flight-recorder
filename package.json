@@ -3,13 +3,17 @@
   "private": true,
   "license": "MIT",
   "version": "0.1.0",
+  "description": "Practise job interviews on webcam, fully on your own machine.",
   "type": "module",
+  "main": "electron/main.js",
   "scripts": {
-    "test": "node --test src/js/*.test.js",
+    "start": "node scripts/start.js",
+    "test": "node --test src/js/*.test.js electron/*.test.js",
     "tauri": "tauri",
     "dev:wsl": "WEBKIT_DISABLE_DMABUF_RENDERER=1 LIBGL_ALWAYS_SOFTWARE=1 tauri dev"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2"
+    "@tauri-apps/cli": "^2",
+    "electron": "44.4.5"
   }
 }
