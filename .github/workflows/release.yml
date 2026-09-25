@@ -90,43 +90,42 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # One macOS leg builds both architectures, so electron-builder
+          # writes a single latest-mac.yml listing both - two legs would each
+          # write their own and one would overwrite the other.
           - platform: "macos-latest"
-            args: "--target aarch64-apple-darwin"
-          - platform: "macos-latest"
-            args: "--target x86_64-apple-darwin"
+            electron: "--mac"
+            helper: "x86_64-apple-darwin aarch64-apple-darwin"
           - platform: "ubuntu-22.04"
-            args: ""
+            electron: "--linux"
+            helper: ""
           - platform: "windows-latest"
-            args: ""
+            electron: "--win"
+            helper: ""
 
     runs-on: ${{ matrix.platform }}
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v7
-
-      - name: set app version from tag
-        shell: bash
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          jq --arg v "$VERSION" '.version = $v' src-tauri/tauri.conf.json > tmp.json && mv tmp.json src-tauri/tauri.conf.json
-          jq --arg v "$VERSION" '.version = $v' package.json > tmp.json && mv tmp.json package.json
-          echo "Building version $VERSION (from tag $GITHUB_REF_NAME)"
 
       - name: install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
-      # cmake/build-essential/libclang-dev are for whisper-rs (local
-      # speech-to-text, every platform now) - its build script compiles
-      # whisper.cpp and needs bindgen, which needs libclang.
+      # cmake/build-essential/libclang-dev are for the speech helper - its
+      # build compiles whisper.cpp and needs bindgen, which needs libclang.
+      # rpm is for electron-builder's .rpm target.
       - name: install dependencies (ubuntu only)
         if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf cmake build-essential libclang-dev
+          sudo apt-get install -y cmake build-essential libclang-dev rpm
 
-      # whisper-rs needs CMake to build whisper.cpp - Xcode's command line
-      # tools (already on macos-latest runners) cover the C++ compiler/linker.
+      # The speech helper needs CMake to build whisper.cpp - Xcode's command
+      # line tools (already on macos-latest runners) cover the C++ side.
       - name: install dependencies (macos only)
         if: startsWith(matrix.platform, 'macos')
         run: brew install cmake
@@ -145,18 +144,17 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: src-tauri
-          # Each matrix leg is a different OS/target, so they'd otherwise
-          # collide on (or uselessly share) the same cache key.
-          # The -portable-ggml suffix forces a cold whisper.cpp rebuild after
-          # GGML_NATIVE was turned off - see the cache note in ci.yml.
-          key: ${{ matrix.platform }}-${{ matrix.args }}-portable-ggml
+          workspaces: native
+          # Per platform, since each builds different targets. Bump the
+          # suffix whenever whisper.cpp's CMake options change: its build
+          # script only re-runs when wrapper.h changes, so a cached build
+          # keeps whatever flags it was first compiled with.
+          key: ${{ matrix.platform }}-electron-1
           # Saves the cache even when the build fails. GitHub scopes cache
           # reads to the current ref, so a tag's cache is only ever readable
           # by another run on that same tag - which is exactly what a retry
           # is. Without this a failed release leg saves nothing and the retry
-          # recompiles whisper.cpp from scratch, which is how the two failed
-          # macOS releases each cost a full cold build to diagnose.
+          # recompiles whisper.cpp from scratch.
           cache-on-failure: true
 
       - uses: actions/setup-node@v7
@@ -167,39 +165,115 @@ jobs:
       # npm ci, not npm install - a release build should install exactly what
       # package-lock.json pins rather than being free to resolve something
       # newer than what CI tested.
-      - name: install frontend dependencies
+      - name: install dependencies
         run: npm ci
 
-      - uses: tauri-apps/tauri-action@v1
+      - name: build the speech helper
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          # whisper.cpp (via whisper-rs, every platform now) uses std::filesystem
-          # APIs that Apple's libc++ gates behind macOS 10.15 - without an
-          # explicit deployment target the compiler treats them as
-          # unavailable and the build fails. No-op on Linux/Windows.
-          #
-          # Has to be this exact name, not MACOSX_DEPLOYMENT_TARGET -
-          # whisper-rs-sys's build.rs only forwards env vars prefixed
-          # "CMAKE_" straight through to cmake as -D flags, and the plain
-          # rustc/clang env var isn't one of them, so it was silently ignored.
+          # whisper.cpp uses std::filesystem APIs that Apple's libc++ gates
+          # behind macOS 10.15 - without an explicit deployment target the
+          # compiler treats them as unavailable and the build fails. No-op on
+          # Linux/Windows. Has to be this exact name, not
+          # MACOSX_DEPLOYMENT_TARGET: whisper-rs-sys's build.rs only forwards
+          # env vars prefixed "CMAKE_" to cmake.
           CMAKE_OSX_DEPLOYMENT_TARGET: "10.15"
-        with:
-          # All 4 legs upload into this single pre-created release instead
-          # of each independently finding-or-creating one by tag name - that
-          # raced when run in parallel (v1.0.8 lost its Windows and macOS
-          # Intel assets, and latest.json, to a later job's stale overwrite).
-          releaseId: ${{ needs.create-release.outputs.release_id }}
-          args: ${{ matrix.args }}
+        run: node scripts/build-helper.js ${{ matrix.helper }}
 
-      # Scans the binary that was just packaged. It runs after the upload
-      # (tauri-action builds and uploads in one step), but the release is
-      # still a draft, so a failure here is the signal not to publish it.
-      # Linux only: it needs objdump and an ELF binary. The other platforms
-      # compile whisper.cpp under the same GGML_NATIVE=OFF setting.
+      # Scans the helper that is about to be packaged. Linux only: it needs
+      # objdump and an ELF binary. The other platforms compile whisper.cpp
+      # under the same GGML_NATIVE=OFF setting.
       - name: whisper.cpp contains no AVX-512
         if: matrix.platform == 'ubuntu-22.04'
-        run: .github/scripts/check-no-avx512.sh src-tauri/target/release/flight-recorder
+        run: .github/scripts/check-no-avx512.sh native/dist/x64/fr-whisper
+
+      # The Visual C++ runtime has to be linked in (native/.cargo/config.toml),
+      # or the helper fails on any Windows machine that hasn't installed the
+      # redistributable - which a runner always has, so it wouldn't show here.
+      - name: speech helper needs no Visual C++ runtime DLLs (windows only)
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: |
+          $imports = & "C:\Program Files\LLVM\bin\llvm-readobj.exe" --coff-imports native/dist/x64/fr-whisper.exe | Select-String "Name:"
+          $imports
+          if ($imports -match "(?i)vcruntime|msvcp") { throw "fr-whisper.exe depends on the Visual C++ runtime" }
+
+      # The commit the About box shows. Read by electron/ipc.js.
+      - name: record build info
+        run: echo "{\"commit\":\"$(git rev-parse --short HEAD)\"}" > electron/build-info.json
+
+      - name: build installers
+        run: npx electron-builder ${{ matrix.electron }} --publish never "-c.extraMetadata.version=${GITHUB_REF_NAME#v}"
+
+      # Uploaded by release id, into the draft create-release made, rather
+      # than looked up by tag name - a re-run would otherwise risk landing in
+      # a second draft for the same tag. The latest*.yml files are what the
+      # app's updater reads, and the .blockmap files let it download only
+      # what changed.
+      - name: upload to the draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_ID: ${{ needs.create-release.outputs.release_id }}
+        run: |
+          shopt -s nullglob
+          for file in dist/*.AppImage dist/*.deb dist/*.rpm dist/*.exe dist/*.dmg dist/*.zip dist/*.blockmap dist/latest*.yml; do
+            name=$(basename "$file")
+            echo "Uploading $name"
+            gh api --method POST \
+              -H "Content-Type: application/octet-stream" \
+              "https://uploads.github.com/repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID/assets?name=$name" \
+              --input "$file" --silent
+          done
+
+  # The file the app's updater checks an update against before downloading
+  # it: every installer's SHA-512, from all platforms' latest*.yml, signed
+  # with the release key (the one the Tauri builds' updater used). See
+  # electron/update-manifest.js.
+  sign-update-manifest:
+    needs: [create-release, release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: lts/*
+
+      - name: fetch the update files from the draft
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_ID: ${{ needs.create-release.outputs.release_id }}
+        run: |
+          mkdir -p manifest
+          gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID/assets?per_page=100" \
+            --jq '.[] | select(.name | test("^latest.*\\.yml$")) | "\(.id) \(.name)"' |
+          while read -r id name; do
+            gh api -H "Accept: application/octet-stream" "repos/$GITHUB_REPOSITORY/releases/assets/$id" > "manifest/$name"
+          done
+          ls -la manifest
+
+      - name: write and sign update-manifest.json
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          node scripts/update-manifest.js manifest
+          # Tauri's own signer, since the key is in its format. Run with npx
+          # rather than kept as a dependency - it's only a signing tool here.
+          npx --yes @tauri-apps/cli@2.11.4 signer sign -p "" manifest/update-manifest.json
+          ls -la manifest
+
+      - name: upload the signed manifest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_ID: ${{ needs.create-release.outputs.release_id }}
+        run: |
+          for file in manifest/update-manifest.json manifest/update-manifest.json.sig; do
+            gh api --method POST \
+              -H "Content-Type: application/octet-stream" \
+              "https://uploads.github.com/repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID/assets?name=$(basename "$file")" \
+              --input "$file" --silent
+          done
 
   # A tag's caches are worth ~2GB and are readable by exactly one thing: a
   # re-run of that same tag. Once every leg has passed there's nothing left
@@ -211,7 +285,7 @@ jobs:
   # Only runs when the whole matrix succeeded. A failed release keeps its
   # caches precisely so the retry is fast (see cache-on-failure above).
   cleanup-caches:
-    needs: release
+    needs: [release, sign-update-manifest]
     if: success()
     runs-on: ubuntu-latest
     permissions:

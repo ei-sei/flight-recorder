@@ -13,12 +13,14 @@
     "build:helper": "node scripts/build-helper.js",
     "dist": "electron-builder --publish never",
     "tauri": "tauri",
-    "dev:wsl": "WEBKIT_DISABLE_DMABUF_RENDERER=1 LIBGL_ALWAYS_SOFTWARE=1 tauri dev"
+    "dev:wsl": "WEBKIT_DISABLE_DMABUF_RENDERER=1 LIBGL_ALWAYS_SOFTWARE=1 tauri dev",
+    "test:e2e": "node --test test/e2e/*.e2e.js"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",
     "electron": "44.4.5",
-    "electron-builder": "26.15.3"
+    "electron-builder": "26.15.3",
+    "playwright-core": "1.63.0"
   },
   "dependencies": {
     "electron-updater": "6.8.9"
