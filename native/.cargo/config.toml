@@ -1,0 +1,22 @@
+# whisper.cpp/ggml needs libc++ and the Accelerate framework linked on macOS.
+[target.x86_64-apple-darwin]
+rustflags = ["-lc++", "-lframework=Accelerate"]
+
+[target.aarch64-apple-darwin]
+rustflags = ["-lc++", "-lframework=Accelerate"]
+
+# The C runtime linked in statically, so fr-whisper.exe runs on a Windows
+# machine that has never installed the Visual C++ redistributable. Tauri's
+# build did this for the old in-app speech engine without it ever being
+# written down; a plain cargo build doesn't.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
+
+# Stops whisper.cpp being compiled for the build machine's CPU, which shipped
+# AVX-512 code that crashes most users' CPUs - see ggml-portable.cmake. Set
+# here rather than in the workflows so local builds get it too. Relative to
+# native/, the directory containing this .cargo folder - which is also why
+# cargo has to be run from native/, not with --manifest-path from elsewhere:
+# cargo finds this file by walking up from the current directory.
+[env]
+CMAKE_PROJECT_INCLUDE_BEFORE = { value = "ggml-portable.cmake", relative = true }
