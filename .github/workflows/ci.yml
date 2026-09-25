@@ -10,7 +10,7 @@ on:
 # quick succession used to leave the first run grinding through a full
 # Windows whisper.cpp build (~7 minutes) whose result nobody would look at.
 # Grouped by ref so branches and PRs never cancel each other.
-# Neither job writes anything back to the repository. Without this block they
+# No job writes anything back to the repository. Without this block they
 # inherit the repository default, which on an older repo is read/write on
 # contents - release.yml already scopes its own token per job.
 permissions:
@@ -21,7 +21,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  lint-and-build:
+  lint-and-test:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v7
@@ -29,20 +29,23 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: lts/*
+          cache: npm
 
-      # The Rust side is ~50 lines; essentially all of this app's logic lives
-      # in src/js. Without this, a syntax error there ships to a release
-      # completely unchecked. No dependencies needed - node parses the files.
-      - name: syntax-check frontend JavaScript
+      # Essentially all of this app's logic is JavaScript. Without this, a
+      # syntax error ships to a release completely unchecked.
+      - name: syntax-check JavaScript
         run: |
-          for f in src/js/*.js; do
+          for f in src/js/*.js electron/*.js scripts/*.js test/e2e/*.js; do
             node --check "$f"
           done
 
-      # Node's own runner, no dependencies. Covers the pure functions in
-      # util.js, which are where every number this app presents as fact is
-      # actually computed - a syntax check says nothing about whether the WPM
-      # or the pace spread is right.
+      - name: install dependencies
+        run: npm ci
+
+      # Node's own runner. Covers the pure functions in util.js (where every
+      # number the app presents as fact is computed), the main process's
+      # path checks, protocols and speech-engine handling, and the update
+      # signature checks.
       - name: unit tests
         run: npm test
 
@@ -51,56 +54,87 @@ jobs:
         with:
           components: rustfmt, clippy
 
-      # cmake/build-essential/libclang-dev are for whisper-rs (local
-      # speech-to-text, every platform now) - its build script compiles
-      # whisper.cpp and needs bindgen, which needs libclang.
+      # cmake/build-essential/libclang-dev build the speech helper (whisper.cpp
+      # plus bindgen). xvfb, espeak-ng and ffmpeg are for the end-to-end test:
+      # a display to run in, and a spoken sentence for the fake microphone.
       - name: install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf cmake build-essential libclang-dev
+          sudo apt-get install -y cmake build-essential libclang-dev xvfb espeak-ng ffmpeg
 
       - name: cache cargo
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: src-tauri
+          workspaces: native
           # whisper-rs-sys's build script only re-runs when its wrapper.h
           # changes, so a cached whisper.cpp survives CMake option changes.
-          # Bumping this key forces one cold rebuild whenever those options
-          # change (last: GGML_NATIVE off, see src-tauri/ggml-portable.cmake).
-          key: portable-ggml-2
+          # Bump this key whenever those options change (native/ggml-portable.cmake).
+          key: electron-1
           # A clippy or fmt failure shouldn't throw away a full dependency
           # build - the next push would otherwise start cold.
           cache-on-failure: true
 
-      # Every cargo step runs from src-tauri/, not the repo root with
-      # --manifest-path. Cargo finds .cargo/config.toml by walking up from the
-      # current directory, not from the manifest, so from the root it never
-      # loaded src-tauri/.cargo/config.toml - and CI silently built something
-      # different from the release. `tauri build` always runs cargo from
-      # src-tauri/, so this is what makes CI build what actually ships.
+      # Every cargo step runs from native/, not the repo root with
+      # --manifest-path. Cargo finds .cargo/config.toml by walking up from
+      # the current directory, not from the manifest - from the root it would
+      # never load native/.cargo/config.toml, and CI would silently build
+      # something different from the release (whisper.cpp tuned to this
+      # runner's CPU). Release profile throughout, so these share one build
+      # of whisper.cpp with the helper below.
       - name: cargo fmt --check
-        working-directory: src-tauri
+        working-directory: native
         run: cargo fmt --check
 
       - name: cargo clippy
-        working-directory: src-tauri
-        run: cargo clippy --no-deps -- -D warnings
+        working-directory: native
+        run: cargo clippy --release --no-deps -- -D warnings
 
-      - name: cargo build
-        working-directory: src-tauri
-        run: cargo build
+      - name: build the speech helper
+        run: node scripts/build-helper.js
 
       # See .github/scripts/check-no-avx512.sh. release.yml runs the same
-      # check against the real release binary.
+      # check against the helper it packages.
       - name: whisper.cpp contains no AVX-512
-        run: .github/scripts/check-no-avx512.sh src-tauri/target/debug/flight-recorder
+        run: .github/scripts/check-no-avx512.sh native/target/release/fr-whisper
 
-  # Windows gets its own job purely because whisper.cpp's build is the one
-  # part of this repo that breaks differently per platform, and it used to
-  # break only on a release tag - which is a terrible place to find out.
-  # fmt/clippy aren't repeated here; they're platform-independent.
-  windows-build:
-    runs-on: windows-latest
+      # Cached by its hash, so the 60MB download happens once rather than on
+      # every push, and checked against that hash either way.
+      - name: cache the speech model
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/fr-e2e-model
+          key: whisper-model-4baf70dd0d7c4247
+
+      - name: fetch the speech model
+        run: |
+          model=~/.cache/fr-e2e-model/ggml-base.en-q5_1.bin
+          if [ ! -f "$model" ]; then
+            mkdir -p "$(dirname "$model")"
+            curl -fsSL -o "$model" https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en-q5_1.bin
+          fi
+          echo "4baf70dd0d7c4247ba2b81fafd9c01005ac77c2f9ef064e00dcf195d0e2fdd2f  $model" | sha256sum -c
+
+      # The whole path through the real UI - record, save, transcribe, play
+      # back, and no network traffic - with Chromium's fake camera and an
+      # espeak sentence as the microphone. See test/e2e/record.e2e.js.
+      - name: end-to-end test
+        run: FR_E2E_MODEL=~/.cache/fr-e2e-model/ggml-base.en-q5_1.bin xvfb-run -a npm run test:e2e
+
+  # Windows and macOS each get their own job for two reasons. whisper.cpp's
+  # build is the part of this repo that breaks differently per platform, and
+  # it used to break only on a release tag - a terrible place to find out.
+  # And each runs the end-to-end test, which there checks that recordings
+  # come out as H.264 + AAC (Linux Chromium has no AAC encoder, so it can't).
+  # fmt/clippy aren't repeated; they're platform-independent.
+  other-platforms:
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.platform }}
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v7
 
@@ -109,20 +143,36 @@ jobs:
 
       # Must match release.yml's setup exactly, or this job stops predicting
       # what a release will do, which is its whole reason to exist.
-      - name: set up libclang for bindgen
+      - name: set up libclang for bindgen (windows only)
+        if: matrix.platform == 'windows-latest'
         shell: pwsh
         run: |
           choco install llvm --version=18.1.8 -y --allow-downgrade --no-progress
           echo "LIBCLANG_PATH=C:\Program Files\LLVM\bin" >> $env:GITHUB_ENV
 
+      - name: install CMake (macos only)
+        if: matrix.platform == 'macos-latest'
+        run: brew install cmake
+
       - name: cache cargo
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: src-tauri
-          key: windows-portable-ggml-2
+          workspaces: native
+          key: ${{ matrix.platform }}-electron-1
           cache-on-failure: true
 
-      # From src-tauri/ so .cargo/config.toml is loaded - see lint-and-build.
-      - name: cargo build
-        working-directory: src-tauri
-        run: cargo build
+      - uses: actions/setup-node@v7
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - name: install dependencies
+        run: npm ci
+
+      - name: build the speech helper
+        env:
+          CMAKE_OSX_DEPLOYMENT_TARGET: "10.15"
+        run: node scripts/build-helper.js
+
+      - name: end-to-end test
+        run: npm run test:e2e
