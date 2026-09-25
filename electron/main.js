@@ -60,6 +60,10 @@ function relaunchIfNeeded() {
 }
 
 function start() {
+  // Chromium's own profile (caches, localStorage, window state). Tests point
+  // it at a throwaway folder so every run starts as a fresh install would.
+  if (process.env.FLIGHT_RECORDER_USER_DATA_DIR) app.setPath("userData", process.env.FLIGHT_RECORDER_USER_DATA_DIR);
+
   // Both schemes in one call - it can only be made once, before ready.
   // `standard` gives app:// a real origin (localStorage, permissions, relative
   // URLs); `secure` makes it a secure context, which getUserMedia requires.
