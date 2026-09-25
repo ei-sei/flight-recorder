@@ -72,6 +72,7 @@ const wpmToggleHint = document.getElementById("wpm-toggle-hint");
 
 const { convertFileSrc, invoke } = window.__TAURI__.core;
 const { listen } = window.__TAURI__.event;
+const { readFile } = window.__TAURI__.fs;
 
 // Absolute mic levels vary hugely between a close headset and a laptop's
 // built-in array - more so with auto gain control off, but a fixed
@@ -1129,6 +1130,79 @@ function renderReviewStats(groups) {
   reviewStatsRow.hidden = rendered === 0;
 }
 
+// Review playback normally streams the file straight off disk through Tauri's
+// asset protocol (convertFileSrc), rather than reading the whole video into
+// memory first - for a long recording that upfront read across the IPC
+// boundary made review take a noticeable moment to start.
+//
+// WebKitGTK can't play video from that asset:// scheme at all: the element
+// fails with MEDIA_ERR_SRC_NOT_SUPPORTED at readyState 0, before reading a
+// byte, for files that play perfectly from a blob. Known Tauri-on-Linux
+// problem (tauri-apps/tauri#3725). So on that failure the file is read
+// through the fs plugin and played from memory instead. After the first time
+// it works, later reviews go straight to that path rather than waiting to
+// fail again. Costs the whole file in memory - roughly 20MB a minute at 480p -
+// but only on an engine where streaming doesn't work anyway.
+let assetVideoUnsupported = false;
+let reviewBlobUrl = null;
+let reviewLoadGeneration = 0;
+
+function releaseReviewBlob() {
+  if (reviewBlobUrl) {
+    URL.revokeObjectURL(reviewBlobUrl);
+    reviewBlobUrl = null;
+  }
+}
+
+// Returns false if review closed or moved on during the read, in which case
+// nothing was loaded.
+async function playReviewFromMemory(videoPath, generation) {
+  const bytes = await readFile(videoPath);
+  if (generation !== reviewLoadGeneration || !isReviewing) return false;
+  releaseReviewBlob();
+  const type = videoPath.toLowerCase().endsWith(".webm") ? "video/webm" : "video/mp4";
+  reviewBlobUrl = URL.createObjectURL(new Blob([bytes], { type }));
+  previewEl.src = reviewBlobUrl;
+  previewEl.play().catch(() => {});
+  return true;
+}
+
+function loadReviewVideo(videoPath) {
+  const generation = ++reviewLoadGeneration;
+  releaseReviewBlob();
+  const fail = (err) => console.error("Couldn't load the recording for review", err);
+  if (assetVideoUnsupported) {
+    playReviewFromMemory(videoPath, generation).catch(fail);
+    return;
+  }
+  previewEl.addEventListener(
+    "error",
+    () => {
+      if (generation !== reviewLoadGeneration || !isReviewing) return;
+      if (previewEl.error?.code !== MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) return;
+      playReviewFromMemory(videoPath, generation)
+        .then((loaded) => {
+          if (!loaded) return;
+          // Only remembered once the fallback has actually worked, so a
+          // genuinely unplayable file can't switch streaming off for good.
+          previewEl.addEventListener(
+            "loadedmetadata",
+            () => {
+              if (generation !== reviewLoadGeneration) return;
+              if (!assetVideoUnsupported) console.info("Review playback: asset:// video unsupported here, playing recordings from memory");
+              assetVideoUnsupported = true;
+            },
+            { once: true }
+          );
+        })
+        .catch(fail);
+    },
+    { once: true }
+  );
+  previewEl.src = convertFileSrc(videoPath);
+  previewEl.play().catch(() => {});
+}
+
 export async function enterReviewMode(attempt, attemptNumber) {
   if (mediaRecorder && mediaRecorder.state === "recording") return;
 
@@ -1163,15 +1237,9 @@ export async function enterReviewMode(attempt, attemptNumber) {
   // when both are present, so assigning src first would rely on clearing it
   // afterwards to re-trigger resource selection.
   previewEl.srcObject = null;
-  // convertFileSrc lets the webview stream the file directly off disk
-  // through Tauri's asset protocol, rather than reading the whole video
-  // into memory as a Blob first (the previous approach) - for a long
-  // recording that upfront full-file read across the IPC boundary was
-  // exactly why review playback took a noticeable moment to start.
-  previewEl.src = convertFileSrc(await resolveVideoPath(attempt.videoRelativePath));
   previewEl.muted = false;
   previewEl.controls = true;
-  previewEl.play().catch(() => {});
+  loadReviewVideo(await resolveVideoPath(attempt.videoRelativePath));
 
   viewfinderEmptyEl.hidden = true;
   viewfinderEl.classList.add("reviewing");
@@ -1299,8 +1367,12 @@ export function exitReviewMode() {
 
   isReviewing = false;
   previewEl.controls = false;
+  // Cancels a fallback read still in flight, so it can't load the video back
+  // into the live viewfinder after review has closed.
+  reviewLoadGeneration++;
   previewEl.removeAttribute("src");
   previewEl.load();
+  releaseReviewBlob();
   previewEl.muted = true;
 
   // The camera is always off at this point - enterReviewMode stopped it and
