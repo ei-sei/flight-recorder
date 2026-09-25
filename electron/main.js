@@ -14,6 +14,7 @@ import { lockDownSession, lockDownNavigation, stopSpellcheckDownloads, webPrefer
 import { loadWindowState, trackWindowState, MIN_WIDTH, MIN_HEIGHT } from "./window-state.js";
 import { registerIpc } from "./ipc.js";
 import { createUpdater } from "./updater.js";
+import { captureMainLog } from "./diagnostics.js";
 
 const SRC_DIR = path.join(import.meta.dirname, "..", "src");
 
@@ -60,6 +61,8 @@ function relaunchIfNeeded() {
 }
 
 function start() {
+  captureMainLog();
+
   // Chromium's own profile (caches, localStorage, window state). Tests point
   // it at a throwaway folder so every run starts as a fresh install would.
   if (process.env.FLIGHT_RECORDER_USER_DATA_DIR) app.setPath("userData", process.env.FLIGHT_RECORDER_USER_DATA_DIR);
@@ -120,6 +123,16 @@ function start() {
       webPreferences: webPreferencesFor(path.join(import.meta.dirname, "preload.cjs")),
     });
     if (state.maximized) mainWindow.maximize();
+    // Developer tools have no place in the menus - Help > Debug info is what
+    // users get - but stay a keystroke away for development.
+    mainWindow.webContents.on("before-input-event", (event, input) => {
+      const shortcut =
+        process.platform === "darwin" ? input.meta && input.alt : input.control && input.shift;
+      if (input.type === "keyDown" && shortcut && input.key.toLowerCase() === "i") {
+        event.preventDefault();
+        mainWindow.webContents.toggleDevTools();
+      }
+    });
     trackWindowState(mainWindow);
     // Shown once painted, so launch doesn't flash an empty frame first.
     mainWindow.once("ready-to-show", () => mainWindow.show());

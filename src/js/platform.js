@@ -125,9 +125,6 @@ export function setWindowSize(width, height) {
   return call("window:setSize", width, height);
 }
 
-export function openDevtools() {
-  return call("window:devtools");
-}
 
 // ---- App info and updates ----------------------------------------------------
 export function getVersion() {
@@ -137,6 +134,12 @@ export function getVersion() {
 // Label -> value rows for the About box, beyond the version and platform.
 export function getBuildInfo() {
   return call("app:buildInfo");
+}
+
+// For Help > Debug info: { install, os, display, graphics, mangohud, home,
+// log: [{ time, level, text }] } from the main process, paths shown as ~.
+export function getDiagnostics() {
+  return call("app:diagnostics");
 }
 
 // Resolves to null when up to date, otherwise { version, downloadAndInstall() }.

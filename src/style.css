@@ -1522,6 +1522,36 @@ textarea {
   color: var(--text-dim);
 }
 
+/* Wide enough for a log line to read without wrapping on most screens. */
+.debug-box {
+  max-width: 640px;
+}
+
+.debug-report {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  height: 320px;
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  background-color: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 11px;
+  line-height: 1.5;
+  /* Wrapped rather than scrolled sideways, so a long error reads in full. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow-y: auto;
+  resize: none;
+}
+
+.debug-report:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
 .about-box .modal-actions {
   padding-top: 14px;
   border-top: 1px solid var(--border-strong);

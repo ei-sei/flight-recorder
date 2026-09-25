@@ -1,3 +1,6 @@
+// First, before anything else runs: it records console output and uncaught
+// errors from here on, for Help > Debug info.
+import "./diagnostics.js";
 import {
   initQuestions,
   getSelectedQuestion,
@@ -51,8 +54,8 @@ import {
   closeWindow,
   setAlwaysOnTop,
   setWindowSize,
-  openDevtools,
 } from "./platform.js";
+import { buildDebugReport } from "./debuginfo.js";
 
 const clockEl = document.getElementById("clock");
 const currentQuestionEl = document.getElementById("current-question");
@@ -617,6 +620,54 @@ function initAboutModal() {
   );
 }
 
+const ISSUES_URL = "https://github.com/ei-sei/flight-recorder/issues";
+
+async function openDebugModal() {
+  const reportEl = document.getElementById("debug-report");
+  reportEl.value = "Gathering…";
+  document.getElementById("debug-overlay").hidden = false;
+  try {
+    reportEl.value = await buildDebugReport();
+  } catch (err) {
+    reportEl.value = `Couldn't gather debug info: ${String(err?.message ?? err)}`;
+  }
+  reportEl.scrollTop = 0;
+}
+
+function initDebugModal() {
+  const copyBtn = document.getElementById("debug-copy");
+  copyBtn.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(document.getElementById("debug-report").value);
+      copyBtn.textContent = "Copied";
+      setTimeout(() => (copyBtn.textContent = "Copy"), 1500);
+    } catch (err) {
+      console.error("Failed to copy debug info", err);
+    }
+  });
+  wireOverlayDismiss(document.getElementById("debug-overlay"), document.getElementById("debug-close"));
+}
+
+// The moment someone reports a problem is the moment the debug info is most
+// useful, so it's copied on the way out rather than left for them to find.
+async function reportIssue() {
+  let copied = false;
+  try {
+    await navigator.clipboard.writeText(await buildDebugReport());
+    copied = true;
+  } catch (err) {
+    console.error("Couldn't copy debug info for the issue", err);
+  }
+  const open = await showConfirm({
+    title: "Report an issue",
+    message: copied
+      ? "Debug info about this computer has been copied - paste it into the issue so the problem can be tracked down. It leaves out your transcripts, notes and questions."
+      : "Opens the project's issue page on GitHub. Help > Debug info has details worth pasting in.",
+    confirmLabel: "Open GitHub",
+  });
+  if (open) openUrl(ISSUES_URL);
+}
+
 let activeMenuButton = null;
 
 function openMenu(button, items) {
@@ -683,17 +734,14 @@ function initMenuBar() {
       // the window's drag handle, and a drag region can't have a menu of its
       // own.
       { label: "Reload", onClick: () => window.location.reload() },
-      { label: "Developer tools", onClick: openDevtools },
     ]);
   });
 
   helpBtn.addEventListener("click", () => {
     openMenu(helpBtn, [
       { label: "Check for updates", onClick: showUpdatesInfo },
-      {
-        label: "Report an issue",
-        onClick: () => openUrl("https://github.com/ei-sei/flight-recorder/issues"),
-      },
+      { label: "Report an issue", onClick: reportIssue },
+      { label: "Debug info", onClick: openDebugModal },
       { label: "About", onClick: openAboutModal },
     ]);
   });
@@ -723,10 +771,7 @@ async function init() {
     // have a menu of its own - View > Reload / Developer tools cover it.
     if (!event.target.closest(".activity-rail")) return;
 
-    showContextMenu(event.clientX, event.clientY, [
-      { label: "Refresh", onClick: () => window.location.reload() },
-      { label: "Inspect", onClick: openDevtools },
-    ]);
+    showContextMenu(event.clientX, event.clientY, [{ label: "Refresh", onClick: () => window.location.reload() }]);
   });
 
   tickClock();
@@ -735,6 +780,7 @@ async function init() {
   initMenuBar();
   initSettingsModal();
   initAboutModal();
+  initDebugModal();
   initUpdateBell();
   initSidebar();
   initLogPanelToggle();

@@ -27,6 +27,7 @@ Once installed, updates are handled in-app: Help → Check for updates, or the b
 - **Delivery metrics** - pause count, longest pause, longest unbroken run, and talking ratio, all measured from mic level. No transcription needed, so they work on every platform with nothing enabled.
 - **Speech pace (WPM)** - words-per-minute plus a transcript, transcribed on your machine by a local Whisper model after you stop recording. Off by default; the model is a one-time ~60MB download, behind a confirmation dialog. Shows a **pace spread** (per-segment rate) alongside the average, which is what catches rushing the end of an answer, and a **filler-word count** from the transcript.
 - **Light/dark theme**, a custom frameless window with its own titlebar, and a File/View/Help menu bar.
+- **Debug info** (Help menu) - a plain-text report of the app's version, this computer's setup (graphics, display, camera and microphone) and its recent errors, ready to paste into an issue. Nothing is sent anywhere, and it leaves out transcripts, notes and questions. Help → Report an issue copies it for you.
 - **Check for updates** (Help menu) checks the project's GitHub Releases for a newer version and can download, install, and restart into it. Every update is checked against a signed manifest before it's downloaded.
 
 ## Tech stack

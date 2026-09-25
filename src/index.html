@@ -372,6 +372,21 @@
       </div>
     </div>
 
+    <div class="modal-overlay" id="debug-overlay" hidden>
+      <div class="modal-box debug-box">
+        <h3 class="modal-title">Debug info</h3>
+        <p class="about-description">
+          What the app knows about this computer and what's gone wrong recently - paste it into an issue when
+          something isn't working. Nothing is sent anywhere, and it leaves out your transcripts, notes and questions.
+        </p>
+        <textarea class="debug-report mono" id="debug-report" readonly spellcheck="false">Gathering…</textarea>
+        <div class="modal-actions">
+          <button type="button" class="btn" id="debug-copy">Copy</button>
+          <button type="button" class="btn btn-teal" id="debug-close">Close</button>
+        </div>
+      </div>
+    </div>
+
     <script type="module" src="./js/main.js"></script>
   </body>
 </html>

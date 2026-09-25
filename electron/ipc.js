@@ -10,6 +10,7 @@ import path from "node:path";
 import { isAppUrl } from "./protocols.js";
 import { videosDir } from "./paths.js";
 import { DEFAULT_WIDTH, DEFAULT_HEIGHT } from "./window-state.js";
+import { diagnostics } from "./diagnostics.js";
 
 const ISSUES_URL = "https://github.com/ei-sei/flight-recorder/issues";
 
@@ -75,7 +76,6 @@ export function registerIpc({ library, whisper, updater }) {
     if (win.isMaximized()) win.unmaximize();
     win.setSize(Math.round(Number(width) || DEFAULT_WIDTH), Math.round(Number(height) || DEFAULT_HEIGHT));
   });
-  handle("window:devtools", (e) => e.sender.openDevTools({ mode: "detach" }));
 
   // App
   handle("app:version", () => app.getVersion());
@@ -85,6 +85,7 @@ export function registerIpc({ library, whisper, updater }) {
     Chromium: process.versions.chrome,
     "Speech engine": `fr-whisper ${await whisper.version()}`,
   }));
+  handle("app:diagnostics", () => diagnostics());
 
   // Opening things outside the app
   handle("open:revealItem", async (_e, target) => shell.showItemInFolder(await library.inside(target)));
