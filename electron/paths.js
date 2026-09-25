@@ -28,3 +28,13 @@ export function appDataDir() {
       : app.getPath("appData");
   return path.join(base, "com.flightrecorder.app");
 }
+
+// The fr-whisper speech-to-text helper (native/). Shipped next to the app's
+// resources once packaged; from source, whatever `cargo build --release` in
+// native/ produced. FR_WHISPER_PATH overrides it for tests.
+export function whisperHelperPath() {
+  if (process.env.FR_WHISPER_PATH) return process.env.FR_WHISPER_PATH;
+  const exe = process.platform === "win32" ? "fr-whisper.exe" : "fr-whisper";
+  if (app.isPackaged) return path.join(process.resourcesPath, "bin", exe);
+  return path.join(import.meta.dirname, "..", "native", "target", "release", exe);
+}

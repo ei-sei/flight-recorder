@@ -1,0 +1,15 @@
+[package]
+name = "fr-whisper"
+version = "0.1.0"
+description = "Flight Recorder's local speech-to-text, run by the app once per recording"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/ei-sei/flight-recorder"
+publish = false
+
+[dependencies]
+# whisper.cpp. Must never be built for the build machine's CPU - see
+# ggml-portable.cmake, loaded through .cargo/config.toml.
+whisper-rs = "0.14"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

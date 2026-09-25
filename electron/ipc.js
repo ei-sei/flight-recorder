@@ -79,10 +79,11 @@ export function registerIpc({ library, whisper }) {
 
   // App
   handle("app:version", () => app.getVersion());
-  handle("app:buildInfo", () => ({
+  handle("app:buildInfo", async () => ({
     Commit: commitSha(),
     Electron: process.versions.electron,
     Chromium: process.versions.chrome,
+    "Speech engine": `fr-whisper ${await whisper.version()}`,
   }));
 
   // Opening things outside the app

@@ -5,7 +5,7 @@
 import { app, BrowserWindow, protocol } from "electron";
 import path from "node:path";
 
-import { libraryRoot, appDataDir } from "./paths.js";
+import { libraryRoot, appDataDir, whisperHelperPath } from "./paths.js";
 import { createLibrary } from "./library.js";
 import { createWhisper } from "./whisper.js";
 import { createAppHandler, createMediaHandler, APP_ORIGIN } from "./protocols.js";
@@ -82,7 +82,8 @@ function start() {
       root: libraryRoot(),
       legacyStoreFile: path.join(appDataDir(), "flight-recorder.json"),
     });
-    const whisper = createWhisper({ modelDir: appDataDir() });
+    const whisper = createWhisper({ modelDir: appDataDir(), helperPath: whisperHelperPath(), library });
+    app.on("will-quit", () => whisper.stop());
 
     lockDownSession();
     protocol.handle("app", createAppHandler(SRC_DIR));
