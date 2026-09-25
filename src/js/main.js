@@ -35,11 +35,28 @@ import {
 import { formatBytes, pluralise } from "./util.js";
 import { showAlert, showConfirm } from "./modal.js";
 import { showContextMenu, hideContextMenu, isContextMenuVisible } from "./contextmenu.js";
+import {
+  mkdir,
+  exists,
+  remove,
+  openPath,
+  openUrl,
+  getLibrarySize,
+  getVersion,
+  getBuildInfo,
+  checkForUpdate,
+  relaunch,
+  minimizeWindow,
+  toggleMaximizeWindow,
+  closeWindow,
+  setAlwaysOnTop,
+  setWindowSize,
+  startResizeDragging,
+  openDevtools,
+} from "./platform.js";
 
 const clockEl = document.getElementById("clock");
 const currentQuestionEl = document.getElementById("current-question");
-
-let appWindow = null;
 
 // localStorage throws rather than returning null in some webview
 // configurations, so every access has to be guarded. Guarded once here
@@ -204,11 +221,11 @@ async function resetView() {
   setRailVisible(false);
 
   try {
-    // Must match tauri.conf.json's app.windows[0] width/height default.
-    // Needs core:window:allow-set-size in capabilities - core:default only
-    // grants read-only window commands, so without it this rejects.
-    const { LogicalSize } = window.__TAURI__.window;
-    await appWindow.setSize(new LogicalSize(1280, 800));
+    // Must match the shell's default window size (tauri.conf.json's
+    // app.windows[0]). Needs core:window:allow-set-size in capabilities -
+    // core:default only grants read-only window commands, so without it this
+    // rejects.
+    await setWindowSize(1280, 800);
   } catch (err) {
     console.error("Reset window size failed", err);
     await showAlert({ title: "Couldn't resize window", message: String(err?.message ?? err) });
@@ -264,9 +281,6 @@ function populateDeviceSelect(select, devices, selectedId, kindLabel) {
 }
 
 async function openRecordingsFolder() {
-  const { mkdir } = window.__TAURI__.fs;
-  const { openPath } = window.__TAURI__.opener;
-
   try {
     const dir = await libraryDir();
     await mkdir(dir, { recursive: true });
@@ -293,9 +307,8 @@ async function buildResetWarning() {
   try {
     // Awaited rather than filled in afterwards: the number is the point, and a
     // dialog that asks you to type DELETE should be complete before you read
-    // it. get_library_size is an async command, so this doesn't block the UI.
-    const { invoke } = window.__TAURI__.core;
-    const bytes = await invoke("get_library_size");
+    // it. Measured off the UI thread, so this doesn't block the UI.
+    const bytes = await getLibrarySize();
     if (bytes > 0) size = `, including ${formatBytes(bytes)} of recorded video`;
   } catch (err) {
     // Worth continuing without: the counts alone still say enough, and a
@@ -319,8 +332,6 @@ async function resetAllData() {
   });
   if (!confirmed) return;
 
-  const { remove, exists } = window.__TAURI__.fs;
-
   try {
     const dir = await libraryDir();
     if (await exists(dir)) {
@@ -339,11 +350,10 @@ async function resetAllData() {
 // once there are a few hundred recordings in it, and the rest of the dialog
 // shouldn't wait on a number that's only informational.
 async function refreshLibrarySize() {
-  const { invoke } = window.__TAURI__.core;
   const el = document.getElementById("settings-library-size");
   el.textContent = "Calculating…";
   try {
-    const bytes = await invoke("get_library_size");
+    const bytes = await getLibrarySize();
     // Size and location only. "Nothing is deleted automatically" is static
     // markup in the status block now, rather than being rebuilt into this
     // string every time the folder is measured.
@@ -422,13 +432,11 @@ function initSettingsModal() {
 }
 
 async function showUpdatesInfo() {
-  const { getVersion } = window.__TAURI__.app;
-  const { check } = window.__TAURI__.updater;
   const version = await getVersion();
 
   let update;
   try {
-    update = await check();
+    update = await checkForUpdate();
   } catch (err) {
     console.error("Update check failed", err);
     showAlert({
@@ -466,16 +474,15 @@ async function installUpdate(update) {
     await showAlert({ title: "Update failed", message: String(err?.message ?? err) });
     return;
   }
-  await window.__TAURI__.process.relaunch();
+  await relaunch();
 }
 
 let pendingUpdate = null;
 
 async function checkForUpdateBadge() {
-  const { check } = window.__TAURI__.updater;
   const bellDot = document.getElementById("bell-dot");
   try {
-    pendingUpdate = await check();
+    pendingUpdate = await checkForUpdate();
     bellDot.hidden = !pendingUpdate;
   } catch (err) {
     // Silent background check; the bell just stays un-badged on failure.
@@ -560,22 +567,11 @@ function initUpdateBell() {
 }
 
 async function getAboutFields() {
-  const { getVersion, getTauriVersion } = window.__TAURI__.app;
-  const { invoke } = window.__TAURI__.core;
-  const [version, tauriVersion, commitSha, rustVersion] = await Promise.all([
-    getVersion(),
-    getTauriVersion(),
-    invoke("get_commit_sha"),
-    invoke("get_rust_version"),
-  ]);
+  const [version, buildInfo] = await Promise.all([getVersion(), getBuildInfo()]);
   return {
     Version: version,
-    Commit: commitSha,
-    Tauri: tauriVersion,
-    // The compiler that actually built this binary - embedded at compile
-    // time from Cargo's own RUSTC env var (see build.rs), not assumed from
-    // whatever "rustc" resolves to on whoever's reading this machine.
-    Rust: rustVersion,
+    // Commit, plus which shell and engine versions this build is made of.
+    ...buildInfo,
     Platform: navigator.platform || "Unknown",
   };
 }
@@ -660,7 +656,7 @@ function initMenuBar() {
         onClick: async () => {
           const current = await getRecordingSettings();
           const next = !current.alwaysOnTop;
-          await appWindow.setAlwaysOnTop(next);
+          await setAlwaysOnTop(next);
           await saveRecordingSettings({ alwaysOnTop: next });
         },
       },
@@ -686,6 +682,11 @@ function initMenuBar() {
         label: "Reset view",
         onClick: resetView,
       },
+      // Here rather than only on a right-click of the title bar: that bar is
+      // the window's drag handle, and a drag region can't have a menu of its
+      // own.
+      { label: "Reload", onClick: () => window.location.reload() },
+      { label: "Developer tools", onClick: openDevtools },
     ]);
   });
 
@@ -694,7 +695,7 @@ function initMenuBar() {
       { label: "Check for updates", onClick: showUpdatesInfo },
       {
         label: "Report an issue",
-        onClick: () => window.__TAURI__.opener.openUrl("https://github.com/ei-sei/flight-recorder/issues"),
+        onClick: () => openUrl("https://github.com/ei-sei/flight-recorder/issues"),
       },
       { label: "About", onClick: openAboutModal },
     ]);
@@ -702,17 +703,14 @@ function initMenuBar() {
 }
 
 function initWindowControls() {
-  const { getCurrentWindow } = window.__TAURI__.window;
-  appWindow = getCurrentWindow();
-
-  document.getElementById("win-minimize").addEventListener("click", () => appWindow.minimize());
-  document.getElementById("win-maximize").addEventListener("click", () => appWindow.toggleMaximize());
-  document.getElementById("win-close").addEventListener("click", () => appWindow.close());
+  document.getElementById("win-minimize").addEventListener("click", () => minimizeWindow());
+  document.getElementById("win-maximize").addEventListener("click", () => toggleMaximizeWindow());
+  document.getElementById("win-close").addEventListener("click", () => closeWindow());
 
   for (const handle of document.querySelectorAll(".resize-handle")) {
     handle.addEventListener("mousedown", (event) => {
       if (event.buttons === 1) {
-        appWindow.startResizeDragging(handle.dataset.resizeDir);
+        startResizeDragging(handle.dataset.resizeDir);
       }
     });
   }
@@ -730,14 +728,15 @@ async function init() {
 
     // Refresh/Inspect are app-chrome actions, not something that belongs
     // over the video, transcript, or anywhere content lives - scoped to the
-    // topbar and the activity rail (the icon strip that toggles the side
-    // panels) only. Everywhere else just gets the native menu suppressed,
-    // same as before this feature existed.
-    if (!event.target.closest(".topbar, .activity-rail")) return;
+    // activity rail (the icon strip that toggles the side panels) only.
+    // Everywhere else just gets the native menu suppressed. The title bar
+    // used to offer this too, but it's the window's drag handle, which can't
+    // have a menu of its own - View > Reload / Developer tools cover it.
+    if (!event.target.closest(".activity-rail")) return;
 
     showContextMenu(event.clientX, event.clientY, [
       { label: "Refresh", onClick: () => window.location.reload() },
-      { label: "Inspect", onClick: () => window.__TAURI__.core.invoke("open_devtools") },
+      { label: "Inspect", onClick: openDevtools },
     ]);
   });
 
@@ -759,7 +758,7 @@ async function init() {
   // snapshot clobbering the other.
   const [settings, theme] = await Promise.all([getRecordingSettings(), getTheme()]);
   if (settings.alwaysOnTop) {
-    await appWindow.setAlwaysOnTop(true);
+    await setAlwaysOnTop(true);
   }
 
   applyTheme(theme);
