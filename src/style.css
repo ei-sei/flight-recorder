@@ -181,6 +181,29 @@ textarea {
   z-index: 1000;
 }
 
+/* Electron resizes a frameless window from its edges on its own; these
+   handles are only for Tauri, which can't. */
+[data-shell="electron"] .resize-handle {
+  display: none;
+}
+
+/* Electron: the title bar is the window's drag handle. Chromium works out
+   draggable areas from this CSS alone, ignoring what's stacked on top, so
+   every control inside the bar - and anything that can open over it - has to
+   opt back out or clicking it would move the window instead. Tauri drags
+   through data-tauri-drag-region and ignores this property. */
+[data-shell="electron"] .topbar {
+  -webkit-app-region: drag;
+}
+
+[data-shell="electron"] .topbar button,
+[data-shell="electron"] .topbar nav,
+[data-shell="electron"] .context-menu,
+[data-shell="electron"] .notif-popover,
+[data-shell="electron"] .modal-overlay {
+  -webkit-app-region: no-drag;
+}
+
 .resize-n,
 .resize-s {
   left: 8px;
