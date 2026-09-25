@@ -28,6 +28,7 @@ import {
 } from "./store.js";
 import { resolveVideoPath } from "./attempts.js";
 import { showConfirm, showAlert, setModalProgress, finishModal } from "./modal.js";
+import { SplitRecorder, probeRecordingMode, isWebKitGtk } from "./splitrecorder.js";
 
 const previewEl = document.getElementById("preview");
 const viewfinderMetaEl = document.getElementById("viewfinder-meta");
@@ -287,6 +288,11 @@ async function enableCamera() {
     viewfinderEmptyEl.hidden = true;
     cameraEnabled = true;
     saveRecordingSettings({ cameraEnabled: true });
+    // Before the first click, autoplay rules can keep the startup probe from
+    // getting any audio through (seen in testing even with its AudioContext
+    // reporting "running"), which leaves it without a verdict. Turning the
+    // camera on is a click, so try again.
+    if (!recordingModeConclusive) startRecordingModeProbe();
     startWaveformMonitoring();
   } catch (err) {
     viewfinderEmptyEl.textContent = "Camera access denied or unavailable.";
@@ -770,11 +776,51 @@ const RECORDING_FORMAT_CANDIDATES = [
 
 const BLIND_FALLBACK_FORMAT = { mimeType: "", extension: "webm" };
 
+// "combined" (one MediaRecorder, the normal way) or "split" (one per track,
+// merged on stop - see splitrecorder.js). Decided by probeRecordingMode()
+// testing whether this engine keeps video when it records audio alongside it;
+// WebKitGTK 2.52/2.54 doesn't. null until the probe has answered.
+let recordingMode = null;
+let recordingModeConclusive = false;
+let recordingModeProbe = null;
+
+function startRecordingModeProbe() {
+  if (recordingModeProbe) return;
+  recordingModeProbe = probeRecordingMode(RECORDING_FORMAT_CANDIDATES.map((c) => c.mimeType))
+    .then(({ mode, conclusive, reason }) => {
+      recordingMode = mode;
+      recordingModeConclusive = conclusive;
+      // Console only: a diagnostic about the engine, like whisper's build info.
+      console.info(
+        `Recording mode: ${mode === "split" ? "audio and video separately, merged on stop" : "combined"} (${reason})` +
+          (conclusive ? "" : " - will check again when the camera turns on")
+      );
+    })
+    .finally(() => {
+      recordingModeProbe = null;
+    });
+}
+
+// Before the probe answers, only WebKitGTK splits - the engine the bug is
+// known in. Everywhere else keeps recording exactly as it always has.
+function shouldSplitRecording() {
+  return recordingMode ? recordingMode === "split" : isWebKitGtk();
+}
+
 // Walks the ladder by *construction*, not by asking isTypeSupported, which
 // is not trustworthy: WebKitGTK answers false for every type there is,
 // including ones it records perfectly well. Whether the constructor accepts
 // the type is the only probe that reflects what the engine will really do.
 function createRecorder(recordingStream, options) {
+  if (shouldSplitRecording()) {
+    try {
+      return { recorder: new SplitRecorder(recordingStream, options), extension: "mp4" };
+    } catch (err) {
+      // An engine that can't record MP4 per track can't be merged either, so
+      // fall back to the ordinary recorder rather than lose the attempt.
+      console.warn("Separate audio/video recording unavailable - recording combined", err);
+    }
+  }
   for (const candidate of RECORDING_FORMAT_CANDIDATES) {
     try {
       return {
@@ -1692,4 +1738,7 @@ export async function initRecorder(options = {}) {
   if (options.cameraEnabled) {
     enableCamera();
   }
+
+  // Not awaited: a second of background work, well before anyone records.
+  startRecordingModeProbe();
 }

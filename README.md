@@ -53,7 +53,11 @@ flight-recorder/
 │       ├── modal.js          Confirm/alert dialogs
 │       ├── contextmenu.js    Custom right-click and menu-bar dropdowns
 │       ├── util.js           Formatting, slugify, filenames, transcript analysis
-│       └── util.test.js      Unit tests for util.js (node --test, no deps)
+│       ├── util.test.js      Unit tests for util.js (node --test, no deps)
+│       ├── splitrecorder.js  Linux workaround: records audio and video separately
+│       ├── mp4merge.js       ...and joins them into one MP4
+│       └── mp4merge.test.js  Unit tests for mp4merge.js
+├── test/fixtures/          Real WebKit recordings the tests run against (not bundled)
 ├── src-tauri/              Rust backend
 │   ├── src/
 │   │   ├── lib.rs            Plugin registration, window icon, commands
