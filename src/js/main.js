@@ -51,7 +51,6 @@ import {
   closeWindow,
   setAlwaysOnTop,
   setWindowSize,
-  startResizeDragging,
   openDevtools,
 } from "./platform.js";
 
@@ -62,7 +61,7 @@ const currentQuestionEl = document.getElementById("current-question");
 // configurations, so every access has to be guarded. Guarded once here
 // instead of in six near-identical try/catch pairs. This holds view state
 // only - window layout and theme - never anything about a recording, which
-// lives in the Tauri store.
+// lives in library.json (store.js).
 function readLocal(key, fallback) {
   try {
     const value = localStorage.getItem(key);
@@ -94,8 +93,8 @@ function applyTheme(theme) {
   } else {
     document.documentElement.removeAttribute("data-theme");
   }
-  // The Tauri store remains the source of truth; this is only so the inline
-  // script in index.html can set the theme before the modules load.
+  // library.json (store.js) remains the source of truth; this is only so
+  // theme-boot.js can set the theme before the modules load.
   writeLocal("theme", theme);
 }
 
@@ -221,10 +220,8 @@ async function resetView() {
   setRailVisible(false);
 
   try {
-    // Must match the shell's default window size (tauri.conf.json's
-    // app.windows[0]). Needs core:window:allow-set-size in capabilities -
-    // core:default only grants read-only window commands, so without it this
-    // rejects.
+    // Must match the window's default size (DEFAULT_WIDTH/HEIGHT in
+    // electron/window-state.js).
     await setWindowSize(1280, 800);
   } catch (err) {
     console.error("Reset window size failed", err);
@@ -706,14 +703,6 @@ function initWindowControls() {
   document.getElementById("win-minimize").addEventListener("click", () => minimizeWindow());
   document.getElementById("win-maximize").addEventListener("click", () => toggleMaximizeWindow());
   document.getElementById("win-close").addEventListener("click", () => closeWindow());
-
-  for (const handle of document.querySelectorAll(".resize-handle")) {
-    handle.addEventListener("mousedown", (event) => {
-      if (event.buttons === 1) {
-        startResizeDragging(handle.dataset.resizeDir);
-      }
-    });
-  }
 }
 
 async function init() {

@@ -27,15 +27,8 @@ import {
   setPrepNotesHeight,
 } from "./store.js";
 import { resolveVideoPath } from "./attempts.js";
-import {
-  convertFileSrc,
-  listen,
-  readFile,
-  whisperModelPresent,
-  downloadWhisperModel,
-} from "./platform.js";
+import { convertFileSrc, listen, whisperModelPresent, downloadWhisperModel } from "./platform.js";
 import { showConfirm, showAlert, setModalProgress, finishModal } from "./modal.js";
-import { SplitRecorder, probeRecordingMode, isWebKitGtk } from "./splitrecorder.js";
 
 const previewEl = document.getElementById("preview");
 const viewfinderMetaEl = document.getElementById("viewfinder-meta");
@@ -293,11 +286,6 @@ async function enableCamera() {
     viewfinderEmptyEl.hidden = true;
     cameraEnabled = true;
     saveRecordingSettings({ cameraEnabled: true });
-    // Before the first click, autoplay rules can keep the startup probe from
-    // getting any audio through (seen in testing even with its AudioContext
-    // reporting "running"), which leaves it without a verdict. Turning the
-    // camera on is a click, so try again.
-    if (!recordingModeConclusive) startRecordingModeProbe();
     startWaveformMonitoring();
   } catch (err) {
     viewfinderEmptyEl.textContent = "Camera access denied or unavailable.";
@@ -790,51 +778,11 @@ const RECORDING_FORMAT_CANDIDATES = [
 
 const BLIND_FALLBACK_FORMAT = { mimeType: "", extension: "webm" };
 
-// "combined" (one MediaRecorder, the normal way) or "split" (one per track,
-// merged on stop - see splitrecorder.js). Decided by probeRecordingMode()
-// testing whether this engine keeps video when it records audio alongside it;
-// WebKitGTK 2.52/2.54 doesn't. null until the probe has answered.
-let recordingMode = null;
-let recordingModeConclusive = false;
-let recordingModeProbe = null;
-
-function startRecordingModeProbe() {
-  if (recordingModeProbe) return;
-  recordingModeProbe = probeRecordingMode(RECORDING_FORMAT_CANDIDATES.map((c) => c.mimeType))
-    .then(({ mode, conclusive, reason }) => {
-      recordingMode = mode;
-      recordingModeConclusive = conclusive;
-      // Console only: a diagnostic about the engine, like whisper's build info.
-      console.info(
-        `Recording mode: ${mode === "split" ? "audio and video separately, merged on stop" : "combined"} (${reason})` +
-          (conclusive ? "" : " - will check again when the camera turns on")
-      );
-    })
-    .finally(() => {
-      recordingModeProbe = null;
-    });
-}
-
-// Before the probe answers, only WebKitGTK splits - the engine the bug is
-// known in. Everywhere else keeps recording exactly as it always has.
-function shouldSplitRecording() {
-  return recordingMode ? recordingMode === "split" : isWebKitGtk();
-}
-
-// Walks the ladder by *construction*, not by asking isTypeSupported, which
-// is not trustworthy: WebKitGTK answers false for every type there is,
-// including ones it records perfectly well. Whether the constructor accepts
-// the type is the only probe that reflects what the engine will really do.
+// Walks the ladder by *construction*, not by asking isTypeSupported: whether
+// the constructor accepts the type is what actually commits the engine to
+// it. (WebKitGTK, which the app used to run on under Linux, answered false
+// to isTypeSupported for types it recorded perfectly well.)
 function createRecorder(recordingStream, options) {
-  if (shouldSplitRecording()) {
-    try {
-      return { recorder: new SplitRecorder(recordingStream, options), extension: "mp4" };
-    } catch (err) {
-      // An engine that can't record MP4 per track can't be merged either, so
-      // fall back to the ordinary recorder rather than lose the attempt.
-      console.warn("Separate audio/video recording unavailable - recording combined", err);
-    }
-  }
   for (const candidate of RECORDING_FORMAT_CANDIDATES) {
     try {
       return {
@@ -1143,76 +1091,20 @@ function renderReviewStats(groups) {
   reviewStatsRow.hidden = rendered === 0;
 }
 
-// Review playback normally streams the file straight off disk through Tauri's
-// asset protocol (convertFileSrc), rather than reading the whole video into
-// memory first - for a long recording that upfront read across the IPC
-// boundary made review take a noticeable moment to start.
-//
-// WebKitGTK can't play video from that asset:// scheme at all: the element
-// fails with MEDIA_ERR_SRC_NOT_SUPPORTED at readyState 0, before reading a
-// byte, for files that play perfectly from a blob. Known Tauri-on-Linux
-// problem (tauri-apps/tauri#3725). So on that failure the file is read
-// through the fs plugin and played from memory instead. After the first time
-// it works, later reviews go straight to that path rather than waiting to
-// fail again. Costs the whole file in memory - roughly 20MB a minute at 480p -
-// but only on an engine where streaming doesn't work anyway.
-let assetVideoUnsupported = false;
-let reviewBlobUrl = null;
-let reviewLoadGeneration = 0;
-
-function releaseReviewBlob() {
-  if (reviewBlobUrl) {
-    URL.revokeObjectURL(reviewBlobUrl);
-    reviewBlobUrl = null;
-  }
-}
-
-// Returns false if review closed or moved on during the read, in which case
-// nothing was loaded.
-async function playReviewFromMemory(videoPath, generation) {
-  const bytes = await readFile(videoPath);
-  if (generation !== reviewLoadGeneration || !isReviewing) return false;
-  releaseReviewBlob();
-  const type = videoPath.toLowerCase().endsWith(".webm") ? "video/webm" : "video/mp4";
-  reviewBlobUrl = URL.createObjectURL(new Blob([bytes], { type }));
-  previewEl.src = reviewBlobUrl;
-  previewEl.play().catch(() => {});
-  return true;
-}
-
+// Streamed straight off disk through the media:// protocol (convertFileSrc),
+// with Range requests for seeking, rather than reading the whole video into
+// memory first - for a long recording that upfront read made review take a
+// noticeable moment to start.
 function loadReviewVideo(videoPath) {
-  const generation = ++reviewLoadGeneration;
-  releaseReviewBlob();
-  const fail = (err) => console.error("Couldn't load the recording for review", err);
-  if (assetVideoUnsupported) {
-    playReviewFromMemory(videoPath, generation).catch(fail);
-    return;
-  }
   previewEl.addEventListener(
     "error",
-    () => {
-      if (generation !== reviewLoadGeneration || !isReviewing) return;
-      if (previewEl.error?.code !== MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) return;
-      playReviewFromMemory(videoPath, generation)
-        .then((loaded) => {
-          if (!loaded) return;
-          // Only remembered once the fallback has actually worked, so a
-          // genuinely unplayable file can't switch streaming off for good.
-          previewEl.addEventListener(
-            "loadedmetadata",
-            () => {
-              if (generation !== reviewLoadGeneration) return;
-              if (!assetVideoUnsupported) console.info("Review playback: asset:// video unsupported here, playing recordings from memory");
-              assetVideoUnsupported = true;
-            },
-            { once: true }
-          );
-        })
-        .catch(fail);
-    },
+    () => console.error("Couldn't load the recording for review", previewEl.error),
     { once: true }
   );
   previewEl.src = convertFileSrc(videoPath);
+  // Also rejects when playback is merely interrupted - another attempt
+  // picked, review closed - which isn't worth reporting; real load failures
+  // arrive through the error event above.
   previewEl.play().catch(() => {});
 }
 
@@ -1380,12 +1272,8 @@ export function exitReviewMode() {
 
   isReviewing = false;
   previewEl.controls = false;
-  // Cancels a fallback read still in flight, so it can't load the video back
-  // into the live viewfinder after review has closed.
-  reviewLoadGeneration++;
   previewEl.removeAttribute("src");
   previewEl.load();
-  releaseReviewBlob();
   previewEl.muted = true;
 
   // The camera is always off at this point - enterReviewMode stopped it and
@@ -1511,9 +1399,8 @@ function updateViewfinderSize() {
   // This sizes the video to exactly fill what's left, and .recorder-panel's
   // overflow-y:auto turns any positive overflow into a real scrollbar - even
   // a fraction of a pixel. getComputedStyle/offsetHeight can round slightly
-  // differently between rendering engines (WebView2 vs WebKitGTK vs
-  // WKWebView), so an exact-fit computation that holds on one can overflow
-  // by a hair on another. A small deliberate margin costs nothing visible
+  // differently between platforms and display scales, so an exact-fit
+  // computation that holds on one can overflow by a hair on another. A small deliberate margin costs nothing visible
   // and removes that whole class of engine-dependent scrollbar.
   availableHeight -= LAYOUT_SAFETY_MARGIN;
 
@@ -1823,7 +1710,4 @@ export async function initRecorder(options = {}) {
   if (options.cameraEnabled) {
     enableCamera();
   }
-
-  // Not awaited: a second of background work, well before anyone records.
-  startRecordingModeProbe();
 }

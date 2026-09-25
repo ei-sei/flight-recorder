@@ -56,8 +56,8 @@ function render() {
     item.addEventListener("dragstart", (event) => {
       draggedId = q.id;
       event.dataTransfer.effectAllowed = "move";
-      // WebKitGTK (Linux) needs real drag data set to complete the drag -
-      // unlike Chromium, it won't fire drop otherwise.
+      // Real drag data, so the drag completes in every engine - WebKit
+      // won't fire drop without it, and it costs nothing in Chromium.
       event.dataTransfer.setData("text/plain", q.id);
       item.classList.add("dragging");
     });

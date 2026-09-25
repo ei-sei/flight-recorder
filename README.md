@@ -1,6 +1,6 @@
 # Flight recorder
 
-A local desktop app for practising job interviews on webcam. Built with Tauri. Runs fully on your machine - video, notes and speech-to-text alike. Nothing about a recording is ever uploaded.
+A local desktop app for practising job interviews on webcam. Built with Electron. Runs fully on your machine - video, notes and speech-to-text alike. Nothing about a recording is ever uploaded.
 
 | Recording | Reviewing |
 | --- | --- |
@@ -10,65 +10,63 @@ A local desktop app for practising job interviews on webcam. Built with Tauri. R
 
 Grab the latest installer from the [Releases page](https://github.com/ei-sei/flight-recorder/releases/latest) - no build step needed.
 
-- **Windows**: download `flight-recorder_<version>_x64-setup.exe` (or the `_x64_en-US.msi`), run it, then launch "Flight recorder" from the Start menu.
-- **macOS**: download `flight-recorder_<version>_x64.dmg` (Intel) or `_aarch64.dmg` (Apple Silicon), open it, and drag the app into Applications.
-- **Linux**: download whichever matches your distro - `.deb`, `.rpm` (e.g. Fedora), or `.AppImage` (works on most distros without installing anything).
+- **Windows**: download `flight-recorder-<version>-setup.exe` and run it, then launch "Flight recorder" from the Start menu. The installer isn't code-signed yet, so Windows SmartScreen may say it "protected your PC" - choose **More info → Run anyway**.
+- **macOS** (13 Ventura or later): download the `-arm64.dmg` (Apple Silicon) or `-x64.dmg` (Intel), open it, and drag the app into Applications. It isn't notarised by Apple yet, so the first launch is blocked: open **System Settings → Privacy & Security** and choose **Open Anyway**. Not yet verified on real Mac hardware.
+- **Linux**: download whichever matches your distro - `.rpm` (Fedora and friends), `.deb` (Debian, Ubuntu), or `.AppImage` (most distros, nothing to install; it doesn't need FUSE). On Fedora: `sudo dnf install ./flight-recorder-<version>.x86_64.rpm`.
 
-Once installed, updates are handled in-app: Help → Check for updates, or the bell icon in the bottom-right footer when one's available.
+Once installed, updates are handled in-app: Help → Check for updates, or the bell icon in the bottom-right footer when one's available. On macOS that opens the download page, since installing in place needs an Apple-signed app.
 
 ## Features
 
 - **Question bank** organised by category (Behavioural, Technical, Case). Add and remove your own questions.
-- **Webcam recorder** with a live viewfinder, record/stop tied to the selected question, and adjustable camera/microphone/quality (480p or 720p) in Settings. Captured at 24fps to MP4/H.264, which is the one format every platform can play back - so a library copied between machines still opens. A date/timer watermark is burned into the saved recording itself (not just shown live), and a live voice waveform is shown while recording.
+- **Webcam recorder** with a live viewfinder, record/stop tied to the selected question, and adjustable camera/microphone/quality (480p or 720p) in Settings. Captured at 24fps to MP4/H.264, so a library copied between machines still opens. A date/timer watermark is burned into the saved recording itself (not just shown live), and a live voice waveform is shown while recording.
 - **Prep notes** per question, in a collapsible drawer you can resize, kept visible while you record.
 - **Attempt log** - every recording is captured automatically with question, category, date, duration, and a per-question attempt number. Review any past attempt's video, rate it (1-5 stars), and add notes.
 - **Filter tabs** over the attempt log (All / Behavioural / Technical / Case), and a per-question view when you select a question in the bank.
 - **Response delay** - time from record start to your first word, from local mic-level analysis. The threshold adapts to your room's noise floor rather than assuming one fixed level, since raw mic sensitivity varies a lot between devices.
 - **Delivery metrics** - pause count, longest pause, longest unbroken run, and talking ratio, all measured from mic level. No transcription needed, so they work on every platform with nothing enabled.
 - **Speech pace (WPM)** - words-per-minute plus a transcript, transcribed on your machine by a local Whisper model after you stop recording. Off by default; the model is a one-time ~60MB download, behind a confirmation dialog. Shows a **pace spread** (per-segment rate) alongside the average, which is what catches rushing the end of an answer, and a **filler-word count** from the transcript.
-- **Light/dark theme**, a custom frameless window with its own titlebar and resize handles, and a File/View/Help menu bar.
-- **Check for updates** (Help menu) checks the project's GitHub Releases for a newer version and can download, install, and restart into it.
+- **Light/dark theme**, a custom frameless window with its own titlebar, and a File/View/Help menu bar.
+- **Check for updates** (Help menu) checks the project's GitHub Releases for a newer version and can download, install, and restart into it. Every update is checked against a signed manifest before it's downloaded.
 
 ## Tech stack
 
-- **[Tauri](https://tauri.app)** (v2) - Rust backend, paired with each OS's native webview (WebView2 on Windows, WebKitGTK on Linux, WKWebView on macOS) instead of bundling Chromium, which keeps the install small.
-- **Frontend**: plain HTML/CSS/JS - no React, Vue, or bundler. ES modules loaded directly by the webview.
-- **Plugins**: `tauri-plugin-store` (question/attempt/settings persistence), `tauri-plugin-fs` (video files), `tauri-plugin-opener` (reveal-in-folder, external links), `tauri-plugin-window-state`, `tauri-plugin-updater` + `tauri-plugin-process` (auto-updates), `tauri-plugin-single-instance` (a second launch focuses the existing window instead of starting a competing one).
-- Camera/mic capture and recording use standard `getUserMedia`/`MediaRecorder` Web APIs - no native plugin needed for that part.
-- **Speech-to-text**: [`whisper-rs`](https://github.com/tazz4843/whisper-rs) (whisper.cpp bindings) running locally. The recording's audio is decoded to 16kHz mono PCM in the webview itself (via `decodeAudioData`), not in Rust - Chromium's MP4 muxer omits a box that Rust demuxers expect, so decoding on the Rust side never worked reliably across platforms. Rust just reads the PCM whisper.cpp needs.
+- **[Electron](https://www.electronjs.org)** - the same bundled Chromium on every platform, so recording and playback behave identically on Windows, macOS and Linux, with nothing to install from the distro. The main process (`electron/`) is small: file access confined to the library folder, window handling, the model download and updates. The UI runs sandboxed with no Node access.
+- **Frontend**: plain HTML/CSS/JS - no React, Vue, or bundler. ES modules loaded directly, served over an `app://` protocol. `src/js/platform.js` is the one file that talks to the main process.
+- Camera/mic capture and recording use standard `getUserMedia`/`MediaRecorder` Web APIs. Review playback streams from disk over a `media://` protocol with seeking.
+- **Speech-to-text**: [whisper.cpp](https://github.com/ggml-org/whisper.cpp) via [`whisper-rs`](https://github.com/tazz4843/whisper-rs), built as a small separate program (`native/`, `fr-whisper`) that the app runs after each recording. Being its own process, a crash there is a failed transcription rather than a closed app. The recording's audio is decoded to 16kHz mono PCM in the app itself (via `decodeAudioData`) and handed over as a file; the helper never touches the network.
+- **Packaging and updates**: [electron-builder](https://www.electron.build) and electron-updater.
 
 ## Project structure
 
 ```
 flight-recorder/
-├── src/                    Frontend (plain HTML/CSS/JS)
+├── src/                    UI (plain HTML/CSS/JS)
 │   ├── index.html
 │   ├── style.css
 │   └── js/
 │       ├── main.js          App init, menu bar, window controls, update bell
+│       ├── platform.js      Everything the UI asks of the main process
 │       ├── recorder.js       Webcam capture, recording, live viewfinder
-│       ├── attempts.js       Attempt log, video file I/O
+│       ├── attempts.js       Attempt log, video file I/O, transcription
 │       ├── questions.js      Question bank CRUD
-│       ├── store.js          tauri-plugin-store wrapper
+│       ├── store.js          library.json: questions, attempts, settings
 │       ├── modal.js          Confirm/alert dialogs
 │       ├── contextmenu.js    Custom right-click and menu-bar dropdowns
-│       ├── util.js           Formatting, slugify, filenames, transcript analysis
-│       ├── util.test.js      Unit tests for util.js (node --test, no deps)
-│       ├── splitrecorder.js  Linux workaround: records audio and video separately
-│       ├── mp4merge.js       ...and joins them into one MP4
-│       └── mp4merge.test.js  Unit tests for mp4merge.js
-├── test/fixtures/          Real WebKit recordings the tests run against (not bundled)
-├── src-tauri/              Rust backend
-│   ├── src/
-│   │   ├── lib.rs            Plugin registration, window icon, commands
-│   │   ├── whisper.rs        Local speech-to-text: model download, decode, transcribe
-│   │   └── main.rs
-│   ├── capabilities/          Permission scoping (default.json)
-│   ├── icons/                 App icon set for every platform
-│   ├── Info.plist             macOS camera/mic usage descriptions
-│   ├── build.rs                Embeds the git commit SHA at compile time
-│   └── tauri.conf.json
-├── screenshots/             Images used in this README
+│       └── util.js           Formatting, slugify, filenames, transcript analysis
+├── electron/               Main process
+│   ├── main.js               Startup, window, protocols
+│   ├── library.js            File access, confined to Videos/flight-recorder
+│   ├── protocols.js          app:// (the UI) and media:// (review playback)
+│   ├── security.js           Permissions, navigation and network lockdown
+│   ├── whisper.js            Model download and running fr-whisper
+│   ├── updater.js            Updates, checked against the signed manifest
+│   └── preload.cjs           The bridge the UI sees
+├── native/                 fr-whisper, the speech-to-text helper (Rust)
+├── build/                  App icons for every platform
+├── scripts/                Dev launcher, helper build, update manifest
+├── test/e2e/               End-to-end test through the real UI
+├── screenshots/            Images used in this README
 └── .github/
     ├── workflows/              CI, security scanning, release builds
     └── dependabot.yml
@@ -76,56 +74,53 @@ flight-recorder/
 
 ## Prerequisites
 
-- **Rust** - install via [rustup](https://rustup.rs).
-- **Node.js** (LTS) - for the Tauri CLI (`npm install`).
-- **CMake and libclang**, on every platform. `whisper-rs` compiles whisper.cpp from source, and its bindings are generated by `bindgen`, which needs libclang. This is a build-time requirement only - nothing extra is needed to *run* the app.
-- **Platform system dependencies** (build-time on every OS; also a *runtime* dependency on Linux):
-  - **Linux**: `libwebkit2gtk-4.1-dev`, `libgtk-3-dev`, `librsvg2-dev`, `patchelf`, `build-essential`, `libssl-dev`, `libayatana-appindicator3-dev`, `libsoup-3.0-dev`, plus `cmake` and `libclang-dev`. On Debian/Ubuntu:
-    ```
-    sudo apt update && sudo apt install -y libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev patchelf build-essential curl wget file libssl-dev libayatana-appindicator3-dev libsoup-3.0-dev cmake libclang-dev
-    ```
-    If you package as a `.deb`/`.rpm`, `libwebkit2gtk-4.1` is declared as a dependency so it installs automatically for end users. If you package as an AppImage, it does **not** bundle webkit2gtk - it must already be present on the target machine.
-  - **Windows**: [WebView2](https://developer.microsoft.com/microsoft-edge/webview2/) (preinstalled on virtually all Windows 10/11 machines; Tauri's installer fetches it if missing), the MSVC C++ build tools, CMake, and LLVM. `bindgen` doesn't reliably find libclang on Windows by itself - set `LIBCLANG_PATH` to your LLVM `bin` directory (e.g. `C:\Program Files\LLVM\bin`) if the build fails looking for it.
-  - **macOS**: Xcode Command Line Tools (`xcode-select --install`) and CMake (`brew install cmake`). WKWebView is part of the OS. Camera/mic privacy usage descriptions are declared in `src-tauri/Info.plist` - required or `getUserMedia` fails outright in a packaged build. This hasn't been verified end-to-end on real macOS hardware yet. Note the release workflow sets `CMAKE_OSX_DEPLOYMENT_TARGET=10.15`; without it whisper.cpp's use of `std::filesystem` fails to compile against Apple's libc++.
+- **Node.js** (LTS).
+- **Rust** - install via [rustup](https://rustup.rs). Only for the speech helper.
+- **CMake and libclang**, for the speech helper on every platform: it compiles whisper.cpp from source, and its bindings are generated by `bindgen`, which needs libclang. Build-time only - nothing extra is needed to *run* the app.
+  - **Linux**: `sudo apt install cmake build-essential libclang-dev` (Debian/Ubuntu) or `sudo dnf install cmake gcc-c++ clang-devel` (Fedora). Building the `.deb`/`.rpm` locally also needs `rpm`, and on Fedora `libxcrypt-compat`.
+  - **Windows**: the MSVC C++ build tools, CMake, and LLVM. `bindgen` doesn't reliably find libclang on Windows by itself - set `LIBCLANG_PATH` to your LLVM `bin` directory (e.g. `C:\Program Files\LLVM\bin`) if the build fails looking for it.
+  - **macOS**: Xcode Command Line Tools (`xcode-select --install`) and CMake (`brew install cmake`).
 
 ## Develop
 
 ```
 npm install
-npm run tauri dev
+npm run build:helper   # the speech helper; only needed for Speech pace (WPM)
+npm start
 ```
 
-Under WSL/WSLg, use `npm run dev:wsl` instead - it sets the software-rendering env vars WSLg needs to show a window at all.
+`npm test` runs the unit tests; `npm run test:e2e` records a take through the real UI with a fake camera and microphone (set `FR_E2E_MODEL` to a model file to include transcription).
 
-## Build a release bundle
+## Build installers
 
 ```
-npm run tauri build
+npm run build:helper
+npm run dist
 ```
 
-Produces a platform-native installer/bundle under `src-tauri/target/release/bundle/`.
+Produces this platform's installers under `dist/`.
 
 ## Releasing & auto-updates
 
-Pushing a version tag (`git tag v0.1.0 && git push origin v0.1.0`) triggers `.github/workflows/release.yml`, which builds signed installers for Windows, macOS (Intel + Apple Silicon), and Linux via [tauri-action](https://github.com/tauri-apps/tauri-action), and publishes them as a **draft** GitHub Release along with a `latest.json` manifest.
+Pushing a version tag (`git tag v2.0.0 && git push origin v2.0.0`) triggers `.github/workflows/release.yml`, which builds installers for Windows, macOS (Intel + Apple Silicon), and Linux, and uploads them to a **draft** GitHub Release along with the updater's `latest*.yml` files and a signed `update-manifest.json`.
 
-You need to publish that draft manually (Releases → the draft → Publish) before it's live - this is intentional, so you can review the build first. Once published, the app's in-app updater (Help → Check for updates) polls `releases/latest/download/latest.json` on this repo and offers to download, install, and restart when a newer version is available.
+You need to publish that draft manually (Releases → the draft → Publish) before it's live - this is intentional, so you can review the build first. Once published, the app's updater (Help → Check for updates) offers to download, install, and restart when a newer version is available.
 
-Releases are signed with a minisign-style keypair (`tauri signer generate`); the public key lives in `src-tauri/tauri.conf.json`, and the private key is stored only as the `TAURI_SIGNING_PRIVATE_KEY` repo secret - never committed.
+The installers themselves aren't code-signed yet (no Authenticode or Apple Developer ID). Updates are protected separately: `update-manifest.json` lists every installer's SHA-512 and is signed with a minisign key (the private key is only the `TAURI_SIGNING_PRIVATE_KEY` repo secret, never committed); the app refuses any update whose files don't match it.
 
 ## CI & security
 
-- **`.github/workflows/ci.yml`** - on every push/PR to `main`: a `node --check` syntax pass over `src/js/`, then `cargo fmt --check`, `cargo clippy -D warnings`, `cargo build` on Ubuntu, plus a separate Windows build job. Windows gets its own job because whisper.cpp's build is the one part of this repo that breaks differently per platform, and it used to only be exercised at release time - which is a bad place to discover a toolchain problem.
+- **`.github/workflows/ci.yml`** - on every push/PR to `main`: syntax and unit tests, `cargo fmt`/`clippy` and a build of the speech helper (checked for AVX-512 instructions, which crashed older CPUs), and an end-to-end test that records, transcribes and plays back a take through the real UI and checks nothing touched the network. The end-to-end test also runs on Windows and macOS, where it checks recordings come out as H.264 + AAC.
 - **`.github/workflows/security.yml`** - `cargo audit` (RustSec advisories) and `npm audit`, on every push/PR plus a weekly schedule so newly-disclosed advisories against unchanged dependencies still get caught.
-- **`.github/dependabot.yml`** - weekly automated update PRs for Cargo, npm, and GitHub Actions dependencies.
+- **`.github/dependabot.yml`** - weekly automated update PRs for Cargo, npm (including Electron, which ships Chromium and only gets security fixes for its latest three versions), and GitHub Actions.
 
 ## Data & privacy
 
-- **Video recordings** are written straight to disk under your OS "Videos" folder: `Videos/flight-recorder/{category}/{YYMMDD}-a{attempt number}-{question abbreviation}-{question id}.mp4` - e.g. `260901-a2-tmatydwt-3f9a1c2b.mp4` for the second attempt at "Tell me about a time you disagreed with a teammate." Recording targets MP4/H.264/AAC on every platform, because that's the only container/codec combination all three webviews can play back - a WebM recorded on Windows wouldn't open after copying the folder to a Mac. WebM/VP9 remains a fallback for any engine without an H.264 encoder, and the extension always follows what was actually recorded. A date/timer watermark (British DD/MM/YYYY format) is composited into the video itself before it's saved, camcorder-style. Nothing about video ever leaves the machine.
-- **Metadata** - the question bank, and each attempt's question, category, date, duration, score, notes, response delay, pause figures, talking ratio, WPM, pace spread and transcript - is persisted locally via `tauri-plugin-store`, in `library.json` inside that same `Videos/flight-recorder/` folder (not a hidden app-data directory).
+- **Video recordings** are written straight to disk under your OS "Videos" folder: `Videos/flight-recorder/{category}/{YYMMDD}-a{attempt number}-{question abbreviation}-{question id}.mp4` - e.g. `260901-a2-tmatydwt-3f9a1c2b.mp4` for the second attempt at "Tell me about a time you disagreed with a teammate." Recordings are MP4/H.264 on every platform, with AAC audio on Windows and macOS and Opus on Linux (Chromium on Linux has no AAC encoder). Both play back in the app on every platform; a Linux recording may not open in QuickTime outside it. WebM/VP9 remains a fallback for an engine without an H.264 encoder, and the extension always follows what was actually recorded. A date/timer watermark (British DD/MM/YYYY format) is composited into the video itself before it's saved, camcorder-style. Nothing about video ever leaves the machine.
+- **Metadata** - the question bank, and each attempt's question, category, date, duration, score, notes, response delay, pause figures, talking ratio, WPM, pace spread and transcript - is persisted locally in `library.json` inside that same `Videos/flight-recorder/` folder (not a hidden app-data directory).
 - **Nothing is deleted automatically.** Recordings accumulate for as long as you keep them - roughly 39GB a year at a daily ten-minute session, at the default 480p quality. Settings shows the folder's current size so the number isn't invisible.
 - **Moving to a different computer** - `Videos/flight-recorder/` is a single, self-contained, portable folder: videos and metadata together. Copy it to a new machine (even a different OS) and launch the app - it reads `library.json` from that same location, so it just picks up where you left off. No export/import step, and it works across OSes because each attempt's video path is stored relative to that folder, not as an absolute path tied to one machine.
-- **Speech pace (WPM)** transcribes on your machine, on every platform. It's **off by default**. Turning it on downloads a Whisper model once (~60MB, behind a confirmation dialog) to your OS app-data directory - deliberately *not* the portable `Videos/flight-recorder` folder, since it's app infrastructure rather than your data. After that, transcription runs locally after each recording stops. Earlier versions used the browser's speech recognition API on Windows, which streamed audio to Google; that's been removed. The app now touches the network in exactly two places: that one-off model download, and update checks.
+- **Speech pace (WPM)** transcribes on your machine, on every platform. It's **off by default**. Turning it on downloads a Whisper model once (~60MB, behind a confirmation dialog, checked against a pinned SHA-256) to your OS app-data directory - deliberately *not* the portable `Videos/flight-recorder` folder, since it's app infrastructure rather than your data. After that, transcription runs locally after each recording stops. Earlier versions used the browser's speech recognition API on Windows, which streamed audio to Google; that's been removed. The app now touches the network in exactly two places: that one-off model download, and update checks.
 - Deleting an attempt removes both its metadata entry and its video file from disk.
 - Deleting a question also deletes every attempt (and video file) recorded under it - the confirmation prompt tells you how many before you commit.
 
