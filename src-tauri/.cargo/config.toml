@@ -5,3 +5,10 @@ rustflags = ["-lc++", "-lframework=Accelerate"]
 
 [target.aarch64-apple-darwin]
 rustflags = ["-lc++", "-lframework=Accelerate"]
+
+# Stops whisper.cpp being compiled for the build machine's CPU, which shipped
+# AVX-512 code that crashes most users' CPUs - see ggml-portable.cmake. Set
+# here rather than in the workflows so local builds get it too. Relative to
+# src-tauri/, the directory containing this .cargo folder.
+[env]
+CMAKE_PROJECT_INCLUDE_BEFORE = { value = "ggml-portable.cmake", relative = true }

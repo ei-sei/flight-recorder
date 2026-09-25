@@ -63,6 +63,11 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+          # whisper-rs-sys's build script only re-runs when its wrapper.h
+          # changes, so a cached whisper.cpp survives CMake option changes.
+          # Bumping this key forces one cold rebuild whenever those options
+          # change (last: GGML_NATIVE off, see src-tauri/ggml-portable.cmake).
+          key: portable-ggml
           # A clippy or fmt failure shouldn't throw away a full dependency
           # build - the next push would otherwise start cold.
           cache-on-failure: true
@@ -75,6 +80,23 @@ jobs:
 
       - name: cargo build
         run: cargo build --manifest-path src-tauri/Cargo.toml
+
+      # Releases shipped whisper.cpp compiled for the runner's AVX-512 Xeon,
+      # and it killed the app with SIGILL on any CPU without AVX-512 the
+      # moment transcription started. Nothing else would catch that: it
+      # builds, passes every test, and runs fine on the runner itself. This
+      # fails the build if any ggml function uses an AVX-512 (zmm) register.
+      - name: whisper.cpp contains no AVX-512
+        run: |
+          hits=$(objdump -d --no-show-raw-insn src-tauri/target/debug/flight-recorder | awk '
+            /^[0-9a-f]+ <[^>]*>:$/ { fn = $2; inggml = (fn ~ /ggml/); next }
+            inggml && /zmm[0-9]/ { n[fn]++ }
+            END { for (f in n) print n[f], f }')
+          if [ -n "$hits" ]; then
+            echo "::error::ggml was built with AVX-512 and will crash CPUs without it:"
+            echo "$hits" | sort -rn | head -20
+            exit 1
+          fi
 
   # Windows gets its own job purely because whisper.cpp's build is the one
   # part of this repo that breaks differently per platform, and it used to
@@ -100,7 +122,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
-          key: windows
+          key: windows-portable-ggml
           cache-on-failure: true
 
       - name: cargo build

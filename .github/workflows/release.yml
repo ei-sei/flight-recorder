@@ -148,7 +148,9 @@ jobs:
           workspaces: src-tauri
           # Each matrix leg is a different OS/target, so they'd otherwise
           # collide on (or uselessly share) the same cache key.
-          key: ${{ matrix.platform }}-${{ matrix.args }}
+          # The -portable-ggml suffix forces a cold whisper.cpp rebuild after
+          # GGML_NATIVE was turned off - see the cache note in ci.yml.
+          key: ${{ matrix.platform }}-${{ matrix.args }}-portable-ggml
           # Saves the cache even when the build fails. GitHub scopes cache
           # reads to the current ref, so a tag's cache is only ever readable
           # by another run on that same tag - which is exactly what a retry
