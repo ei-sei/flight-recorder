@@ -10,6 +10,6 @@ publish = false
 [dependencies]
 # whisper.cpp. Must never be built for the build machine's CPU - see
 # ggml-portable.cmake, loaded through .cargo/config.toml.
-whisper-rs = "0.14"
+whisper-rs = "0.16"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
