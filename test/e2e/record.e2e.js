@@ -142,19 +142,7 @@ test("record, save, play back and transcribe a take", { timeout: 180_000 }, asyn
       aac: MediaRecorder.isTypeSupported("video/mp4;codecs=avc1.640028,mp4a.40.2"),
       opus: MediaRecorder.isTypeSupported("video/mp4;codecs=avc1.640028,opus"),
     }));
-    // Web Audio needs a running audio clock, and a machine with no audio
-    // device at all (GitHub's macOS runners) may never start one - then the
-    // mic-level analysis has nothing to measure. Checked separately so that
-    // case is reported for what it is rather than as a broken app.
-    const audioClockRuns = await page.evaluate(async () => {
-      const ctx = new AudioContext();
-      await ctx.resume().catch(() => {});
-      const start = ctx.currentTime;
-      await new Promise((r) => setTimeout(r, 500));
-      const running = ctx.currentTime > start;
-      await ctx.close();
-      return running;
-    });
+
 
     await page.locator("#record-btn").click();
     await page.waitForTimeout(6000);
@@ -174,11 +162,25 @@ test("record, save, play back and transcribe a take", { timeout: 180_000 }, asyn
     // Linux Chromium has no AAC encoder; everywhere else should use AAC.
     if (process.platform !== "linux") assert.ok(supported.aac, "H.264 + AAC is supported");
 
-    // The mic-level measurements ran on the take.
-    if (audioClockRuns) {
-      assert.ok(attempt.speakingRatio > 0.2, `talking time measured (${attempt.speakingRatio})`);
+    // The mic-level measurements ran on the take - provided the fake mic
+    // delivered any sound at all. On GitHub's macOS runners it records
+    // silence (no audio device), so the saved file's own level decides
+    // whether there was anything to measure: sound in the file but no
+    // talking time measured is an app bug; a silent file is the machine.
+    const recordedLevel = await page.evaluate(async (videoPath) => {
+      const { readFile } = await import("./js/platform.js");
+      const bytes = await readFile(videoPath);
+      const ctx = new OfflineAudioContext(1, 1, 16000);
+      const audio = await ctx.decodeAudioData(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
+      const samples = audio.getChannelData(0);
+      let sum = 0;
+      for (const s of samples) sum += s * s;
+      return Math.sqrt(sum / samples.length);
+    }, file);
+    if (recordedLevel > 0.001) {
+      assert.ok(attempt.speakingRatio > 0.2, `talking time measured (${attempt.speakingRatio}, recording RMS ${recordedLevel})`);
     } else {
-      console.warn(`No running audio clock on this machine; skipping the talking-time check (measured ${attempt.speakingRatio}).`);
+      console.warn(`The fake microphone recorded silence on this machine (RMS ${recordedLevel}); skipping the talking-time check.`);
     }
 
     if (transcribe) {
