@@ -1,6 +1,6 @@
 // Runs a packaged build for a few seconds - fresh profile, throwaway library -
-// and fails if it contacted anything other than this repository on GitHub
-// (its update check):
+// and fails if it contacted anything other than this repository's releases
+// on GitHub (its update check):
 //   node scripts/check-network.js dist/flight-recorder-<version>.AppImage
 //
 // The app promises the network is used for exactly two things: the opt-in
@@ -13,7 +13,13 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-const ALLOWED = /^https:\/\/github\.com\/ei-sei\/flight-recorder\//;
+const ALLOWED = [
+  /^https:\/\/github\.com\/ei-sei\/flight-recorder\//,
+  // GitHub redirects release downloads (the update's latest*.yml, and the
+  // installer itself) to its asset servers, which don't name the repo.
+  /^https:\/\/release-assets\.githubusercontent\.com\//,
+  /^https:\/\/objects\.githubusercontent\.com\//,
+];
 const RUN_MS = 12_000;
 
 const app = process.argv[2];
@@ -36,15 +42,20 @@ const env = {
 delete env.MANGOHUD;
 delete env.ELECTRON_RUN_AS_NODE;
 
+const appLog = fs.openSync(path.join(tmp, "app.log"), "w");
 const child = spawn(path.resolve(app), ["--ozone-platform=x11", `--log-net-log=${netlog}`], {
   env,
-  stdio: "ignore",
+  stdio: ["ignore", appLog, appLog],
   detached: true,
 });
 await new Promise((resolve) => setTimeout(resolve, RUN_MS));
+// The main process only, so it shuts down in order and writes out the
+// netlog. Signalling the whole group took Chromium's network and GPU helpers
+// down first, and the app crashed on the way out without writing the log.
+// Whatever's left afterwards is cleared up with the group.
 const exited = new Promise((resolve) => child.on("exit", resolve));
-process.kill(-child.pid, "SIGTERM");
-await Promise.race([exited, new Promise((resolve) => setTimeout(resolve, 5000))]);
+process.kill(child.pid, "SIGTERM");
+await Promise.race([exited, new Promise((resolve) => setTimeout(resolve, 8000))]);
 try {
   process.kill(-child.pid, "SIGKILL");
 } catch {
@@ -54,11 +65,12 @@ try {
 // A netlog cut short by the kill is still readable line by line.
 const text = fs.existsSync(netlog) ? fs.readFileSync(netlog, "utf8") : "";
 if (!text) {
-  console.error("no netlog was written - did the app start?");
+  console.error("no netlog was written - did the app start? Its output:");
+  console.error(fs.readFileSync(path.join(tmp, "app.log"), "utf8").slice(-2000));
   process.exit(1);
 }
 const urls = [...new Set([...text.matchAll(/"url":"((?:https?|wss?):\/\/[^"]+)"/g)].map((m) => m[1]))];
-const unexpected = urls.filter((url) => !ALLOWED.test(url));
+const unexpected = urls.filter((url) => !ALLOWED.some((pattern) => pattern.test(url)));
 const dictionaries = fs.existsSync(path.join(profile, "Dictionaries")) ? fs.readdirSync(path.join(profile, "Dictionaries")) : [];
 
 console.log(`requests: ${urls.length ? urls.join(", ") : "none"}`);
