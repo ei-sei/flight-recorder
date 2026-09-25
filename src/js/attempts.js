@@ -1,8 +1,13 @@
-const { join } = window.__TAURI__.path;
-const { mkdir, writeFile, readFile, exists, remove } = window.__TAURI__.fs;
-const { revealItemInDir } = window.__TAURI__.opener;
-const { invoke } = window.__TAURI__.core;
-
+import {
+  join,
+  mkdir,
+  writeFile,
+  readFile,
+  exists,
+  remove,
+  revealItemInDir,
+  transcribeRecording,
+} from "./platform.js";
 import { getAttempts, saveAttempts, libraryDir } from "./store.js";
 import {
   slugify,
@@ -244,7 +249,7 @@ async function transcribeAttemptInBackground(attempt, speechIntervals) {
     // Rust hands back segments (text + start/end in ms), not a flat string -
     // the timings are what the pace spread is computed from, and what makes
     // the hallucination check possible at all.
-    const result = await invoke("transcribe_recording", { pcmPath });
+    const result = await transcribeRecording(pcmPath);
     // Console only, never shown in the UI: this is a diagnostic about the
     // machine, not a measurement of how the user spoke. Transcription being
     // slower than it should be went unnoticed because nothing reported it.

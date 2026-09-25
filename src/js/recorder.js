@@ -27,6 +27,13 @@ import {
   setPrepNotesHeight,
 } from "./store.js";
 import { resolveVideoPath } from "./attempts.js";
+import {
+  convertFileSrc,
+  listen,
+  readFile,
+  whisperModelPresent,
+  downloadWhisperModel,
+} from "./platform.js";
 import { showConfirm, showAlert, setModalProgress, finishModal } from "./modal.js";
 import { SplitRecorder, probeRecordingMode, isWebKitGtk } from "./splitrecorder.js";
 
@@ -70,9 +77,6 @@ const readoutDelayEl = document.getElementById("readout-delay");
 const wpmToggleInput = document.getElementById("wpm-toggle-input");
 const wpmToggleHint = document.getElementById("wpm-toggle-hint");
 
-const { convertFileSrc, invoke } = window.__TAURI__.core;
-const { listen } = window.__TAURI__.event;
-const { readFile } = window.__TAURI__.fs;
 
 // Absolute mic levels vary hugely between a close headset and a laptop's
 // built-in array - more so with auto gain control off, but a fixed
@@ -1683,7 +1687,7 @@ async function initWpmToggle() {
   // one that's wrong. Switching WPM off here means the next time it's turned
   // on, the download is offered and consented to properly, rather than being
   // fetched silently on the next recording.
-  if (wpmEnabled && !(await invoke("whisper_model_present"))) {
+  if (wpmEnabled && !(await whisperModelPresent())) {
     wpmEnabled = false;
     await setWpmEnabled(false);
   }
@@ -1694,7 +1698,7 @@ async function initWpmToggle() {
     // Asked of the filesystem every time, not of a stored flag. A stored flag
     // is exactly what let the app skip this dialog on a device where the model
     // had been removed.
-    if (turningOn && !(await invoke("whisper_model_present"))) {
+    if (turningOn && !(await whisperModelPresent())) {
       // Settings and the confirm dialog share the same overlay styling/
       // z-index, so with Settings still open the confirm dialog would be
       // fully covered by it (and unclickable) - close Settings out of the
@@ -1734,7 +1738,7 @@ async function initWpmToggle() {
       });
 
       try {
-        await invoke("download_whisper_model");
+        await downloadWhisperModel();
         // Nothing to record afterwards: the model file on disk is the only
         // answer to "is it downloaded", and a second copy of that answer in
         // library.json is what let the two drift apart.

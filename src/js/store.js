@@ -1,7 +1,4 @@
-const { Store } = window.__TAURI__.store;
-const { videoDir, join } = window.__TAURI__.path;
-const { mkdir, writeFile, exists } = window.__TAURI__.fs;
-
+import { Store, videoDir, join, mkdir, writeFile, exists } from "./platform.js";
 import { slugify } from "./util.js";
 
 // The only categories a question can be tagged with (fixed sidebar tabs,
@@ -65,8 +62,8 @@ let storePromise = null;
 // independently in four places (here, migrateFromOldStoreLocation,
 // resolveVideoPath in attempts.js, and twice in main.js), which is exactly
 // the coupling the portable-folder design depends on not drifting. Lives in
-// store.js rather than util.js because util.js is deliberately free of Tauri
-// globals so it can be unit tested under plain node.
+// store.js rather than util.js because util.js is deliberately free of shell
+// calls (platform.js) so it can be unit tested under plain node.
 export async function libraryDir() {
   return join(await videoDir(), "flight-recorder");
 }
