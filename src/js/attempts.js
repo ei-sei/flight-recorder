@@ -185,12 +185,13 @@ export async function updateAttemptTranscript(id, patch) {
 // (it handles its own failures), so this chain can't be poisoned.
 let transcriptionQueue = Promise.resolve();
 
-// What whisper.cpp wants. The value is duplicated in whisper.rs, which reads
-// the file this produces; neither side can discover it from the other.
+// What whisper.cpp wants. The value is duplicated in native/src/transcribe.rs,
+// which reads the file this produces; neither side can discover it from the
+// other.
 const WHISPER_SAMPLE_RATE = 16000;
 
 // Decodes the recording's audio and writes it as raw 16kHz mono f32 PCM for
-// the Rust side to pick up.
+// the speech helper (native/, fr-whisper) to pick up.
 //
 // The decode happens here, in the webview, rather than in Rust, because the
 // webview can always decode a file it just produced. Rust could not: the
@@ -241,9 +242,9 @@ async function extractPcmForTranscription(videoPath) {
       ` — healthy speech is around -20 dBFS, below -40 is weak`
   );
 
-  // Written next to the video so it stays inside the library folder, which is
-  // the only place the fs scope and the Rust command will accept a path from.
-  // Rust deletes it the moment it has read it.
+  // Written next to the video so it stays inside the library folder, the only
+  // place main will accept a path from. The speech helper deletes it the
+  // moment it has read it.
   const pcmRelativePath = `${videoPath}.pcm`;
   await writeFile(pcmRelativePath, new Uint8Array(mono.buffer, mono.byteOffset, mono.byteLength));
   return pcmRelativePath;
@@ -315,8 +316,8 @@ async function transcribeAttemptInBackground(attempt, speechIntervals) {
       transcript: null,
       transcriptError: String(err?.message ?? err),
     });
-    // Rust removes the scratch file as soon as it reads it, but a failure
-    // before that point (no model, rejected path) leaves it behind. It is
+    // Main removes the scratch file on every path, but this is cheap
+    // insurance if it didn't get that far (a rejected path, say). It is
     // ~19MB for ten minutes, in the user's own Videos folder.
     if (pcmPath) {
       try {

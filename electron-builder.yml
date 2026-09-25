@@ -84,6 +84,14 @@ nsis:
   oneClick: true
   perMachine: false
   shortcutName: Flight recorder
+  # No spaces (the default is "flight-recorder Setup 2.0.0.exe"): GitHub
+  # renames spaces in uploaded file names, and latest.yml would then point
+  # the updater at a file that doesn't exist.
+  artifactName: ${productName}-${version}-setup.${ext}
+
+dmg:
+  # Arch always in the name, so the two Mac downloads are told apart.
+  artifactName: ${productName}-${version}-${arch}.${ext}
 
 mac:
   # Built for both architectures in one run, so a single latest-mac.yml
