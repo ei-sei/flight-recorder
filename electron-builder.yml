@@ -1,0 +1,106 @@
+# Installers for every platform: `npm run dist` (after `npm run build:helper`).
+# The version comes from package.json, which CI sets from the git tag.
+
+appId: com.flightrecorder.app
+# Same name the Tauri builds used, so the Linux packages are also called
+# flight-recorder and install over them. Display names are set per platform.
+productName: flight-recorder
+copyright: Copyright © ei-sei
+
+directories:
+  output: dist
+  buildResources: build
+
+files:
+  - package.json
+  - src/**/*
+  - electron/**/*
+  - "!**/*.test.js"
+  - "!electron/test-fixtures"
+
+# The speech-to-text helper, outside the asar archive so it can be executed.
+# Staged per architecture by scripts/build-helper.js.
+extraResources:
+  - from: native/dist/${arch}
+    to: bin
+    filter:
+      - fr-whisper*
+
+asar: true
+
+# Switch off Electron features the app never uses, so they can't be turned
+# against it: running the binary as plain Node, NODE_OPTIONS, the inspector,
+# loading app code from outside the signed asar.
+electronFuses:
+  runAsNode: false
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableEmbeddedAsarIntegrityValidation: true
+  onlyLoadAppFromAsar: true
+  grantFileProtocolExtraPrivileges: false
+
+# Where electron-updater looks, and what `--publish never` still writes the
+# latest*.yml update manifests for. CI uploads everything itself.
+publish:
+  provider: github
+  owner: ei-sei
+  repo: flight-recorder
+
+toolsets:
+  # The static AppImage runtime: runs on distros without libfuse2 (Fedora
+  # among them) and keeps Chromium's sandbox on.
+  appimage: "1.0.3"
+
+linux:
+  target:
+    - AppImage
+    - deb
+    - rpm
+  executableName: flight-recorder
+  # Required for .deb. A no-reply address, so no personal email ends up in
+  # every published package.
+  maintainer: ei-sei <ei-sei@users.noreply.github.com>
+  # Names the window after the launcher entry, so the dock groups the
+  # running window with its icon (Wayland app_id / X11 WM_CLASS).
+  syncDesktopName: true
+  # Passed by the installed launcher, so the app starts on X11 straight away
+  # instead of relaunching itself (see relaunchIfNeeded in electron/main.js).
+  executableArgs:
+    - --ozone-platform=x11
+  icon: build/icons
+  category: Education
+  synopsis: Practise job interviews on webcam
+  description: Practise job interviews on webcam. Recordings, notes and speech-to-text all stay on your own machine.
+  desktop:
+    entry:
+      Name: Flight recorder
+      StartupWMClass: flight-recorder
+
+win:
+  target: nsis
+  icon: build/icon.ico
+
+nsis:
+  oneClick: true
+  perMachine: false
+  shortcutName: Flight recorder
+
+mac:
+  # Built for both architectures in one run, so a single latest-mac.yml
+  # lists both.
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+    - target: zip
+      arch: [x64, arm64]
+  icon: build/icon.icns
+  category: public.app-category.education
+  # Ad-hoc signed: no Apple Developer ID yet. Enough for Apple Silicon to
+  # run it (after Open Anyway), not enough for in-place auto-update.
+  identity: "-"
+  hardenedRuntime: false
+  # Electron 44's floor.
+  minimumSystemVersion: "13.0"
+  extendInfo:
+    NSCameraUsageDescription: Flight recorder needs camera access to record your interview practice sessions.
+    NSMicrophoneUsageDescription: Flight recorder needs microphone access to record audio during your interview practice sessions.
