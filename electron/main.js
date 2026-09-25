@@ -10,7 +10,7 @@ import { libraryRoot, appDataDir, whisperHelperPath } from "./paths.js";
 import { createLibrary } from "./library.js";
 import { createWhisper } from "./whisper.js";
 import { createAppHandler, createMediaHandler, APP_ORIGIN } from "./protocols.js";
-import { lockDownSession, lockDownNavigation, webPreferencesFor } from "./security.js";
+import { lockDownSession, lockDownNavigation, stopSpellcheckDownloads, webPreferencesFor } from "./security.js";
 import { loadWindowState, trackWindowState, MIN_WIDTH, MIN_HEIGHT } from "./window-state.js";
 import { registerIpc } from "./ipc.js";
 import { createUpdater } from "./updater.js";
@@ -74,6 +74,7 @@ function start() {
 
   app.enableSandbox();
   lockDownNavigation();
+  stopSpellcheckDownloads();
 
   let mainWindow = null;
 
