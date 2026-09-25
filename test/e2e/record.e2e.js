@@ -94,6 +94,10 @@ test("record, save, play back and transcribe a take", { timeout: 180_000 }, asyn
   const videos = path.join(tmp, "Videos");
   const libraryDir = path.join(videos, "flight-recorder");
   const data = path.join(tmp, "data");
+  // A fresh Chromium profile every run, as on a first install - a cached
+  // file from an earlier run once hid a network request this test exists
+  // to catch.
+  const profile = path.join(tmp, "profile");
   const netlog = path.join(tmp, "netlog.json");
   const mic = path.join(tmp, "mic.wav");
   const micKind = writeMicInput(mic);
@@ -107,7 +111,12 @@ test("record, save, play back and transcribe a take", { timeout: 180_000 }, asyn
   // launch. Speech pace on only when there's a model to use.
   fs.writeFileSync(path.join(libraryDir, "library.json"), JSON.stringify({ wpmEnabled: transcribe }));
 
-  const env = { ...process.env, FLIGHT_RECORDER_VIDEOS_DIR: videos, FLIGHT_RECORDER_DATA_DIR: data };
+  const env = {
+    ...process.env,
+    FLIGHT_RECORDER_VIDEOS_DIR: videos,
+    FLIGHT_RECORDER_DATA_DIR: data,
+    FLIGHT_RECORDER_USER_DATA_DIR: profile,
+  };
   delete env.ELECTRON_RUN_AS_NODE;
   // Either would make the app relaunch itself, and Playwright would lose it.
   delete env.MANGOHUD;
@@ -133,6 +142,19 @@ test("record, save, play back and transcribe a take", { timeout: 180_000 }, asyn
       aac: MediaRecorder.isTypeSupported("video/mp4;codecs=avc1.640028,mp4a.40.2"),
       opus: MediaRecorder.isTypeSupported("video/mp4;codecs=avc1.640028,opus"),
     }));
+    // Web Audio needs a running audio clock, and a machine with no audio
+    // device at all (GitHub's macOS runners) may never start one - then the
+    // mic-level analysis has nothing to measure. Checked separately so that
+    // case is reported for what it is rather than as a broken app.
+    const audioClockRuns = await page.evaluate(async () => {
+      const ctx = new AudioContext();
+      await ctx.resume().catch(() => {});
+      const start = ctx.currentTime;
+      await new Promise((r) => setTimeout(r, 500));
+      const running = ctx.currentTime > start;
+      await ctx.close();
+      return running;
+    });
 
     await page.locator("#record-btn").click();
     await page.waitForTimeout(6000);
@@ -153,7 +175,11 @@ test("record, save, play back and transcribe a take", { timeout: 180_000 }, asyn
     if (process.platform !== "linux") assert.ok(supported.aac, "H.264 + AAC is supported");
 
     // The mic-level measurements ran on the take.
-    assert.ok(attempt.speakingRatio > 0.2, `talking time measured (${attempt.speakingRatio})`);
+    if (audioClockRuns) {
+      assert.ok(attempt.speakingRatio > 0.2, `talking time measured (${attempt.speakingRatio})`);
+    } else {
+      console.warn(`No running audio clock on this machine; skipping the talking-time check (measured ${attempt.speakingRatio}).`);
+    }
 
     if (transcribe) {
       assert.equal(attempt.transcriptError, null);

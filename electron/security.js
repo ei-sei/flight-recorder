@@ -32,9 +32,16 @@ export function lockDownSession(ses = session.defaultSession) {
   );
 
   // Chromium downloads Hunspell dictionaries from Google on Windows and
-  // Linux the first time spellcheck runs - a network call nobody asked for.
-  // macOS uses the system spellchecker and downloads nothing, so it keeps it.
-  if (process.platform !== "darwin") ses.setSpellCheckerEnabled(false);
+  // Linux - a network call nobody asked for. Switching spellcheck off isn't
+  // enough: a fresh install still fetched one for the system language on
+  // first launch, from redirector.gvt1.com. Emptying the language list is
+  // what stops it (caught by the end-to-end test's network check on CI; it
+  // hid locally because the dictionary was already cached). macOS uses the
+  // system spellchecker and downloads nothing, so it keeps spellcheck.
+  if (process.platform !== "darwin") {
+    ses.setSpellCheckerEnabled(false);
+    ses.setSpellCheckerLanguages([]);
+  }
 
   ses.on("will-download", (event) => event.preventDefault());
 }
