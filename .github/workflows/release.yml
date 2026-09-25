@@ -122,7 +122,7 @@ jobs:
         if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake build-essential libclang-dev rpm
+          sudo apt-get install -y cmake build-essential libclang-dev rpm xvfb
 
       # The speech helper needs CMake to build whisper.cpp - Xcode's command
       # line tools (already on macos-latest runners) cover the C++ side.
@@ -203,6 +203,12 @@ jobs:
 
       - name: build installers
         run: npx electron-builder ${{ matrix.electron }} --publish never "-c.extraMetadata.version=${GITHUB_REF_NAME#v}"
+
+      # Before anything is uploaded: the shipped app may only contact GitHub,
+      # for its update check. See scripts/check-network.js.
+      - name: installed app only contacts GitHub, for updates (linux only)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: xvfb-run -a node scripts/check-network.js dist/*.AppImage
 
       # Uploaded by release id, into the draft create-release made, rather
       # than looked up by tag name - a re-run would otherwise risk landing in

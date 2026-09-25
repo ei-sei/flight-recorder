@@ -120,6 +120,16 @@ jobs:
       - name: end-to-end test
         run: FR_E2E_MODEL=~/.cache/fr-e2e-model/ggml-base.en-q5_1.bin xvfb-run -a npm run test:e2e
 
+      # Updates only run in an installed build, so the end-to-end test can't
+      # see what they touch. This runs the real AppImage on a fresh profile
+      # and fails on any request but the update check - it's where
+      # electron-updater's own session was found fetching a spellcheck
+      # dictionary from Google. See scripts/check-network.js.
+      - name: installed app only contacts GitHub, for updates
+        run: |
+          npx electron-builder --linux AppImage --publish never
+          xvfb-run -a node scripts/check-network.js dist/*.AppImage
+
   # Windows and macOS each get their own job for two reasons. whisper.cpp's
   # build is the part of this repo that breaks differently per platform, and
   # it used to break only on a release tag - a terrible place to find out.
