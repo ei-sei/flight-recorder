@@ -232,11 +232,17 @@ export async function getRecordingSettings() {
     alwaysOnTop: false,
     cameraEnabled: false,
     // Makeup gain in dB, applied to the recording as one constant multiplier.
-    // Defaults to +12 because capture no longer applies auto gain control, and
-    // without a boost most microphones record noticeably quieter than they
+    // Boosted by default because capture no longer applies auto gain control,
+    // and without it most microphones record noticeably quieter than they
     // used to - AGC was what made the old recordings loud. Unlike AGC this is
     // static, so it lifts the whole recording without flattening it.
-    micGainDb: 12,
+    //
+    // +18 rather than +12: measured on a USB-C headset mic, +18 still left
+    // speech around -31 dBFS with peaks near -10 and no clipping, so +12 was
+    // recording quieter than it needed to. A hot USB desk mic could clip at
+    // +18 - the setting's own note says to turn it down if loud audio
+    // distorts, and a stored choice always wins over this default.
+    micGainDb: 18,
     ...value,
   };
 }
