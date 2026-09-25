@@ -142,11 +142,13 @@ export function getDiagnostics() {
   return call("app:diagnostics");
 }
 
-// Resolves to null when up to date, otherwise { version, downloadAndInstall() }.
-// Installing quits and restarts the app into the new version by itself.
+// Resolves to null when up to date, { version, downloadAndInstall() } when
+// there's an update, or { disabled: reason } when this copy doesn't update
+// (running from source). Installing quits and restarts the app by itself.
 export async function checkForUpdate() {
   const update = await call("updater:check");
   if (!update) return null;
+  if (update.disabled) return { disabled: update.disabled };
   return { version: update.version, downloadAndInstall: () => call("updater:install") };
 }
 

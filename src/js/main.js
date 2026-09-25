@@ -446,6 +446,11 @@ async function showUpdatesInfo() {
     return;
   }
 
+  if (update?.disabled) {
+    showAlert({ title: "Updates", message: `You're on version ${version}. ${update.disabled}` });
+    return;
+  }
+
   if (!update) {
     showAlert({
       title: "Updates",
@@ -482,7 +487,8 @@ let pendingUpdate = null;
 async function checkForUpdateBadge() {
   const bellDot = document.getElementById("bell-dot");
   try {
-    pendingUpdate = await checkForUpdate();
+    const update = await checkForUpdate();
+    pendingUpdate = update?.disabled ? null : update;
     bellDot.hidden = !pendingUpdate;
   } catch (err) {
     // Silent background check; the bell just stays un-badged on failure.

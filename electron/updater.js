@@ -35,10 +35,12 @@ export function createUpdater() {
   let verifiedVersion = null;
 
   return {
-    // Resolves to null when up to date, otherwise { version }.
+    // Resolves to null when up to date, { version } when there's an update,
+    // or { disabled: reason } when this copy doesn't update at all - running
+    // from source isn't a failure, and shouldn't be reported as one.
     async check() {
       if (!app.isPackaged) {
-        throw new Error("Updates are checked in the installed app, not when running from source.");
+        return { disabled: "Updates are checked in the installed app, not when running from source." };
       }
       const result = await autoUpdater.checkForUpdates();
       if (!result?.isUpdateAvailable) return null;
