@@ -67,36 +67,33 @@ jobs:
           # changes, so a cached whisper.cpp survives CMake option changes.
           # Bumping this key forces one cold rebuild whenever those options
           # change (last: GGML_NATIVE off, see src-tauri/ggml-portable.cmake).
-          key: portable-ggml
+          key: portable-ggml-2
           # A clippy or fmt failure shouldn't throw away a full dependency
           # build - the next push would otherwise start cold.
           cache-on-failure: true
 
+      # Every cargo step runs from src-tauri/, not the repo root with
+      # --manifest-path. Cargo finds .cargo/config.toml by walking up from the
+      # current directory, not from the manifest, so from the root it never
+      # loaded src-tauri/.cargo/config.toml - and CI silently built something
+      # different from the release. `tauri build` always runs cargo from
+      # src-tauri/, so this is what makes CI build what actually ships.
       - name: cargo fmt --check
-        run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
+        working-directory: src-tauri
+        run: cargo fmt --check
 
       - name: cargo clippy
-        run: cargo clippy --manifest-path src-tauri/Cargo.toml --no-deps -- -D warnings
+        working-directory: src-tauri
+        run: cargo clippy --no-deps -- -D warnings
 
       - name: cargo build
-        run: cargo build --manifest-path src-tauri/Cargo.toml
+        working-directory: src-tauri
+        run: cargo build
 
-      # Releases shipped whisper.cpp compiled for the runner's AVX-512 Xeon,
-      # and it killed the app with SIGILL on any CPU without AVX-512 the
-      # moment transcription started. Nothing else would catch that: it
-      # builds, passes every test, and runs fine on the runner itself. This
-      # fails the build if any ggml function uses an AVX-512 (zmm) register.
+      # See .github/scripts/check-no-avx512.sh. release.yml runs the same
+      # check against the real release binary.
       - name: whisper.cpp contains no AVX-512
-        run: |
-          hits=$(objdump -d --no-show-raw-insn src-tauri/target/debug/flight-recorder | awk '
-            /^[0-9a-f]+ <[^>]*>:$/ { fn = $2; inggml = (fn ~ /ggml/); next }
-            inggml && /zmm[0-9]/ { n[fn]++ }
-            END { for (f in n) print n[f], f }')
-          if [ -n "$hits" ]; then
-            echo "::error::ggml was built with AVX-512 and will crash CPUs without it:"
-            echo "$hits" | sort -rn | head -20
-            exit 1
-          fi
+        run: .github/scripts/check-no-avx512.sh src-tauri/target/debug/flight-recorder
 
   # Windows gets its own job purely because whisper.cpp's build is the one
   # part of this repo that breaks differently per platform, and it used to
@@ -122,8 +119,10 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
-          key: windows-portable-ggml
+          key: windows-portable-ggml-2
           cache-on-failure: true
 
+      # From src-tauri/ so .cargo/config.toml is loaded - see lint-and-build.
       - name: cargo build
-        run: cargo build --manifest-path src-tauri/Cargo.toml
+        working-directory: src-tauri
+        run: cargo build

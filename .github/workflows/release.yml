@@ -192,6 +192,15 @@ jobs:
           releaseId: ${{ needs.create-release.outputs.release_id }}
           args: ${{ matrix.args }}
 
+      # Scans the binary that was just packaged. It runs after the upload
+      # (tauri-action builds and uploads in one step), but the release is
+      # still a draft, so a failure here is the signal not to publish it.
+      # Linux only: it needs objdump and an ELF binary. The other platforms
+      # compile whisper.cpp under the same GGML_NATIVE=OFF setting.
+      - name: whisper.cpp contains no AVX-512
+        if: matrix.platform == 'ubuntu-22.04'
+        run: .github/scripts/check-no-avx512.sh src-tauri/target/release/flight-recorder
+
   # A tag's caches are worth ~2GB and are readable by exactly one thing: a
   # re-run of that same tag. Once every leg has passed there's nothing left
   # to retry, so they become dead weight competing for the repo's 10GB cache
