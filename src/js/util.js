@@ -442,6 +442,24 @@ export function correctLegacyWpm(attempts) {
   return changed;
 }
 
+// The pace spread of an attempt from before the fix above rated Whisper's
+// segments, pauses and all (one real one read 59-181 wpm), and unlike WPM it
+// can't be corrected: that needs the mic timing, which wasn't kept. So it's
+// removed rather than shown, as for a new attempt with no mic measurement.
+// Only an attempt measured over its speech has a real one. Returns whether
+// anything changed.
+export function dropLegacyPaceRanges(attempts) {
+  let changed = false;
+  for (const attempt of attempts) {
+    if (attempt.wpmMeasuredOver === "speech") continue;
+    if (attempt.paceMinWpm == null && attempt.paceMaxWpm == null) continue;
+    attempt.paceMinWpm = null;
+    attempt.paceMaxWpm = null;
+    changed = true;
+  }
+  return changed;
+}
+
 // Level whisper is handed, as RMS across the whole recording. Speech at a
 // comfortable listening level sits near here; the exact figure matters far
 // less than not handing it something almost silent.

@@ -1,5 +1,5 @@
 import { Store, videoDir, join, mkdir, writeFile, exists } from "./platform.js";
-import { slugify, correctLegacyWpm } from "./util.js";
+import { slugify, correctLegacyWpm, dropLegacyPaceRanges } from "./util.js";
 
 // The only categories a question can be tagged with (fixed sidebar tabs,
 // not a user-extensible list) - kept here just to pre-create their folders
@@ -187,9 +187,13 @@ export async function getAttempts() {
   if (!attempts) return [];
 
   const { migrated, changed } = migrateBehaviouralSpelling(attempts);
-  // WPM used to be divided by the whole recording; see correctLegacyWpm.
+  // WPM used to be divided by the whole recording, and the pace spread
+  // counted pauses as slow speech; see correctLegacyWpm and
+  // dropLegacyPaceRanges. The pace check runs second: it relies on the mark
+  // correctLegacyWpm leaves.
   const wpmCorrected = correctLegacyWpm(migrated);
-  if (changed || wpmCorrected) {
+  const paceDropped = dropLegacyPaceRanges(migrated);
+  if (changed || wpmCorrected || paceDropped) {
     await store.set("attempts", migrated);
     await store.save();
   }

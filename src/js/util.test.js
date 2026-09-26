@@ -12,6 +12,7 @@ import {
   computePaceRange,
   computeWpm,
   correctLegacyWpm,
+  dropLegacyPaceRanges,
   countFillers,
   countWords,
   dbfs,
@@ -374,6 +375,18 @@ test("correctLegacyWpm takes the response delay out of old whole-recording figur
   assert.equal(attempts[3].wpmMeasuredOver, undefined); // no wpm to correct
   assert.equal(correctLegacyWpm(attempts), false);
   assert.equal(attempts[0].wpm, 125);
+});
+
+test("dropLegacyPaceRanges removes pace spreads not measured over speech, once", () => {
+  const attempts = [
+    { wpmMeasuredOver: "recording-minus-delay", paceMinWpm: 59, paceMaxWpm: 181 },
+    { wpmMeasuredOver: "recording", paceMinWpm: 80, paceMaxWpm: 150 },
+    { wpmMeasuredOver: "speech", paceMinWpm: 160, paceMaxWpm: 190 },
+    { wpmMeasuredOver: "recording", paceMinWpm: null, paceMaxWpm: null },
+  ];
+  assert.equal(dropLegacyPaceRanges(attempts), true);
+  assert.deepEqual(attempts.map((a) => [a.paceMinWpm, a.paceMaxWpm]), [[null, null], [null, null], [160, 190], [null, null]]);
+  assert.equal(dropLegacyPaceRanges(attempts), false);
 });
 
 test("formatPaceRange hides a range that rounds to one number", () => {
