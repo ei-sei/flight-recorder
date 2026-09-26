@@ -477,21 +477,16 @@ textarea {
   background: transparent;
   border: none;
   color: var(--text-secondary);
-  font-size: 12px;
-  padding: 7px 6px;
+  /* Small enough that "Behavioural" fits in either sidebar at its default
+     width; at 12px it was cut off to "Behavio…". */
+  font-size: 11px;
+  padding: 7px 4px;
   cursor: pointer;
   border-radius: 999px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   transition: color var(--ease), background-color var(--ease), box-shadow var(--ease);
-}
-
-/* The attempt log fits four tabs into a column narrower than the sidebar's
-   three; at the shared 12px "Behavioural" was cut off to "Behavio…". */
-#log-filter-tabs .tab {
-  font-size: 11px;
-  padding: 7px 4px;
 }
 
 .tab:hover {
