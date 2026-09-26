@@ -11,6 +11,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 import { has, speak, writeWav, launchApp, readLibrary, waitFor } from "./helpers.js";
@@ -48,7 +49,7 @@ function mp4Codecs(file) {
 }
 
 test("record, save, play back and transcribe a take", { timeout: 180_000 }, async () => {
-  const micDir = fs.mkdtempSync(`${process.env.TMPDIR ?? "/tmp"}/fr-mic-`);
+  const micDir = fs.mkdtempSync(path.join(os.tmpdir(), "fr-mic-"));
   const mic = path.join(micDir, "mic.wav");
   const micKind = writeMicInput(mic, micDir);
   const model = process.env.FR_E2E_MODEL;

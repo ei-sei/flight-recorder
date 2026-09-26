@@ -11,6 +11,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
 import { has, speak, writeWav, launchApp, readLibrary, waitFor } from "./helpers.js";
 
@@ -54,7 +56,7 @@ function buildAnswer(tmp) {
     track[i] += noise * r * Math.cos(a);
     if (i + 1 < track.length) track[i + 1] += noise * r * Math.sin(a);
   }
-  const file = `${tmp}/answer.wav`;
+  const file = path.join(tmp, "answer.wav");
   writeWav(file, track, RATE);
   // How long the answer really took, first word to last, at a steady pace.
   const spoken = sentenceSeconds.reduce((a, b) => a + b, 0) + GAPS_S.reduce((a, b) => a + b, 0);
@@ -62,7 +64,7 @@ function buildAnswer(tmp) {
 }
 
 test("speech measurements match an answer with known pauses", { skip, timeout: 300_000 }, async () => {
-  const tmp = fs.mkdtempSync(`${process.env.TMPDIR ?? "/tmp"}/fr-accuracy-`);
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "fr-accuracy-"));
   const answer = buildAnswer(tmp);
   const { app, libraryDir } = await launchApp({
     mic: answer.file,
