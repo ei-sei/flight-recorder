@@ -17,6 +17,8 @@ import {
   renderStars,
   rejectHallucinatedSegments,
   computePaceRange,
+  computeWpm,
+  speechStretches,
   normaliseForTranscription,
   dbfs,
   joinWordsWithPauses,
@@ -127,6 +129,10 @@ export async function saveAttempt({
     paceMinWpm: null,
     paceMaxWpm: null,
     transcript: transcript ?? null,
+    // What wpm was divided by: "speech" (first word to last, from the mic),
+    // "recording" (the whole take, when the mic measurement wasn't there),
+    // or "recording-minus-delay" for attempts corrected after the fact.
+    wpmMeasuredOver: null,
     // Set when transcription failed, or when it was never going to be
     // possible for this recording's format, so review can tell either apart
     // from a recording with no speech in it.
@@ -287,17 +293,27 @@ async function transcribeAttemptInBackground(attempt, speechIntervals) {
     // real gap shows up wherever it actually falls - including inside a
     // segment, and including the span where a whole segment was dropped
     // above, which otherwise vanishes with nothing to show it was ever there.
-    const words = segments.flatMap((s) => s.words);
+    // The first word of each segment carries where whisper started it: its
+    // segment breaks are the most reliable clue to which side of a pause a
+    // word was said on (see firstWordAfterPause in util.js).
+    const words = segments.flatMap((s) => s.words.map((w, i) => (i === 0 ? { ...w, segmentStartMs: s.startMs } : w)));
     const transcript = joinWordsWithPauses(words, speechIntervals).trim();
-    const elapsedMinutes = attempt.durationMs / 60000;
     // words.length, not countWords(transcript) - that would split on the
     // ellipsis's surrounding spaces and count "…" itself as a word,
     // inflating wpm on any transcript with a marked pause in it.
-    const wpm = words.length > 0 && elapsedMinutes > 0 ? words.length / elapsedMinutes : null;
-    const { minWpm, maxWpm } = computePaceRange(segments);
+    const { wpm, measuredOver } = computeWpm(words.length, speechIntervals, attempt.durationMs);
+    // Console only (and so Help > Debug info): when the mic heard speech,
+    // which WPM, the pace spread and the transcript's pauses are all built
+    // on. Times only - nothing about what was said.
+    const stretchList = speechStretches(speechIntervals)
+      .map(([start, end]) => `${(start / 1000).toFixed(1)}-${(end / 1000).toFixed(1)}s`)
+      .join(", ");
+    console.info(`Speech between pauses (mic): ${stretchList || "none measured"}`);
+    const { minWpm, maxWpm } = computePaceRange(words, speechIntervals);
 
     await updateAttemptTranscript(attempt.id, {
       wpm,
+      wpmMeasuredOver: measuredOver,
       transcript,
       paceMinWpm: minWpm,
       paceMaxWpm: maxWpm,

@@ -11,6 +11,8 @@ import assert from "node:assert/strict";
 import {
   abbreviateQuestion,
   computePaceRange,
+  computeWpm,
+  correctLegacyWpm,
   countFillers,
   countWords,
   dbfs,
@@ -247,22 +249,130 @@ test("joinWordsWithPauses handles no speechIntervals at all", () => {
   assert.equal(joinWordsWithPauses(words), "Hello there");
 });
 
-test("computePaceRange ignores segments too short to be meaningful", () => {
-  const segments = [
-    { text: "two words", startMs: 0, endMs: 1000 },
-    { text: "a longer stretch of speech here", startMs: 2000, endMs: 5000 },
-    { text: "another longer stretch of speech", startMs: 6000, endMs: 12000 },
+// Whisper's real word timings either side of a known 4-second pause, from an
+// answer recorded through the app (mic: speech until 19.8s, silent, resumes at
+// 23.8s). "while we switched." were said before the pause but come back
+// spread across it; "I" is timed exactly where speech resumed.
+const smearedAcrossPause = [
+  word("customer", 17740, 19190),
+  word("running", 19190, 19760),
+  word("while", 19760, 21370),
+  word("we", 21370, 21730),
+  word("switched.", 21730, 23760),
+  word("I", 23780, 23860),
+  word("learned", 23860, 24450),
+  word("that", 24620, 24950),
+];
+const aroundPauseIntervals = [
+  [15700, 19800],
+  [23800, 27800],
+];
+
+test("joinWordsWithPauses puts the pause where speech resumed, not where whisper smeared the words before it", () => {
+  assert.equal(
+    joinWordsWithPauses(smearedAcrossPause, aroundPauseIntervals),
+    "customer running while we switched. … I learned that"
+  );
+});
+
+test("joinWordsWithPauses trusts a segment break inside the pause over word timings", () => {
+  // The same answer with fan noise: whisper pulled "I" back almost a second
+  // into the silence, but started a new segment at it.
+  const words = [
+    word("customer", 18890, 19610),
+    word("running", 19610, 20910),
+    word("while", 20910, 21580),
+    word("we", 21580, 21850),
+    word("switched.", 21850, 23000),
+    { ...word("I", 23000, 23120), segmentStartMs: 23000 },
+    word("learned", 23740, 23960),
+    word("that", 23960, 24410),
   ];
-  const { minWpm, maxWpm } = computePaceRange(segments);
-  // Only the two segments of at least 2s count: 6 words over 3s = 120wpm,
-  // and 5 words over 6s = 50wpm.
-  assert.equal(Math.round(minWpm), 50);
+  assert.equal(
+    joinWordsWithPauses(words, [[15900, 19700], [23900, 27900]]),
+    "customer running while we switched. … I learned that"
+  );
+  // Without the segment break the word timings alone get this one wrong -
+  // which is why the break is trusted first.
+  const noBreak = words.map(({ segmentStartMs, ...w }) => w);
+  assert.notEqual(joinWordsWithPauses(noBreak, [[15900, 19700], [23900, 27900]]), "customer running while we switched. … I learned that");
+});
+
+test("joinWordsWithPauses ignores segment breaks nowhere near a pause", () => {
+  const words = [
+    word("One", 0, 300),
+    { ...word("two", 400, 700), segmentStartMs: 400 },
+    word("three", 4000, 4300),
+  ];
+  assert.equal(joinWordsWithPauses(words, [[0, 700], [4000, 4300]]), "One two … three");
+});
+
+test("computeWpm times the answer from first word to last, not the whole recording", () => {
+  // 51 words; speech from 3.4s to 27.9s of a 30.5s recording - the known
+  // answer that used to read as 100 wpm when it was spoken at 125.
+  const { wpm, measuredOver } = computeWpm(51, [[3380, 13750], [15700, 19800], [23800, 27930]], 30515);
+  assert.equal(Math.round(wpm), 125);
+  assert.equal(measuredOver, "speech");
+});
+
+test("computeWpm falls back to the whole recording without a mic measurement", () => {
+  assert.deepEqual(computeWpm(60, [], 60000), { wpm: 60, measuredOver: "recording" });
+  // A sliver of detected speech isn't a span worth dividing by.
+  assert.equal(computeWpm(60, [[0, 500]], 60000).measuredOver, "recording");
+  assert.deepEqual(computeWpm(0, [[0, 5000]], 60000), { wpm: null, measuredOver: null });
+});
+
+test("computePaceRange rates each stretch between pauses, so a pause can't read as slow speech", () => {
+  // Two stretches split by a 4s pause, 10 words then 12. Whisper smears the
+  // last two words of the first across the pause; they still count there.
+  const words = [
+    ...Array.from({ length: 8 }, (_, i) => word(`a${i}`, i * 450, i * 450 + 400)),
+    word("a8", 4200, 5500),
+    word("a9", 5500, 7900),
+    ...Array.from({ length: 12 }, (_, i) => word(`b${i}`, 8000 + i * 330, 8000 + i * 330 + 300)),
+  ];
+  const { minWpm, maxWpm } = computePaceRange(words, [[0, 4000], [8000, 12000]]);
+  assert.equal(Math.round(minWpm), 150); // 10 words over 4s
+  assert.equal(Math.round(maxWpm), 180); // 12 words over 4s
+});
+
+test("computePaceRange splits a long unbroken stretch into windows", () => {
+  // 30s of continuous speech: 20 words in the first 20s, then 20 in the last 10.
+  const words = [
+    ...Array.from({ length: 20 }, (_, i) => word(`s${i}`, i * 1000, i * 1000 + 300)),
+    ...Array.from({ length: 20 }, (_, i) => word(`f${i}`, 20000 + i * 500, 20000 + i * 500 + 300)),
+  ];
+  const { minWpm, maxWpm } = computePaceRange(words, [[0, 30000]]);
+  assert.equal(Math.round(minWpm), 60);
   assert.equal(Math.round(maxWpm), 120);
 });
 
-test("computePaceRange refuses to call a single segment a range", () => {
-  const segments = [{ text: "one two three four", startMs: 0, endMs: 3000 }];
-  assert.deepEqual(computePaceRange(segments), { minWpm: null, maxWpm: null });
+test("computePaceRange shows nothing it can't back up", () => {
+  const words = [word("one", 0, 300), word("two", 400, 700), word("three", 800, 1100)];
+  // No mic measurement at all.
+  assert.deepEqual(computePaceRange(words, []), { minWpm: null, maxWpm: null });
+  // A single stretch too short to split: one rate isn't a range.
+  assert.deepEqual(computePaceRange(words, [[0, 3000]]), { minWpm: null, maxWpm: null });
+  // Stretches under 2s are too coarse to rate at all.
+  assert.deepEqual(computePaceRange(words, [[0, 1500], [5000, 6000]]), { minWpm: null, maxWpm: null });
+});
+
+test("correctLegacyWpm takes the response delay out of old whole-recording figures, once", () => {
+  const attempts = [
+    { wpm: 100, durationMs: 30000, responseDelayMs: 6000 },
+    { wpm: 90, durationMs: 30000, responseDelayMs: null },
+    { wpm: 130, durationMs: 30000, responseDelayMs: 3000, wpmMeasuredOver: "speech" },
+    { wpm: null, durationMs: 30000, responseDelayMs: 2000 },
+  ];
+  assert.equal(correctLegacyWpm(attempts), true);
+  assert.equal(attempts[0].wpm, 125); // same words over 24s instead of 30s
+  assert.equal(attempts[0].wpmMeasuredOver, "recording-minus-delay");
+  assert.equal(attempts[1].wpm, 90); // nothing to take out
+  assert.equal(attempts[1].wpmMeasuredOver, "recording");
+  assert.equal(attempts[2].wpm, 130); // already measured the new way
+  assert.equal(attempts[3].wpmMeasuredOver, undefined); // no wpm to correct
+  assert.equal(correctLegacyWpm(attempts), false);
+  assert.equal(attempts[0].wpm, 125);
 });
 
 test("formatPaceRange hides a range that rounds to one number", () => {

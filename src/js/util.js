@@ -266,6 +266,44 @@ export function rejectHallucinatedSegments(segments, speechIntervals) {
 // hesitation instead.
 const ELLIPSIS_PAUSE_MIN_MS = 3000;
 
+// Whisper's word timestamps can't be trusted across a long silence, and they
+// go wrong in both directions. Tested against an answer with a known 4s
+// pause: in a quiet room "while we switched" came back spread over the whole
+// 4 seconds while "I" landed exactly where speech restarted; with fan noise
+// "I" was pulled back almost a second into the silence instead. And a real
+// recording with a 37s pause had the words either side of it 0ms apart.
+//
+// What held up in every one of those runs is where whisper starts a new
+// segment: right at the pause, with the words after the break being the ones
+// said after it. So the far side of a pause is, in order of trust:
+//   1. the first word of a segment that starts inside the pause
+//   2. the first word timed where speech resumed
+//   3. the first word timed after the pause began
+// Words carry segmentStartMs on the first word of each segment (see
+// transcribeAttemptInBackground in attempts.js).
+const RESUME_TOLERANCE_MS = 500;
+
+function firstWordAfterPause(words, from, gapStart, gapEnd) {
+  let atBreak = -1;
+  for (let i = Math.max(from, 1); i < words.length; i++) {
+    const breakAt = words[i].segmentStartMs;
+    if (breakAt === undefined) continue;
+    if (breakAt > gapEnd + RESUME_TOLERANCE_MS) break;
+    // Inside the silence, or just after it - whisper sometimes starts the
+    // next segment a moment late, never before the pause began. The break
+    // nearest where speech resumed wins if there's more than one.
+    if (breakAt >= gapStart) atBreak = i;
+  }
+  if (atBreak !== -1) return atBreak;
+
+  let resumed = from;
+  while (resumed < words.length && words[resumed].startMs < gapEnd - RESUME_TOLERANCE_MS) resumed++;
+  if (resumed < words.length) return resumed;
+  let began = from;
+  while (began < words.length && words[began].startMs < gapStart) began++;
+  return began;
+}
+
 // Turns the live detector's speech-active stretches into the silences
 // between them.
 function pauseWindows(speechIntervals) {
@@ -290,16 +328,16 @@ function pauseWindows(speechIntervals) {
 // recorder.js), not from whisper's own word-to-word gap - see the comment on
 // ELLIPSIS_PAUSE_MIN_MS above for why that gap can't be trusted. Whisper's
 // word timestamps are used only to find which pair of words a real pause falls
-// between: for each pause, the first word starting at or after it marks
-// where the ellipsis goes. A pause before the first surviving word or after
-// the last isn't marked - there's no adjacent word to attach it to, and the
-// response delay and any trailing silence are already measured elsewhere.
+// between - see firstWordAfterPause for how, since they drift around a
+// silence. A pause before the first surviving word or after the last isn't
+// marked - there's no adjacent word to attach it to, and the response delay
+// and any trailing silence are already measured elsewhere.
 export function joinWordsWithPauses(words, speechIntervals = []) {
   if (words.length === 0) return "";
   const pauseBeforeWord = new Set();
   let wordIdx = 0;
-  for (const [gapStart] of pauseWindows(speechIntervals)) {
-    while (wordIdx < words.length && words[wordIdx].startMs < gapStart) wordIdx++;
+  for (const [gapStart, gapEnd] of pauseWindows(speechIntervals)) {
+    wordIdx = firstWordAfterPause(words, wordIdx, gapStart, gapEnd);
     if (wordIdx > 0 && wordIdx < words.length) pauseBeforeWord.add(wordIdx);
   }
 
@@ -311,23 +349,103 @@ export function joinWordsWithPauses(words, speechIntervals = []) {
   return out;
 }
 
-// Per-segment speaking rate, for the spread rather than the average - the
-// average is already the headline WPM. Short segments are skipped: a
-// two-word one second segment computes to a wild rate that says nothing
-// about how someone was actually speaking.
-const MIN_PACE_SEGMENT_MS = 2000;
+// Must match PAUSE_MIN_MS in recorder.js: a silence this long is a pause, the
+// same definition the review screen's pause count uses. Anything shorter -
+// a breath, a gap between sentences - is part of speaking.
+const PAUSE_MIN_MS = 1200;
+// Shorter than this, the timing is too coarse to be worth a rate: a two-word,
+// one-second stretch computes to a wild number that says nothing about how
+// someone was actually speaking.
+const MIN_PACE_WINDOW_MS = 2000;
+// A long unbroken stretch is split into windows about this long, so an answer
+// with few real pauses still shows whether it sped up. Inside continuous
+// speech whisper's word timing is sound; it only drifts across silences.
+const PACE_WINDOW_MS = 10000;
 
-export function computePaceRange(segments) {
-  const rates = [];
-  for (const segment of segments) {
-    const durationMs = segment.endMs - segment.startMs;
-    if (durationMs < MIN_PACE_SEGMENT_MS) continue;
-    const words = countWords(segment.text);
-    if (words === 0) continue;
-    rates.push(words / (durationMs / 60000));
+// The live detector's speech-active intervals, joined into the stretches
+// between real pauses.
+export function speechStretches(speechIntervals = []) {
+  const stretches = [];
+  for (const [start, end] of speechIntervals) {
+    const last = stretches.at(-1);
+    if (last && start - last[1] < PAUSE_MIN_MS) last[1] = end;
+    else stretches.push([start, end]);
   }
-  if (rates.length < 2) return { minWpm: null, maxWpm: null };
+  return stretches;
+}
+
+// Words per minute from the first word to the last, as the mic heard them.
+// It used to divide by the whole recording, which counted the thinking time
+// before the first word and the silence before Stop as if they were slow
+// speech: tested against an answer spoken at 125 wpm it reported 100, and the
+// longer someone thought before answering, the slower they looked. Falls back
+// to the whole recording only when the mic measurement isn't there.
+const MIN_SPEECH_SPAN_MS = 2000;
+
+export function computeWpm(wordCount, speechIntervals = [], durationMs = 0) {
+  if (!wordCount) return { wpm: null, measuredOver: null };
+  const span = speechIntervals.length ? speechIntervals.at(-1)[1] - speechIntervals[0][0] : 0;
+  if (span >= MIN_SPEECH_SPAN_MS) return { wpm: wordCount / (span / 60000), measuredOver: "speech" };
+  if (durationMs > 0) return { wpm: wordCount / (durationMs / 60000), measuredOver: "recording" };
+  return { wpm: null, measuredOver: null };
+}
+
+// The spread of speaking rates across an answer, for "rushed the end" -
+// the average is already the headline WPM. Each stretch between real pauses
+// is timed by the mic and gets the words spoken in it, so a pause can't count
+// as slow speech. (It used to rate whisper's own segments, which often
+// contain a pause: the same known answer came back 50-147, 90-116 and 72-120
+// on three runs when it was actually spoken at a steady 156-173.) Without
+// the mic measurement there's no honest way to do this, so nothing is shown.
+export function computePaceRange(words = [], speechIntervals = []) {
+  const none = { minWpm: null, maxWpm: null };
+  const stretches = speechStretches(speechIntervals);
+  if (stretches.length === 0 || words.length === 0) return none;
+
+  // Index of the first word in each stretch.
+  const firstWord = [0];
+  for (let i = 1; i < stretches.length; i++) {
+    firstWord.push(firstWordAfterPause(words, firstWord[i - 1], stretches[i - 1][1], stretches[i][0]));
+  }
+
+  const rates = [];
+  stretches.forEach(([start, end], i) => {
+    const stretchWords = words.slice(firstWord[i], firstWord[i + 1] ?? words.length);
+    const windows = Math.max(1, Math.round((end - start) / PACE_WINDOW_MS));
+    const windowMs = (end - start) / windows;
+    if (windowMs < MIN_PACE_WINDOW_MS) return;
+    const counts = new Array(windows).fill(0);
+    for (const word of stretchWords) {
+      // Clamped: a word whisper timed just outside its stretch still belongs
+      // to it, by the assignment above.
+      const at = Math.min(Math.max(word.startMs, start), end - 1);
+      counts[Math.min(windows - 1, Math.floor((at - start) / windowMs))]++;
+    }
+    for (const count of counts) if (count > 0) rates.push(count / (windowMs / 60000));
+  });
+  if (rates.length < 2) return none;
   return { minWpm: Math.min(...rates), maxWpm: Math.max(...rates) };
+}
+
+// Attempts from before the fix above had their WPM divided by the whole
+// recording. Their mic timing wasn't kept, so the best correction available
+// is to take out the response delay they did store - the thinking time, by
+// far the bigger of the two silences that skewed it. Marked, so it's only
+// ever applied once. Returns whether anything changed.
+export function correctLegacyWpm(attempts) {
+  let changed = false;
+  for (const attempt of attempts) {
+    if (attempt.wpm == null || attempt.wpmMeasuredOver) continue;
+    changed = true;
+    const span = attempt.durationMs - (attempt.responseDelayMs ?? 0);
+    if (attempt.responseDelayMs != null && span >= MIN_SPEECH_SPAN_MS) {
+      attempt.wpm = (attempt.wpm * attempt.durationMs) / span;
+      attempt.wpmMeasuredOver = "recording-minus-delay";
+    } else {
+      attempt.wpmMeasuredOver = "recording";
+    }
+  }
+  return changed;
 }
 
 // Level whisper is handed, as RMS across the whole recording. Speech at a

@@ -13,7 +13,7 @@
     "test": "node --test src/js/*.test.js electron/*.test.js scripts/*.test.js",
     "build:helper": "node scripts/build-helper.js",
     "dist": "electron-builder --publish never",
-    "test:e2e": "node --test test/e2e/*.e2e.js"
+    "test:e2e": "node --test --test-concurrency=1 test/e2e/*.e2e.js"
   },
   "devDependencies": {
     "electron": "44.4.5",

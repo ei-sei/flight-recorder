@@ -10,58 +10,30 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
-import { _electron as electron } from "playwright-core";
 
-const repo = path.join(import.meta.dirname, "..", "..");
+import { has, speak, writeWav, launchApp, readLibrary, waitFor } from "./helpers.js";
+
 const sentence = "Tell me about yourself. I have five years of experience building software.";
-
-function has(command) {
-  try {
-    execFileSync(command, ["--version"], { stdio: "ignore" });
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 // A real spoken sentence when espeak-ng is installed (so transcription has
 // something to hear), otherwise a tone gated like speech - 1.2s on, 0.8s
 // off - which still exercises the pause and talking-time measurements.
-function writeMicInput(file) {
-  if (has("espeak-ng")) {
-    const raw = `${file}.raw.wav`;
-    execFileSync("espeak-ng", ["-s", "150", "-w", raw, sentence]);
+function writeMicInput(file, tmp) {
+  const rate = 48000;
+  if (has("espeak-ng") && has("ffmpeg")) {
     // Silence either side, so the take starts and ends quiet.
-    execFileSync("ffmpeg", ["-v", "error", "-y", "-i", raw, "-af", "adelay=1000,apad=pad_dur=2", "-ar", "48000", "-ac", "1", file]);
+    const said = speak(sentence, tmp);
+    writeWav(file, [...new Array(rate).fill(0), ...said, ...new Array(rate * 2).fill(0)], rate);
     return "speech";
   }
-  const rate = 48000;
-  const samples = rate * 20;
-  const data = Buffer.alloc(samples * 2);
-  for (let i = 0; i < samples; i++) {
+  const samples = Array.from({ length: rate * 20 }, (_, i) => {
     const t = i / rate;
     const on = t >= 1 && (t - 1) % 2 < 1.2;
-    const value = on ? 0.25 * (2 * ((t * 180) % 1) - 1) : 0;
-    data.writeInt16LE(Math.round(value * 32767), i * 2);
-  }
-  const header = Buffer.alloc(44);
-  header.write("RIFF", 0);
-  header.writeUInt32LE(36 + data.length, 4);
-  header.write("WAVEfmt ", 8);
-  header.writeUInt32LE(16, 16);
-  header.writeUInt16LE(1, 20);
-  header.writeUInt16LE(1, 22);
-  header.writeUInt32LE(rate, 24);
-  header.writeUInt32LE(rate * 2, 28);
-  header.writeUInt16LE(2, 32);
-  header.writeUInt16LE(16, 34);
-  header.write("data", 36);
-  header.writeUInt32LE(data.length, 40);
-  fs.writeFileSync(file, Buffer.concat([header, data]));
+    return on ? 0.25 * (2 * ((t * 180) % 1) - 1) : 0;
+  });
+  writeWav(file, samples, rate);
   return "tone";
 }
 
@@ -75,61 +47,20 @@ function mp4Codecs(file) {
   };
 }
 
-function readLibrary(libraryDir) {
-  return JSON.parse(fs.readFileSync(path.join(libraryDir, "library.json"), "utf8"));
-}
-
-async function waitFor(check, { timeout = 30_000, interval = 250 } = {}) {
-  const deadline = Date.now() + timeout;
-  for (;;) {
-    const value = await check();
-    if (value) return value;
-    if (Date.now() > deadline) throw new Error("timed out");
-    await new Promise((r) => setTimeout(r, interval));
-  }
-}
-
 test("record, save, play back and transcribe a take", { timeout: 180_000 }, async () => {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "fr-e2e-"));
-  const videos = path.join(tmp, "Videos");
-  const libraryDir = path.join(videos, "flight-recorder");
-  const data = path.join(tmp, "data");
-  // A fresh Chromium profile every run, as on a first install - a cached
-  // file from an earlier run once hid a network request this test exists
-  // to catch.
-  const profile = path.join(tmp, "profile");
-  const netlog = path.join(tmp, "netlog.json");
-  const mic = path.join(tmp, "mic.wav");
-  const micKind = writeMicInput(mic);
+  const micDir = fs.mkdtempSync(`${process.env.TMPDIR ?? "/tmp"}/fr-mic-`);
+  const mic = path.join(micDir, "mic.wav");
+  const micKind = writeMicInput(mic, micDir);
   const model = process.env.FR_E2E_MODEL;
   const transcribe = Boolean(model) && micKind === "speech";
 
-  fs.mkdirSync(libraryDir, { recursive: true });
-  fs.mkdirSync(data, { recursive: true });
-  if (transcribe) fs.copyFileSync(model, path.join(data, "ggml-base.en-q5_1.bin"));
   // Questions left out, so the app seeds its first one as on a real first
   // launch. Speech pace on only when there's a model to use.
-  fs.writeFileSync(path.join(libraryDir, "library.json"), JSON.stringify({ wpmEnabled: transcribe }));
-
-  const env = {
-    ...process.env,
-    FLIGHT_RECORDER_VIDEOS_DIR: videos,
-    FLIGHT_RECORDER_DATA_DIR: data,
-    FLIGHT_RECORDER_USER_DATA_DIR: profile,
-  };
-  delete env.ELECTRON_RUN_AS_NODE;
-  // Either would make the app relaunch itself, and Playwright would lose it.
-  delete env.MANGOHUD;
-  const args = [
-    repo,
-    ...(process.platform === "linux" ? ["--ozone-platform=x11"] : []),
-    "--use-fake-device-for-media-stream",
-    "--use-fake-ui-for-media-stream",
-    `--use-file-for-fake-audio-capture=${mic}`,
-    `--log-net-log=${netlog}`,
-  ];
-
-  const app = await electron.launch({ args, env, cwd: repo });
+  const { app, tmp, libraryDir, netlog } = await launchApp({
+    mic,
+    model: transcribe ? model : undefined,
+    library: { wpmEnabled: transcribe },
+  });
   try {
     const page = await app.firstWindow();
     await page.waitForLoadState("load");
@@ -211,4 +142,5 @@ test("record, save, play back and transcribe a take", { timeout: 180_000 }, asyn
   const requests = [...fs.readFileSync(netlog, "utf8").matchAll(/"url":"((?:https?|wss?):\/\/[^"]+)"/g)].map((m) => m[1]);
   assert.deepEqual(requests, [], "no network requests");
   fs.rmSync(tmp, { recursive: true, force: true });
+  fs.rmSync(micDir, { recursive: true, force: true });
 });

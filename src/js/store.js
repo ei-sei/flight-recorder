@@ -1,5 +1,5 @@
 import { Store, videoDir, join, mkdir, writeFile, exists } from "./platform.js";
-import { slugify } from "./util.js";
+import { slugify, correctLegacyWpm } from "./util.js";
 
 // The only categories a question can be tagged with (fixed sidebar tabs,
 // not a user-extensible list) - kept here just to pre-create their folders
@@ -187,7 +187,9 @@ export async function getAttempts() {
   if (!attempts) return [];
 
   const { migrated, changed } = migrateBehaviouralSpelling(attempts);
-  if (changed) {
+  // WPM used to be divided by the whole recording; see correctLegacyWpm.
+  const wpmCorrected = correctLegacyWpm(migrated);
+  if (changed || wpmCorrected) {
     await store.set("attempts", migrated);
     await store.save();
   }
