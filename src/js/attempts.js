@@ -12,7 +12,7 @@ import { getAttempts, saveAttempts, libraryDir } from "./store.js";
 import {
   slugify,
   shortDateStamp,
-  abbreviateQuestion,
+  shortTimeStamp,
   formatDuration,
   renderStars,
   rejectHallucinatedSegments,
@@ -58,20 +58,21 @@ async function computeVideoRelativePath(question, date, extension) {
   const dirPath = await join(await libraryDir(), categorySlug);
   await mkdir(dirPath, { recursive: true });
 
-  const stamp = shortDateStamp(date);
-  const abbreviation = abbreviateQuestion(question.text);
-  // First 8 chars of the question's real id. The abbreviation alone is just
-  // initials - two different questions can produce the same one. This makes
-  // the filename->question link exact, so a file can always be matched back
-  // to its real question later (e.g. recovering one with no attempt record).
+  // When it was recorded, then the first 8 chars of the question's real id,
+  // so a file can always be matched back to its question (e.g. recovering one
+  // with no attempt record). Only things that never change go in the name,
+  // because the file keeps it for good - library.json points at it by that
+  // name. It used to carry the question's initials, which went stale on a
+  // rename, and the attempt number, which went stale when an earlier attempt
+  // was deleted and the log renumbered. Two takes in the same minute get -2.
+  const stamp = `${shortDateStamp(date)}-${shortTimeStamp(date)}`;
   const shortId = question.id.slice(0, 8);
-  const attemptNumber = attempts.filter((a) => a.questionId === question.id).length + 1;
 
-  let filename = `${stamp}-a${attemptNumber}-${abbreviation}-${shortId}.${extension}`;
+  let filename = `${stamp}-${shortId}.${extension}`;
   let candidate = await join(dirPath, filename);
   let counter = 2;
   while (await exists(candidate)) {
-    filename = `${stamp}-a${attemptNumber}-${abbreviation}-${shortId}-${counter}.${extension}`;
+    filename = `${stamp}-${shortId}-${counter}.${extension}`;
     candidate = await join(dirPath, filename);
     counter += 1;
   }

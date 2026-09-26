@@ -15,25 +15,19 @@ export function shortDateStamp(date = new Date()) {
   return `${yy}${mm}${dd}`;
 }
 
+// 24-hour local time, "1405" - with shortDateStamp, names a recording by when
+// it was made.
+export function shortTimeStamp(date = new Date()) {
+  const hh = String(date.getHours()).padStart(2, "0");
+  const mm = String(date.getMinutes()).padStart(2, "0");
+  return `${hh}${mm}`;
+}
+
 export function watermarkDateStamp(date = new Date()) {
   const yyyy = date.getFullYear();
   const mm = String(date.getMonth() + 1).padStart(2, "0");
   const dd = String(date.getDate()).padStart(2, "0");
   return `${dd}/${mm}/${yyyy}`;
-}
-
-// Initials of each word, dropping single-letter words (like "a"/"I") so
-// short connective words don't drown out the words that actually carry the
-// question's meaning - "Describe a project you're proud of and why." becomes
-// "dpypoaw" rather than a long slugified sentence.
-export function abbreviateQuestion(text) {
-  const initials = text
-    .split(/\s+/)
-    .map((word) => word.replace(/[^a-zA-Z0-9]/g, ""))
-    .filter((word) => word.length > 1)
-    .map((word) => word[0])
-    .join("");
-  return initials.toLowerCase() || "q";
 }
 
 export function formatDuration(ms) {

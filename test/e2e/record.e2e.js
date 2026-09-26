@@ -88,7 +88,9 @@ test("record, save, play back and transcribe a take", { timeout: 180_000 }, asyn
     // platform can encode it, Opus on Linux, which can't.
     const file = path.join(libraryDir, ...attempt.videoRelativePath.split("/"));
     assert.ok(fs.statSync(file).size > 10_000, "recording is non-empty");
-    assert.match(attempt.videoRelativePath, /\.mp4$/);
+    // Named only by what never changes - when it was recorded and the
+    // question's id - so a rename or a deleted attempt can't make it wrong.
+    assert.match(attempt.videoRelativePath, new RegExp(`^[a-z]+/\\d{6}-\\d{4}-${attempt.questionId.slice(0, 8)}\\.mp4$`));
     assert.deepEqual(mp4Codecs(file), { video: "h264", audio: supported.aac ? "aac" : "opus" });
     // Linux Chromium has no AAC encoder; everywhere else should use AAC.
     if (process.platform !== "linux") assert.ok(supported.aac, "H.264 + AAC is supported");

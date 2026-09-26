@@ -9,7 +9,6 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  abbreviateQuestion,
   computePaceRange,
   computeWpm,
   correctLegacyWpm,
@@ -23,6 +22,8 @@ import {
   normaliseForTranscription,
   pluralise,
   rejectHallucinatedSegments,
+  shortDateStamp,
+  shortTimeStamp,
   slugify,
 } from "./util.js";
 
@@ -463,7 +464,8 @@ test("slugify never returns an empty path segment", () => {
   assert.equal(slugify("!!!"), "question");
 });
 
-test("abbreviateQuestion drops single-letter words", () => {
-  assert.equal(abbreviateQuestion("Describe a project you're proud of and why."), "dpypoaw");
-  assert.equal(abbreviateQuestion("!!!"), "q");
+test("a recording's date and time stamps are zero-padded local time", () => {
+  const date = new Date(2026, 8, 6, 9, 5, 59);
+  assert.equal(shortDateStamp(date), "260906");
+  assert.equal(shortTimeStamp(date), "0905");
 });
