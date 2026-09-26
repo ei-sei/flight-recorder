@@ -1433,12 +1433,18 @@ textarea {
    scrolls, and an absolutely positioned tooltip would be clipped by it on
    exactly the settings furthest down the panel. */
 .settings-info {
+  display: flex;
   cursor: help;
   color: var(--text-dim);
   opacity: 0.7;
-  font-size: 12px;
-  line-height: 1;
   transition: opacity var(--ease), color var(--ease);
+}
+
+/* An SVG rather than the ⓘ character: that glyph comes from whichever
+   fallback font has it, and on Fedora it rendered as a squashed pill. */
+.settings-info svg {
+  width: 12px;
+  height: 12px;
 }
 
 .settings-info:hover,
