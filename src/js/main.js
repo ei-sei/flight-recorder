@@ -269,6 +269,15 @@ function handleQuestionSelectionChange(question, { filterAttemptLog = true } = {
 
 function populateDeviceSelect(select, devices, selectedId, kindLabel) {
   select.innerHTML = "";
+  if (devices.length === 0) {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = `No ${kindLabel.toLowerCase()} found`;
+    select.appendChild(option);
+    select.disabled = true;
+    return;
+  }
+  select.disabled = false;
   for (const device of devices) {
     const option = document.createElement("option");
     option.value = device.deviceId;
