@@ -245,6 +245,33 @@ async function acquireStream(cameraId, micId, quality) {
   }
 }
 
+// getUserMedia's error names cover three different real situations, and
+// "denied or unavailable" used to flatten them into one useless message -
+// which on Windows sent a user chasing an app permission that was never the
+// problem, when Windows itself couldn't see any camera (a driver issue after
+// a fresh Windows 11 install, in one case). This is what Chromium actually
+// throws for each on every platform; NotAllowedError is the only one that's
+// ever about this app's own permission, since security.js grants "media" to
+// app:// unconditionally otherwise.
+function describeCameraError(err) {
+  const onWindows = window.flightRecorder?.platform === "win32";
+  switch (err?.name) {
+    case "NotFoundError":
+    case "OverconstrainedError":
+      return onWindows
+        ? "Windows can't find a camera or microphone. Check Device Manager and the manufacturer's drivers - a fresh Windows install often lacks one."
+        : "No camera or microphone was found.";
+    case "NotReadableError":
+      return "The camera or microphone is already in use by another app, or isn't responding.";
+    case "NotAllowedError":
+      return onWindows
+        ? "Camera or microphone access is off. Check Settings → Privacy & security → Camera/Microphone → “Let desktop apps access”."
+        : "Camera or microphone access was denied.";
+    default:
+      return "Camera access denied or unavailable.";
+  }
+}
+
 // The camera never turns on out of nowhere on its own - the only paths in
 // here are the toggle button, and initRecorder() restoring a state the user
 // already chose (and already granted permission for) in a previous session.
@@ -288,7 +315,7 @@ async function enableCamera() {
     saveRecordingSettings({ cameraEnabled: true });
     startWaveformMonitoring();
   } catch (err) {
-    viewfinderEmptyEl.textContent = "Camera access denied or unavailable.";
+    viewfinderEmptyEl.textContent = describeCameraError(err);
     viewfinderEmptyEl.hidden = false;
     console.error("Failed to access camera/microphone", err);
   } finally {
