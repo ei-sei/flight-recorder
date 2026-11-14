@@ -39,7 +39,16 @@ function positionPanel(panel, x, y) {
   return { left, top, width: rect.width };
 }
 
-function buildItems(panel, items) {
+// isSubmenu distinguishes an item built for the top-level menu from one
+// built for an open submenu's own flyout (buildItems calls itself with
+// isSubmenu: true for the latter, a few lines below). It matters only for
+// the "close the submenu when a sibling is hovered" behaviour in the plain
+// item branch: without it, every leaf item inside the flyout got that
+// behaviour too, since each one simply isn't submenuOwner either - so just
+// moving onto "Technical" or "Case" inside the open flyout started the very
+// close timer meant for leaving it, and the flyout closed within a second
+// of arriving, which is exactly what this was.
+function buildItems(panel, items, isSubmenu = false) {
   for (const item of items) {
     const btn = document.createElement("button");
     btn.type = "button";
@@ -62,7 +71,7 @@ function buildItems(panel, items) {
         closeSubmenu();
         const flyout = document.createElement("div");
         flyout.className = "context-menu context-submenu";
-        buildItems(flyout, item.items);
+        buildItems(flyout, item.items, true);
         document.body.appendChild(flyout);
         const ownRect = btn.getBoundingClientRect();
         const { width } = positionPanel(flyout, ownRect.right - 2, ownRect.top - 4);
@@ -97,21 +106,23 @@ function buildItems(panel, items) {
         btn.appendChild(switchEl);
       }
 
-      // Closing the instant the pointer crosses a sibling - rather than
-      // giving it the same grace period leaving the owner item gets below -
-      // is what actually broke this: a real mouse moving from "Move to
-      // category" down to a row inside its flyout passes diagonally over
-      // whatever sits between them (here, "Delete question"), and a
-      // synthetic test that dispatches events straight at its targets never
-      // exercises that path at all. The same delayed close as leaving the
-      // owner gives that diagonal move room to land in the flyout before
-      // anything closes.
-      btn.addEventListener("mouseenter", () => {
-        if (submenuOwner && submenuOwner !== btn) {
-          clearTimeout(submenuCloseTimer);
-          submenuCloseTimer = setTimeout(closeSubmenu, SUBMENU_CLOSE_DELAY_MS);
-        }
-      });
+      // Only for a top-level item (isSubmenu false) - closing the instant the
+      // pointer crosses a sibling, rather than giving it the same grace
+      // period leaving the owner item gets below, is what broke this
+      // originally: a real mouse moving from "Move to category" down to a
+      // row inside its flyout passes diagonally over whatever sits between
+      // them (here, "Delete question"), and a synthetic test that dispatches
+      // events straight at its targets never exercises that path at all. The
+      // same delayed close as leaving the owner gives that diagonal move
+      // room to land in the flyout before anything closes.
+      if (!isSubmenu) {
+        btn.addEventListener("mouseenter", () => {
+          if (submenuOwner && submenuOwner !== btn) {
+            clearTimeout(submenuCloseTimer);
+            submenuCloseTimer = setTimeout(closeSubmenu, SUBMENU_CLOSE_DELAY_MS);
+          }
+        });
+      }
       btn.addEventListener("click", () => {
         item.onClick();
         if (switchEl) {
