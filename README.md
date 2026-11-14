@@ -18,11 +18,11 @@ Once installed, updates are handled in-app: Help → Check for updates, or the b
 
 ## Features
 
-- **Question bank** organised by category (Behavioural, Technical, Case). Add, remove and drag to reorder your own questions.
+- **Question bank** organised by category. A fresh install starts with one category ("General"); add, rename or delete your own from the "+" tab and each tab's right-click menu, and move a question between categories from its own right-click menu. Add, remove and drag to reorder your own questions.
 - **Webcam recorder** with a live viewfinder, record/stop tied to the selected question, and adjustable camera/microphone/quality (480p or 720p) in Settings. Captured at 24fps to MP4/H.264, so a library copied between machines still opens. A date/timer watermark is burned into the saved recording itself (not just shown live), and a live voice waveform is shown while recording.
 - **Prep notes** per question, in a collapsible drawer you can resize, kept visible while you record.
 - **Attempt log** - every recording is captured automatically with question, category, date, duration, and a per-question attempt number. Review any past attempt's video, rate it (1-5 stars), and add notes.
-- **Filter tabs** over the attempt log (All / Behavioural / Technical / Case), and a per-question view when you select a question in the bank.
+- **Filter tabs** over the attempt log (All, plus one per category), and a per-question view when you select a question in the bank.
 - **Response delay** - time from record start to your first word, from local mic-level analysis. The threshold adapts to your room's noise floor rather than assuming one fixed level, since raw mic sensitivity varies a lot between devices.
 - **Delivery metrics** - pause count, longest pause, longest unbroken run, and talking ratio, all measured from mic level. No transcription needed, so they work on every platform with nothing enabled.
 - **Speech pace (WPM)** - words-per-minute plus a transcript, transcribed on your machine by a local Whisper model after you stop recording. Off by default; the model is a one-time ~60MB download, behind a confirmation dialog. WPM counts from your first word to your last, so thinking time before answering doesn't read as slow speaking. Shows a **pace spread** (your rate in each stretch between pauses) alongside the average, which is what catches rushing the end of an answer, and a **filler-word count** from the transcript.

@@ -9,6 +9,7 @@ import {
   transcribeRecording,
 } from "./platform.js";
 import { getAttempts, saveAttempts, libraryDir } from "./store.js";
+import { getAllCategories, getCategoryName, onCategoriesChanged } from "./categories.js";
 import {
   slugify,
   shortDateStamp,
@@ -27,7 +28,12 @@ import { showConfirm } from "./modal.js";
 import { showContextMenu } from "./contextmenu.js";
 
 let attempts = [];
-let activeFilter = "All";
+// "All", or a category id - resolved to a name fresh on every render rather
+// than stored as one, so a category rename (which updates attempt.category
+// for every attempt still under it - see updateCategoryTextInAttempts) is
+// reflected immediately instead of filtering against the name it had when
+// this was last set.
+let activeFilterCategoryId = "All";
 let selectedQuestion = null;
 let reviewingId = null;
 let onPlay = () => {};
@@ -54,7 +60,7 @@ export async function resolveVideoPath(relativePath) {
 }
 
 async function computeVideoRelativePath(question, date, extension) {
-  const categorySlug = slugify(question.category);
+  const categorySlug = slugify(getCategoryName(question.categoryId));
   const dirPath = await join(await libraryDir(), categorySlug);
   await mkdir(dirPath, { recursive: true });
 
@@ -107,7 +113,7 @@ export async function saveAttempt({
     id: crypto.randomUUID(),
     questionId: question.id,
     questionText: question.text,
-    category: question.category,
+    category: getCategoryName(question.categoryId),
     date: date.toISOString(),
     durationMs,
     videoRelativePath,
@@ -419,6 +425,28 @@ export async function renameQuestionInAttempts(questionId, text) {
   render();
 }
 
+// The same snapshot-but-kept-in-sync treatment as renameQuestionInAttempts
+// above, for a question's category instead of its text - called by
+// questions.js both when a category is renamed (every question currently in
+// it) and when a single question is moved to a different one (just that
+// one). `categoryName` is already resolved by the caller, which is why this
+// takes a name rather than an id: it has no way to look up a category that
+// may since have been renamed again, or (for a move) no longer applies to
+// every question it's touching.
+export async function updateCategoryTextInAttempts(questionIds, categoryName) {
+  const ids = new Set(questionIds);
+  let changed = false;
+  for (const attempt of attempts) {
+    if (ids.has(attempt.questionId) && attempt.category !== categoryName) {
+      attempt.category = categoryName;
+      changed = true;
+    }
+  }
+  if (!changed) return;
+  await saveAttempts(attempts);
+  render();
+}
+
 // Computed once per render instead of re-filtering/re-sorting the whole
 // attempts array per row (which renderAttemptItem needs twice per row) -
 // that pattern was effectively quadratic in the attempt count.
@@ -525,16 +553,17 @@ function renderAttemptItem(attempt, attemptNumber) {
 function render() {
   listEl.innerHTML = "";
 
+  const activeFilterName = activeFilterCategoryId === "All" ? "All" : getCategoryName(activeFilterCategoryId);
   const filtered = attempts.filter((a) => {
-    const matchesCategory = activeFilter === "All" || a.category === activeFilter;
+    const matchesCategory = activeFilterCategoryId === "All" || a.category === activeFilterName;
     const matchesQuestion = !selectedQuestion || a.questionId === selectedQuestion.id;
     return matchesCategory && matchesQuestion;
   });
 
   if (selectedQuestion) {
     subtitleEl.textContent = `Showing attempts for “${selectedQuestion.text}”`;
-  } else if (activeFilter !== "All") {
-    subtitleEl.textContent = `Showing ${activeFilter} attempts`;
+  } else if (activeFilterCategoryId !== "All") {
+    subtitleEl.textContent = `Showing ${activeFilterName} attempts`;
   } else {
     subtitleEl.textContent = "Showing all attempts";
   }
@@ -553,22 +582,51 @@ function render() {
   }
 }
 
-function setActiveFilter(filter) {
-  activeFilter = filter;
-  selectedQuestion = null;
-  for (const tab of filterTabsEl.querySelectorAll(".tab")) {
-    tab.classList.toggle("active", tab.dataset.filter === filter);
+// Rebuilds the tabs themselves - called on init and whenever categories.js
+// reports a change, so a category added, renamed or deleted from the
+// question bank's side is reflected here without a reload. Read-only: unlike
+// the question bank's own tabs, these never add, rename or delete a
+// category - this panel only ever filters by one.
+//
+// `highlightId` is which tab to draw active, separately from
+// activeFilterCategoryId: when a question is selected, the filter itself
+// stays "All" (selectedQuestion already narrows the list on its own, by id -
+// see render()) and only the matching category tab lights up, cosmetically,
+// to show which category that question lives in.
+function renderFilterTabs(highlightId = activeFilterCategoryId) {
+  filterTabsEl.innerHTML = "";
+  const makeTab = (id, name, active) => {
+    const btn = document.createElement("button");
+    btn.className = "tab" + (active ? " active" : "");
+    btn.dataset.categoryId = id;
+    btn.type = "button";
+    btn.textContent = name;
+    filterTabsEl.appendChild(btn);
+  };
+  makeTab("All", "All", highlightId === "All");
+  for (const category of getAllCategories()) {
+    makeTab(category.id, category.name, highlightId === category.id);
   }
+  // The active filter's own category was just deleted (necessarily empty by
+  // the time that's allowed - see categories.js) - fall back to All rather
+  // than keep filtering by an id nothing matches any more.
+  if (activeFilterCategoryId !== "All" && !getAllCategories().some((c) => c.id === activeFilterCategoryId)) {
+    activeFilterCategoryId = "All";
+    renderFilterTabs();
+  }
+}
+
+function setActiveFilter(categoryId) {
+  activeFilterCategoryId = categoryId;
+  selectedQuestion = null;
+  renderFilterTabs();
   render();
 }
 
 export function setSelectedQuestion(question) {
   selectedQuestion = question;
-  activeFilter = "All";
-  for (const tab of filterTabsEl.querySelectorAll(".tab")) {
-    const highlightAs = question ? question.category : activeFilter;
-    tab.classList.toggle("active", tab.dataset.filter === highlightAs);
-  }
+  activeFilterCategoryId = "All";
+  renderFilterTabs(question ? question.categoryId : "All");
   render();
 }
 
@@ -606,8 +664,10 @@ export async function initAttempts(options = {}) {
   filterTabsEl.addEventListener("click", (event) => {
     const btn = event.target.closest(".tab");
     if (!btn) return;
-    setActiveFilter(btn.dataset.filter);
+    setActiveFilter(btn.dataset.categoryId);
   });
+  onCategoriesChanged(() => renderFilterTabs());
 
+  renderFilterTabs();
   render();
 }

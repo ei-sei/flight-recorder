@@ -499,6 +499,47 @@ textarea {
   box-shadow: 0 6px 16px -6px var(--accent-glow);
 }
 
+/* Adds a category. Fixed width rather than flex:1 like a real tab - it
+   shouldn't compete with them for space as more get added, and a "+" that
+   kept stretching to match "Behavioural" would look like a mistake. */
+.tab-add {
+  flex: 0 0 auto;
+  width: 22px;
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 999px;
+  transition: color var(--ease), background-color var(--ease);
+}
+
+.tab-add:hover {
+  color: var(--text-primary);
+  /* .tabs itself is --bg-raised; that'd be invisible here. */
+  background-color: var(--bg-base);
+}
+
+/* Renaming a category, or naming a new one - sits in the pill row in place
+   of the tab/"+" it replaces, same height and rounding so the row doesn't
+   jump while one is open. */
+.tab-edit-input {
+  flex: 1;
+  min-width: 0;
+  background-color: var(--bg-base);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 11px;
+  font-family: inherit;
+  color: var(--text-primary);
+}
+
+.tab-edit-input:focus {
+  outline: none;
+}
+
 /* Question list */
 
 .question-list {

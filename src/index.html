@@ -80,11 +80,10 @@
           <div class="panel-header">
             <h2>Question bank</h2>
           </div>
-          <nav class="tabs" id="question-category-tabs">
-            <button class="tab active" data-category="Behavioural" type="button">Behavioural</button>
-            <button class="tab" data-category="Technical" type="button">Technical</button>
-            <button class="tab" data-category="Case" type="button">Case</button>
-          </nav>
+          <!-- Rendered entirely by questions.js (renderCategoryTabs): one
+               tab per user category, plus "+" to add one. Categories are
+               user-managed now, not a fixed Behavioural/Technical/Case. -->
+          <nav class="tabs" id="question-category-tabs"></nav>
           <ul class="question-list" id="question-list"></ul>
           <form class="add-question-form" id="add-question-form">
             <input
@@ -205,12 +204,10 @@
             <h2>Attempt log</h2>
             <div class="panel-subtitle" id="log-subtitle">Showing all attempts</div>
           </div>
-          <nav class="tabs" id="log-filter-tabs">
-            <button class="tab active" data-filter="All" type="button">All</button>
-            <button class="tab" data-filter="Behavioural" type="button">Behavioural</button>
-            <button class="tab" data-filter="Technical" type="button">Technical</button>
-            <button class="tab" data-filter="Case" type="button">Case</button>
-          </nav>
+          <!-- Rendered entirely by attempts.js (renderFilterTabs): "All"
+               plus one tab per category from categories.js, read-only - no
+               add/rename/delete here, that's the question bank's job. -->
+          <nav class="tabs" id="log-filter-tabs"></nav>
           <ul class="attempt-list" id="attempt-list"></ul>
         </section>
         </div>

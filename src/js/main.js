@@ -27,6 +27,7 @@ import {
   updateAttemptScore,
   getAttemptCount,
 } from "./attempts.js";
+import { initCategories } from "./categories.js";
 import {
   getRecordingSettings,
   saveRecordingSettings,
@@ -812,6 +813,11 @@ async function init() {
   }
 
   applyTheme(theme);
+
+  // Before initAttempts/initQuestions below: both panels' tabs read
+  // getAllCategories() on their very first render, not just once it's
+  // caught up via a later categories.js change event.
+  await initCategories();
 
   await initAttempts({
     onPlay: (attempt, attemptNumber) => {

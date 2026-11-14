@@ -1,13 +1,15 @@
 import { getQuestions, saveQuestions } from "./store.js";
-import { getAttemptCountForQuestion, deleteAttemptsForQuestion, renameQuestionInAttempts } from "./attempts.js";
-import { showConfirm } from "./modal.js";
+import { getAttemptCountForQuestion, deleteAttemptsForQuestion, renameQuestionInAttempts, updateCategoryTextInAttempts } from "./attempts.js";
+import { getAllCategories, addCategory, renameCategory, deleteCategory, onCategoriesChanged } from "./categories.js";
+import { showConfirm, showAlert } from "./modal.js";
 import { showContextMenu } from "./contextmenu.js";
 
 let questions = [];
-let activeCategory = "Behavioural";
+let activeCategoryId = null;
 let selectedId = null;
 let onSelectionChange = () => {};
 let editingId = null;
+let editingCategoryId = null;
 
 const listEl = document.getElementById("question-list");
 const tabsEl = document.getElementById("question-category-tabs");
@@ -15,7 +17,7 @@ const formEl = document.getElementById("add-question-form");
 const inputEl = document.getElementById("new-question-input");
 
 function render() {
-  const filtered = questions.filter((q) => q.category === activeCategory);
+  const filtered = questions.filter((q) => q.categoryId === activeCategoryId);
   listEl.innerHTML = "";
 
   if (filtered.length === 0) {
@@ -50,8 +52,12 @@ function render() {
     });
     item.addEventListener("contextmenu", (event) => {
       event.preventDefault();
+      const moveItems = getAllCategories()
+        .filter((c) => c.id !== q.categoryId)
+        .map((c) => ({ label: `Move to ${c.name}`, onClick: () => moveQuestionToCategory(q, c) }));
       showContextMenu(event.clientX, event.clientY, [
         { label: "Rename question", onClick: () => startRenaming(q.id) },
+        ...moveItems,
         { label: "Delete question", danger: true, onClick: () => confirmDeleteQuestion(q) },
       ]);
     });
@@ -335,7 +341,7 @@ async function addQuestion(text) {
 
   const question = {
     id: crypto.randomUUID(),
-    category: activeCategory,
+    categoryId: activeCategoryId,
     text: trimmed,
     createdAt: new Date().toISOString(),
     prepNotes: "",
@@ -352,23 +358,184 @@ export async function updateQuestionPrepNotes(id, prepNotes) {
   await saveQuestions(questions);
 }
 
-function setActiveCategory(category) {
-  activeCategory = category;
-  for (const tab of tabsEl.querySelectorAll(".tab")) {
-    tab.classList.toggle("active", tab.dataset.category === category);
-  }
+async function moveQuestionToCategory(question, category) {
+  question.categoryId = category.id;
+  await saveQuestions(questions);
+  // Kept in sync rather than left as a snapshot of whichever category the
+  // question was in when each attempt was recorded - the same choice
+  // renameQuestionInAttempts already makes for the question's text.
+  await updateCategoryTextInAttempts([question.id], category.name);
   render();
 }
 
+function setActiveCategory(id) {
+  activeCategoryId = id;
+  renderCategoryTabs();
+  render();
+}
+
+// Category tabs are fully re-rendered (add/rename/delete and the "+"
+// control all live here) rather than patched in place - there's no fixed
+// set of them any more to patch, and this runs rarely enough (a click, or a
+// categories.js change event) that rebuilding is simpler than diffing.
+function renderCategoryTabs() {
+  tabsEl.innerHTML = "";
+  const categories = getAllCategories();
+
+  for (const category of categories) {
+    if (category.id === editingCategoryId) {
+      tabsEl.appendChild(renderCategoryRenameInput(category));
+      continue;
+    }
+    const btn = document.createElement("button");
+    btn.className = "tab" + (category.id === activeCategoryId ? " active" : "");
+    btn.dataset.categoryId = category.id;
+    btn.type = "button";
+    btn.textContent = category.name;
+    btn.addEventListener("click", () => setActiveCategory(category.id));
+    btn.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
+      showContextMenu(event.clientX, event.clientY, [
+        { label: "Rename category", onClick: () => startRenamingCategory(category.id) },
+        { label: "Delete category", danger: true, onClick: () => confirmDeleteCategory(category) },
+      ]);
+    });
+    tabsEl.appendChild(btn);
+  }
+
+  const addBtn = document.createElement("button");
+  addBtn.className = "tab tab-add";
+  addBtn.type = "button";
+  addBtn.title = "Add category";
+  addBtn.setAttribute("aria-label", "Add category");
+  addBtn.textContent = "+";
+  addBtn.addEventListener("click", () => {
+    tabsEl.replaceChild(renderAddCategoryInput(), addBtn);
+  });
+  tabsEl.appendChild(addBtn);
+
+  // activeCategoryId can be null only on first render, before categories.js
+  // has loaded (initQuestions awaits that before ever calling this) - and
+  // after a delete, the same fallback renameQuestionInAttempts's sibling
+  // tabs use, in case the category just deleted was the active one.
+  if (!categories.some((c) => c.id === activeCategoryId) && categories.length > 0) {
+    activeCategoryId = categories[0].id;
+    renderCategoryTabs();
+  }
+}
+
+function renderCategoryRenameInput(category) {
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "tab-edit-input";
+  input.value = category.name;
+  input.maxLength = 60;
+
+  let cancelled = false;
+  function commit() {
+    if (cancelled) return;
+    const trimmed = input.value.trim();
+    editingCategoryId = null;
+    if (trimmed && trimmed !== category.name) {
+      renameCategoryFlow(category.id, trimmed);
+    } else {
+      renderCategoryTabs();
+    }
+  }
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") input.blur();
+    if (event.key === "Escape") {
+      cancelled = true;
+      editingCategoryId = null;
+      input.blur();
+      renderCategoryTabs();
+    }
+  });
+  input.addEventListener("blur", commit);
+  queueMicrotask(() => {
+    input.focus();
+    input.select();
+  });
+  return input;
+}
+
+function renderAddCategoryInput() {
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "tab-edit-input";
+  input.placeholder = "Category name";
+  input.maxLength = 60;
+
+  let committed = false;
+  async function commit() {
+    if (committed) return;
+    committed = true;
+    const trimmed = input.value.trim();
+    if (trimmed) {
+      const category = await addCategory(trimmed);
+      activeCategoryId = category.id;
+    }
+    renderCategoryTabs();
+  }
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") input.blur();
+    if (event.key === "Escape") {
+      committed = true; // blur still fires; this just skips adding anything
+      renderCategoryTabs();
+    }
+  });
+  input.addEventListener("blur", commit);
+  queueMicrotask(() => input.focus());
+  return input;
+}
+
+function startRenamingCategory(id) {
+  editingCategoryId = id;
+  renderCategoryTabs();
+}
+
+async function renameCategoryFlow(id, name) {
+  await renameCategory(id, name);
+  // Every question currently in this category snapshot the new name into
+  // their attempts too, the same as moveQuestionToCategory does for one.
+  const questionIds = questions.filter((q) => q.categoryId === id).map((q) => q.id);
+  await updateCategoryTextInAttempts(questionIds, name);
+  renderCategoryTabs();
+}
+
+async function confirmDeleteCategory(category) {
+  const categories = getAllCategories();
+  if (categories.length <= 1) {
+    await showAlert({ title: "Can't delete this category", message: "At least one category has to remain." });
+    return;
+  }
+  const count = questions.filter((q) => q.categoryId === category.id).length;
+  if (count > 0) {
+    await showAlert({
+      title: "Can't delete this category",
+      message: `It still has ${count} question${count === 1 ? "" : "s"} in it. Move or delete ${count === 1 ? "it" : "them"} first.`,
+    });
+    return;
+  }
+  const confirmed = await showConfirm({
+    title: "Delete category?",
+    message: `Delete “${category.name}”? This can't be undone.`,
+    confirmLabel: "Delete",
+    danger: true,
+  });
+  if (confirmed) await deleteCategory(category.id);
+}
+
+// initCategories() (categories.js) must already have been awaited by the
+// caller (main.js, before this and initAttempts) - both this panel's tabs
+// and the attempt log's rely on getAllCategories() having real data from
+// the very first render, not whatever it happens to catch up to later.
 export async function initQuestions(options = {}) {
   onSelectionChange = options.onSelectionChange ?? (() => {});
   questions = await getQuestions();
+  activeCategoryId = getAllCategories()[0]?.id ?? null;
 
-  tabsEl.addEventListener("click", (event) => {
-    const btn = event.target.closest(".tab");
-    if (!btn) return;
-    setActiveCategory(btn.dataset.category);
-  });
+  onCategoriesChanged(() => renderCategoryTabs());
 
   formEl.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -376,6 +543,7 @@ export async function initQuestions(options = {}) {
     inputEl.value = "";
   });
 
+  renderCategoryTabs();
   render();
 }
 
@@ -402,6 +570,6 @@ export function selectQuestionById(id, options) {
 
   // The sidebar's own category tab does still move - the question has to be
   // visible in the bank for its selection to mean anything.
-  setActiveCategory(question.category);
+  setActiveCategory(question.categoryId);
   selectQuestion(question.id, options);
 }

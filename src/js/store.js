@@ -1,20 +1,22 @@
 import { Store, videoDir, join, mkdir, writeFile, exists } from "./platform.js";
-import { slugify, correctLegacyWpm, dropLegacyPaceRanges } from "./util.js";
+import { correctLegacyWpm, dropLegacyPaceRanges } from "./util.js";
 
-// The only categories a question can be tagged with (fixed sidebar tabs,
-// not a user-extensible list) - kept here just to pre-create their folders
-// on first launch, not as a shared source of truth used elsewhere.
-const CATEGORIES = ["Behavioural", "Technical", "Case"];
+// A fresh install starts with one category - easier to see every question
+// you have while the bank is small, with "add a category" there for anyone
+// who wants the old Behavioural/Technical/Case split back. An existing
+// library's categories are migrated as data instead (migrateCategories
+// below), not reset to this.
+const DEFAULT_CATEGORY_NAME = "General";
 
 // The one staple every real interview opens with - worth having on first
 // launch so the question bank isn't completely empty. Everything else is
 // left for the user to add themselves.
-const STAPLE_QUESTION = { category: "Behavioural", text: "Tell me about yourself." };
+const STAPLE_QUESTION_TEXT = "Tell me about yourself.";
 
 const FOLDER_README = `This folder is managed by Flight Recorder - your practice recordings and data live here.
 
 - library.json holds your questions, attempts, notes and scores. Don't rename it or edit it by hand.
-- Each subfolder holds recordings for one category (Behavioural, Technical, Case).
+- Each subfolder holds recordings for one of your question categories.
 - To move your data to a different computer: copy this whole folder into the Videos folder there, then launch the app - it picks everything up automatically, no import needed.
 
 https://github.com/ei-sei/flight-recorder
@@ -56,6 +58,43 @@ function backfillPrepNotes(questions) {
   return { migrated, changed };
 }
 
+// Categories used to be a fixed three (Behavioural, Technical, Case) baked
+// into the UI itself - a question just carried one of those names as a plain
+// string, the same as attempt.category still does. Now they're a
+// user-managed list, each with a stable id, so a rename never has to touch
+// every question that was in it (the same reason attempt file names dropped
+// the question's initials - anything that can change later shouldn't be
+// what other data is keyed on). `existingCategories` is `library.categories`
+// as read from disk; its presence, not its contents, is what says whether
+// this library has already been migrated - an empty array still counts (see
+// deleteCategory, which refuses to ever empty it completely).
+//
+// Every question here is expected to carry a plain `category` string still
+// (this only ever runs once, before anything is migrated), so the categories
+// it creates are built from whatever distinct names appear, in the order
+// they're first seen - for every library saved before this change, that's
+// Behavioural/Technical/Case in that order, the only three strings that
+// could appear, so an existing user's tabs look exactly as they did before,
+// just editable now.
+function migrateCategories(questions, existingCategories) {
+  if (existingCategories) return { categories: existingCategories, migrated: questions, changed: false };
+
+  const categories = [];
+  const idByName = new Map();
+  const migrated = questions.map(({ category, ...question }) => {
+    const name = category || DEFAULT_CATEGORY_NAME;
+    let id = idByName.get(name);
+    if (id === undefined) {
+      id = crypto.randomUUID();
+      idByName.set(name, id);
+      categories.push({ id, name });
+    }
+    return { ...question, categoryId: id };
+  });
+  if (categories.length === 0) categories.push({ id: crypto.randomUUID(), name: DEFAULT_CATEGORY_NAME });
+  return { categories, migrated, changed: true };
+}
+
 let storePromise = null;
 
 // The one definition of where the library lives. This was rebuilt
@@ -71,16 +110,14 @@ export async function libraryDir() {
 async function resolveStorePath() {
   const dir = await libraryDir();
   await mkdir(dir, { recursive: true });
-
-  // Pre-create each category's folder so Videos/flight-recorder/ looks
-  // organized from the very first launch, rather than only growing a
-  // category's folder the first time something is actually recorded under
-  // it (computeVideoRelativePath in attempts.js still creates it lazily
-  // too, so this is just about first impressions, not a hard dependency).
-  for (const category of CATEGORIES) {
-    await mkdir(await join(dir, slugify(category)), { recursive: true });
-  }
   await ensureFolderReadme(dir);
+
+  // Categories used to be a fixed three, pre-created here so
+  // Videos/flight-recorder/ looked organized from the first launch. Now
+  // they're user-defined and not known until the store itself is read, so
+  // that's gone - computeVideoRelativePath in attempts.js still creates a
+  // category's folder lazily, the first time something is actually recorded
+  // under it, which is all this ever did beyond first impressions.
 
   return join(dir, "library.json");
 }
@@ -148,28 +185,37 @@ function getStore() {
   return storePromise;
 }
 
+// The one place questions (and with them, categories - see migrateCategories)
+// are loaded and migrated. getCategories() below deliberately routes through
+// here rather than duplicating that, so it's correct regardless of which one
+// a caller reaches for first.
 export async function getQuestions() {
   const store = await getStore();
   const existing = await store.get("questions");
   if (existing) {
     const spelling = migrateBehaviouralSpelling(existing);
     const notes = backfillPrepNotes(spelling.migrated);
-    if (spelling.changed || notes.changed) {
-      await store.set("questions", notes.migrated);
+    const existingCategories = await store.get("categories");
+    const cats = migrateCategories(notes.migrated, existingCategories);
+    if (spelling.changed || notes.changed || cats.changed) {
+      await store.set("questions", cats.migrated);
+      await store.set("categories", cats.categories);
       await store.save();
     }
-    return notes.migrated;
+    return cats.migrated;
   }
 
+  const categoryId = crypto.randomUUID();
   const seeded = [
     {
       id: crypto.randomUUID(),
-      category: STAPLE_QUESTION.category,
-      text: STAPLE_QUESTION.text,
+      categoryId,
+      text: STAPLE_QUESTION_TEXT,
       createdAt: new Date().toISOString(),
       prepNotes: "",
     },
   ];
+  await store.set("categories", [{ id: categoryId, name: DEFAULT_CATEGORY_NAME }]);
   await store.set("questions", seeded);
   await store.save();
   return seeded;
@@ -178,6 +224,18 @@ export async function getQuestions() {
 export async function saveQuestions(questions) {
   const store = await getStore();
   await store.set("questions", questions);
+  await store.save();
+}
+
+export async function getCategories() {
+  await getQuestions(); // ensures categories exist and are migrated, see above
+  const store = await getStore();
+  return (await store.get("categories")) ?? [];
+}
+
+export async function saveCategories(categories) {
+  const store = await getStore();
+  await store.set("categories", categories);
   await store.save();
 }
 
