@@ -1,5 +1,11 @@
 const menuEl = document.getElementById("context-menu");
 
+// How long a submenu stays open after the pointer is no longer over its
+// owner item or the flyout itself - long enough for a real mouse moving
+// diagonally into the flyout to get there, including across whatever
+// sibling items sit in the way.
+const SUBMENU_CLOSE_DELAY_MS = 300;
+
 let outsideClickHandler = null;
 // The one open submenu flyout (at most one at a time - these menus never go
 // more than one level deep) and the item it belongs to, so switching to a
@@ -70,7 +76,7 @@ function buildItems(panel, items) {
         // either one, and only start the close timer once it's on neither.
         flyout.addEventListener("mouseenter", () => clearTimeout(submenuCloseTimer));
         flyout.addEventListener("mouseleave", () => {
-          submenuCloseTimer = setTimeout(closeSubmenu, 150);
+          submenuCloseTimer = setTimeout(closeSubmenu, SUBMENU_CLOSE_DELAY_MS);
         });
         submenu = flyout;
         submenuOwner = btn;
@@ -80,7 +86,7 @@ function buildItems(panel, items) {
       // the flyout crosses a few pixels of neither, and closing immediately
       // on that gap is what made every earlier version of this feel broken.
       btn.addEventListener("mouseleave", () => {
-        submenuCloseTimer = setTimeout(closeSubmenu, 150);
+        submenuCloseTimer = setTimeout(closeSubmenu, SUBMENU_CLOSE_DELAY_MS);
       });
     } else {
       let switchEl = null;
@@ -91,9 +97,20 @@ function buildItems(panel, items) {
         btn.appendChild(switchEl);
       }
 
+      // Closing the instant the pointer crosses a sibling - rather than
+      // giving it the same grace period leaving the owner item gets below -
+      // is what actually broke this: a real mouse moving from "Move to
+      // category" down to a row inside its flyout passes diagonally over
+      // whatever sits between them (here, "Delete question"), and a
+      // synthetic test that dispatches events straight at its targets never
+      // exercises that path at all. The same delayed close as leaving the
+      // owner gives that diagonal move room to land in the flyout before
+      // anything closes.
       btn.addEventListener("mouseenter", () => {
-        clearTimeout(submenuCloseTimer);
-        if (submenuOwner && submenuOwner !== btn) closeSubmenu();
+        if (submenuOwner && submenuOwner !== btn) {
+          clearTimeout(submenuCloseTimer);
+          submenuCloseTimer = setTimeout(closeSubmenu, SUBMENU_CLOSE_DELAY_MS);
+        }
       });
       btn.addEventListener("click", () => {
         item.onClick();
