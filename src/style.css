@@ -459,74 +459,84 @@ textarea {
   line-height: 1.4;
 }
 
-/* Tabs (segmented pill control) */
+/* Tabs - a cluster of independent pill chips, not one segmented strip.
+   That was the original design for exactly three fixed categories
+   (Behavioural/Technical/Case); once categories became a user-managed,
+   open-ended list, a single strip meant either every tab shrinking to an
+   illegible "Beh…" with five categories, or the strip itself growing wider
+   than the sidebar. Each chip now carries its own hairline border and
+   wraps onto another line once a row runs out of room - the same "every
+   control gets its own complete border, nothing shared" rule the panels
+   themselves already follow - so any number of categories, of any length,
+   stays fully readable; it just takes a little more height, which the
+   panel already has to spare below a short question list. */
 
 .tabs {
   display: flex;
-  gap: 2px;
+  flex-wrap: wrap;
+  gap: 6px;
   margin: 0 14px 12px;
-  padding: 3px;
-  background-color: var(--bg-raised);
-  border-radius: 999px;
-  flex-wrap: nowrap;
 }
 
 .tab {
-  flex: 1;
-  min-width: 0;
+  flex: 0 0 auto;
   background: transparent;
-  border: none;
+  border: 1px solid var(--border-strong);
   color: var(--text-secondary);
-  /* Small enough that "Behavioural" fits in either sidebar at its default
-     width; at 12px it was cut off to "Behavio…". */
   font-size: 11px;
-  padding: 7px 4px;
+  padding: 6px 11px;
   cursor: pointer;
   border-radius: 999px;
   white-space: nowrap;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
-  transition: color var(--ease), background-color var(--ease), box-shadow var(--ease);
+  transition: color var(--ease), background-color var(--ease), border-color var(--ease), box-shadow var(--ease);
 }
 
 .tab:hover {
   color: var(--text-primary);
+  background-color: var(--bg-raised);
 }
 
 .tab.active {
   color: #fff;
   background-color: var(--accent);
+  border-color: var(--accent);
   box-shadow: 0 6px 16px -6px var(--accent-glow);
 }
 
-/* Adds a category. Fixed width rather than flex:1 like a real tab - it
-   shouldn't compete with them for space as more get added, and a "+" that
-   kept stretching to match "Behavioural" would look like a mistake. */
+/* Adds a category - a round "+" chip the same height as a real one, rather
+   than a tiny icon-only button that would look like a different kind of
+   control sitting among them. */
 .tab-add {
   flex: 0 0 auto;
-  width: 22px;
+  width: 26px;
+  height: 26px;
   background: transparent;
-  border: none;
+  border: 1px dashed var(--border-strong);
   color: var(--text-dim);
   font-size: 14px;
   line-height: 1;
   cursor: pointer;
   border-radius: 999px;
-  transition: color var(--ease), background-color var(--ease);
+  transition: color var(--ease), background-color var(--ease), border-color var(--ease);
 }
 
 .tab-add:hover {
   color: var(--text-primary);
-  /* .tabs itself is --bg-raised; that'd be invisible here. */
-  background-color: var(--bg-base);
+  border-color: var(--text-dim);
+  background-color: var(--bg-raised);
 }
 
-/* Renaming a category, or naming a new one - sits in the pill row in place
-   of the tab/"+" it replaces, same height and rounding so the row doesn't
-   jump while one is open. */
+/* Renaming a category, or naming a new one - sits among the other chips in
+   place of the tab/"+" it replaces, same height and rounding so the row
+   doesn't jump while one is open. A fixed width rather than flex:1 - in a
+   wrapping row of naturally-sized chips, a growing input would stretch to
+   fill whatever's left of its line, however little or much that is. */
 .tab-edit-input {
-  flex: 1;
-  min-width: 0;
+  flex: 0 0 auto;
+  width: 130px;
   background-color: var(--bg-base);
   border: 1px solid var(--accent);
   border-radius: 999px;
