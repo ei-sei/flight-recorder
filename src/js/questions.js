@@ -52,12 +52,14 @@ function render() {
     });
     item.addEventListener("contextmenu", (event) => {
       event.preventDefault();
-      const moveItems = getAllCategories()
-        .filter((c) => c.id !== q.categoryId)
-        .map((c) => ({ label: `Move to ${c.name}`, onClick: () => moveQuestionToCategory(q, c) }));
+      const otherCategories = getAllCategories().filter((c) => c.id !== q.categoryId);
+      const moveItem = otherCategories.length > 0 ? [{
+        label: "Move to category",
+        items: otherCategories.map((c) => ({ label: c.name, onClick: () => moveQuestionToCategory(q, c) })),
+      }] : [];
       showContextMenu(event.clientX, event.clientY, [
         { label: "Rename question", onClick: () => startRenaming(q.id) },
-        ...moveItems,
+        ...moveItem,
         { label: "Delete question", danger: true, onClick: () => confirmDeleteQuestion(q) },
       ]);
     });

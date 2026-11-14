@@ -1326,6 +1326,21 @@ textarea {
   color: var(--danger);
 }
 
+/* A submenu item: a chevron instead of a switch, and - since its flyout can
+   be open while the pointer has moved off onto the flyout itself, no longer
+   :hover on this button at all - the same highlight as :hover, under its
+   own class, so it doesn't look unselected while its own submenu is what's
+   showing. */
+.context-menu-chevron {
+  color: var(--text-dim);
+  font-size: 15px;
+  line-height: 1;
+}
+
+.context-menu-item.open {
+  background-color: var(--bg-panel);
+}
+
 /* Modal */
 
 .modal-overlay {
