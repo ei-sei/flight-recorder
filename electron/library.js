@@ -146,10 +146,20 @@ export function createLibrary({ root, legacyStoreFile = null }) {
     // full disk mid-write leaves the previous library.json intact rather than
     // a half-written one. Creates the folder first: Reset data deletes it
     // and then saves.
+    // The chain must be keyed and updated synchronously, before any `await` -
+    // inside() does real filesystem lookups (realpath), so if it ran first,
+    // concurrent calls would all race through it before any of them touched
+    // writeChains, and whichever happened to resolve inside() last would
+    // win, not whichever was actually called last. That raced losing calls
+    // from 20 to 1 under CI load, a real way for a save of library.json to
+    // silently overwrite a newer one. Keying by the raw target string rather
+    // than its resolved real path is fine here: every caller always saves
+    // the same store under the same literal path, and inside()'s own
+    // resolution still runs (inside the chain) to catch a symlink escape.
     async writeTextAtomic(target, text) {
-      const file = await inside(target);
-      const previous = writeChains.get(file) ?? Promise.resolve();
+      const previous = writeChains.get(target) ?? Promise.resolve();
       const write = previous.then(async () => {
+        const file = await inside(target);
         await fs.mkdir(path.dirname(file), { recursive: true });
         const temp = `${file}.${process.pid}.${crypto.randomBytes(4).toString("hex")}.tmp`;
         try {
@@ -160,7 +170,7 @@ export function createLibrary({ root, legacyStoreFile = null }) {
           throw err;
         }
       });
-      writeChains.set(file, write.catch(() => {}));
+      writeChains.set(target, write.catch(() => {}));
       return write;
     },
   };
