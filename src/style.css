@@ -1840,6 +1840,62 @@ textarea {
   transition: border-color var(--ease), box-shadow var(--ease);
 }
 
+.transcript-wrap {
+  position: relative;
+}
+
+/* Room on the right so the copy button never sits over the last word of a
+   wrapped line, the way it would over .notes-input's plain 9px padding. */
+.transcript-textarea {
+  padding-right: 34px;
+}
+
+/* A hover-revealed icon button, the same affordance a code block's own copy
+   button uses - hidden until the transcript is hovered or focused (or just
+   used: .copied keeps it visible for its own feedback even if the pointer
+   left immediately after the click), rather than a button sitting there
+   permanently over read-only text nobody is about to type into. */
+.transcript-copy-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  background-color: var(--bg-panel);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text-dim);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--ease), color var(--ease), border-color var(--ease), background-color var(--ease);
+}
+
+.transcript-wrap:hover .transcript-copy-btn,
+.transcript-copy-btn:focus-visible,
+.transcript-copy-btn.copied {
+  opacity: 1;
+}
+
+.transcript-copy-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--text-dim);
+}
+
+.transcript-copy-btn.copied {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.transcript-copy-icon,
+.transcript-copied-icon {
+  width: 13px;
+  height: 13px;
+}
+
 .transcript-empty {
   display: flex;
   align-items: center;

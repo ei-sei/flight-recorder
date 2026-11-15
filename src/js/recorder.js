@@ -59,7 +59,9 @@ const reviewNotesInput = document.getElementById("review-notes-input");
 const reviewStatsRow = document.getElementById("review-stats-row");
 const reviewDelayEl = document.getElementById("review-delay");
 const reviewTranscriptRow = document.getElementById("review-transcript-row");
+const reviewTranscriptWrap = document.getElementById("review-transcript-wrap");
 const reviewTranscriptText = document.getElementById("review-transcript-text");
+const reviewTranscriptCopyBtn = document.getElementById("review-transcript-copy-btn");
 const reviewTranscriptEmpty = document.getElementById("review-transcript-empty");
 const reviewTranscriptEmptyText = document.getElementById("review-transcript-empty-text");
 const reviewTranscriptSettingsBtn = document.getElementById("review-transcript-settings-btn");
@@ -1200,6 +1202,34 @@ export async function enterReviewMode(attempt, attemptNumber) {
   updateViewfinderSize();
 }
 
+const transcriptCopyIcon = reviewTranscriptCopyBtn.querySelector(".transcript-copy-icon");
+const transcriptCopiedIcon = reviewTranscriptCopyBtn.querySelector(".transcript-copied-icon");
+let transcriptCopiedResetTimer = null;
+
+// A hover-revealed icon button over the transcript, the same affordance a
+// code block's own copy button uses - swaps to a checkmark briefly, the
+// same feedback the About and Debug info copy buttons already give, rather
+// than a toast or any other new kind of confirmation.
+async function copyTranscript() {
+  try {
+    await navigator.clipboard.writeText(reviewTranscriptText.value);
+  } catch (err) {
+    console.error("Failed to copy transcript", err);
+    return;
+  }
+  clearTimeout(transcriptCopiedResetTimer);
+  reviewTranscriptCopyBtn.classList.add("copied");
+  transcriptCopyIcon.hidden = true;
+  transcriptCopiedIcon.hidden = false;
+  reviewTranscriptCopyBtn.title = "Copied";
+  transcriptCopiedResetTimer = setTimeout(() => {
+    reviewTranscriptCopyBtn.classList.remove("copied");
+    transcriptCopyIcon.hidden = false;
+    transcriptCopiedIcon.hidden = true;
+    reviewTranscriptCopyBtn.title = "Copy transcript";
+  }, 1500);
+}
+
 // Everything in the review pane that comes from the attempt record rather
 // than the video file. Split out from enterReviewMode so transcription
 // landing can refresh it in place - re-entering review would reload the
@@ -1254,12 +1284,12 @@ export function renderReviewDetails(attempt) {
 
   reviewTranscriptRow.hidden = false;
   if (attempt.transcript) {
-    reviewTranscriptText.hidden = false;
+    reviewTranscriptWrap.hidden = false;
     reviewTranscriptEmpty.hidden = true;
     reviewTranscriptText.value = attempt.transcript;
     autosizeTextarea(reviewTranscriptText);
   } else {
-    reviewTranscriptText.hidden = true;
+    reviewTranscriptWrap.hidden = true;
     reviewTranscriptEmpty.hidden = false;
     // Four different reasons there's no transcript, and only one of them is
     // fixed by opening Settings. Transcription is still running (wait), it
@@ -1482,7 +1512,7 @@ function initViewfinderSizing() {
     // once, when the text was first shown. Without re-running it here, the
     // extra wrapped lines a resize creates are clipped by .notes-input's
     // overflow: hidden rather than shown.
-    if (!reviewTranscriptText.hidden) autosizeTextarea(reviewTranscriptText);
+    if (!reviewTranscriptWrap.hidden) autosizeTextarea(reviewTranscriptText);
     if (!reviewNotesRow.hidden) autosizeTextarea(reviewNotesInput);
   }).observe(recorderPanelEl);
 }
@@ -1708,6 +1738,7 @@ export async function initRecorder(options = {}) {
   document.addEventListener("visibilitychange", handleVisibilityChange);
   backToLiveBtn.addEventListener("click", exitReviewMode);
   reviewTranscriptSettingsBtn.addEventListener("click", onOpenSettings);
+  reviewTranscriptCopyBtn.addEventListener("click", copyTranscript);
   cameraToggleBtn.addEventListener("click", toggleCamera);
   prepNotesInput.addEventListener("blur", () => {
     if (currentQuestion) onPrepNotesChange(currentQuestion.id, prepNotesInput.value);
